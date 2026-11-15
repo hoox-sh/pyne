@@ -690,6 +690,9 @@ class CompilerVisitor(NodeVisitor):
         self.func_tuple_kinds: dict[str, tuple[str, ...]] = {}
         # Last expr is ``Type.new(...)`` / UDT handle — never float(dict).
         self.func_returns_udt: set[str] = set()
+        # UDF name -> UDT type ids it can return. A set lets ambiguous
+        # same-name overloads stay uninferred instead of guessing a receiver.
+        self.func_return_udt_types: dict[str, set[str]] = {}
         self.local_sequence_vars: set[str] = set()
         self._free_scalars_current: set[str] = set()
         self.func_needs_bar: dict[str, bool] = {}
@@ -7356,6 +7359,11 @@ class CompilerVisitor(NodeVisitor):
             if base in self.string_series or base in self.string_scalars:
                 return "string"
             return "float"
+        call = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_]*)\(.*\)", s)
+        if call:
+            return_types = self.func_return_udt_types.get(call.group(1))
+            if return_types and len(return_types) == 1:
+                return next(iter(return_types))
         if s.endswith("[__bar_idx]") or self._is_safe_numeric_expr(s):
             return "float"
         return None
@@ -9752,6 +9760,12 @@ class CompilerVisitor(NodeVisitor):
         if self._func_body_returns_udt(last_ast):
             self.func_returns_udt.add(pine_name)
             self.func_returns_udt.add(func_name)
+            ret_type = self._infer_udt_type(self._func_last_value_expr(last_ast))
+            if ret_type:
+                # Key by the emitted function name only. Same-name overloads can
+                # return different types; keying by the Pine name would let a
+                # UDT overload poison a non-UDT call (pick(float) vs pick(int)).
+                self.func_return_udt_types.setdefault(func_name, set()).add(ret_type)
             self.object_mode = True
         # Detect string/size-enum returning UDFs (``f_gTS → size.tiny``)
         if not hasattr(self, "func_returns_string"):

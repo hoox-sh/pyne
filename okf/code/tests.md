@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-15T10:13:57Z
+  at: 2026-11-15T10:56:16Z
 sources:
   - id: tree
     resource: "tests"
@@ -50,6 +50,7 @@ okf_lock: generated
 - `test_compiler_emit_edges_coverage.py` — TestArrayMatrixEmit, TestCallCrossUnpackStrategy, TestCompileInterpretParity, TestFoldConstHelpers, TestMapUdtDrawingEmit, TestSwitchIfAssignEmit
 - `test_compiler_engine_edges_coverage.py` — TestEnvDiskCacheAndCompile, TestNumbaCacheAndArityHelpers, TestPlotPackNormalizeCoerce
 - `test_compiler_engine_r8.py` — TestEndToEndDuplicateTitles, TestIrShareMetadataGate, TestLegacyArityAndCache, TestNormalizeAndCoerce, TestTranspileTitlesMatchRun, TestUniquifyAndPack
+- `test_compiler_method_return_types.py` — test_non_udt_overload_does_not_poison_receiver_inference, test_udf_return_udt_dispatches_correct_overload
 - `test_compiler_numba.py` — TestAdxDmiBuiltinScriptPlotParity, TestCompileAndRun, TestCompileArrayNamedUDF, TestCompileCoverageSprint, TestCompileCoverageSprint3, TestCompileCoverageSprint4, TestCompileCoverageSprint5, TestCompileCoverageSprint6Materialize, TestCompileCoverageSprint6TaBuiltins, TestCompileEngineRound6, TestCompileRequestSecurityInUDF, TestCompileRound4IncKernels
 - `test_compiler_objects.py` — TestCollectionObjectModeParity, TestDrawingCompile, TestMapCompile, TestNumericStillNumba, TestObjectModeNaArithmetic, TestSet05MissingNames, TestUDTCompile
 - `test_compiler_realtime.py` — test_historical_default_compile_isrealtime_false, test_numeric_compiled_run_routes_realtime_to_object_mode, test_numeric_compiled_run_varip_matches_interpret_realtime, test_numeric_nopython_stays_historical_without_object_features, test_object_mode_execute_keeps_six_arg_positional, test_object_mode_tick_snapshot_copies_inner_lists, test_once_unconfirmed_ticks_can_refire, test_realtime_bars_default_zero_keeps_historical, test_realtime_from_bar_window, test_realtime_last_bar_sets_isrealtime_on_compile, test_realtime_last_bar_single_tick_sets_isrealtime, test_realtime_ticks_implies_last_bar_realtime
