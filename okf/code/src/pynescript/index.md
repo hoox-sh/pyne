@@ -3,7 +3,7 @@
 # Concepts
 
 - [src/pynescript/ast](ast.md) - Pine Script abstract syntax tree package.
-- [src/pynescript/compiler](compiler.md) - Pine Script → Numba / object-mode compile pipeline.
+- [src/pynescript/compiler](compiler.md) - Pine AST → Python/Numba source emitter.
 - [src/pynescript/ext](ext.md) - PyneScript Extensions and Integrations.
 - [src/pynescript/langserver](langserver.md) - Pine Script Language Server Protocol (LSP) package.
 - [src/pynescript/mcp](mcp.md) - PYNE Model Context Protocol server (stdio or HTTP).
