@@ -626,6 +626,18 @@ class CompilerVisitor(NodeVisitor):
         # inlined into the generated module (alias, Pine name) -> py def name.
         self.libraries = list(libraries or [])
         self.library_methods: dict[tuple[str, str], str] = {}
+        # Exported library UDTs: (alias, Pine type) -> registered type name.
+        # Types keep their Pine name (methods dispatch by receiver type), so a
+        # same-named script type is a hard collision (fail closed).
+        self.library_types: dict[tuple[str, str], str] = {}
+        # Exported types outside the scalar-field slice: (alias, type) -> reason.
+        self.library_types_skipped: dict[tuple[str, str], str] = {}
+        self.library_type_names: set[str] = set()
+        # UDT-receiver methods outside the slice: Pine name -> reason.
+        self.library_skipped_methods: dict[str, str] = {}
+        # Emitted library methods whose receiver is a UDT (receiver-type guard).
+        self.library_udt_methods: set[str] = set()
+        self._registering_library_type = False
         self.library_inline_error: str | None = None
         # True only while resolving plot/fill/hline arguments: literal colors
         # there are metadata for numeric synthesis. Elsewhere (bgcolor,
@@ -1097,24 +1109,55 @@ class CompilerVisitor(NodeVisitor):
             for stmt in getattr(lib_tree, "body", []) or []
             if type(stmt).__name__ == "FunctionDef" and getattr(stmt, "export", None)
         ]
-        if not exported:
+        exported_types = [
+            stmt
+            for stmt in getattr(lib_tree, "body", []) or []
+            if type(stmt).__name__ == "TypeDef" and getattr(stmt, "export", None)
+        ]
+        if not exported and not exported_types:
             self.library_inline_error = (
-                f"library imports are not supported: {node.namespace}/{node.name} has no exported functions; use mode=interpret or auto"
+                f"library imports are not supported: {node.namespace}/{node.name} has no exported functions or types; use mode=interpret or auto"
             )
             return ""
+        # Types first: constructors and method receivers below need them.
+        scalar_receivers = {"float", "int", "bool", "color", "string"}
+        for td in exported_types:
+            pine_type = str(td.name)
+            if pine_type in self.udt_types:
+                self.library_inline_error = (
+                    f"library type {pine_type} collides with another type of the same name; use mode=interpret or auto"
+                )
+                return ""
+            reason = self._library_type_unsupported(td)
+            if reason:
+                # Keep the alias mapping so a constructor call fails closed with
+                # this reason instead of falling through to silent na.
+                self.library_types_skipped[(str(alias), pine_type)] = reason
+                continue
+            self._registering_library_type = True
+            try:
+                self.visit_TypeDef(td)
+            finally:
+                self._registering_library_type = False
+            self.library_types[(str(alias), pine_type)] = pine_type
+            self.library_type_names.add(pine_type)
         seen: set[str] = set()
         skipped: set[str] = set()
         accepted: set[str] = set()
-        scalar_receivers = {"float", "int", "bool", "color", "string"}
         for fn in exported:
+            is_udt_method = False
             if getattr(fn, "method", 0):
                 recv = self._type_spec_name(getattr(fn.args[0], "type", None)) if getattr(fn, "args", None) else None
-                if recv not in scalar_receivers:
-                    # UDT-receiver methods need type/constructor inlining; fail
-                    # closed if the consumer calls one. Track the name so a
-                    # same-name scalar method cannot silently win the overload.
+                if recv not in scalar_receivers and recv not in self.library_type_names:
+                    # Receiver is neither a scalar nor an inlined library type.
+                    # Track the name so a same-name scalar method cannot silently
+                    # win the overload, and so instance calls fail closed.
                     skipped.add(fn.name)
+                    self.library_skipped_methods[str(fn.name)] = (
+                        f"receiver type {recv or 'unknown'} is not an inlined library type"
+                    )
                     continue
+                is_udt_method = recv not in scalar_receivers
             pine_name = fn.name
             if pine_name in seen or pine_name in skipped:
                 self.library_inline_error = (
@@ -1130,8 +1173,15 @@ class CompilerVisitor(NodeVisitor):
                     f"library function {pine_name} {unsupported}; use mode=interpret or auto"
                 )
                 return ""
-            emitted = self._safe_ident(f"__lib_{alias}_{pine_name}")
-            fn.name = emitted
+            if is_udt_method:
+                # Keep the Pine name: ``instance.method()`` dispatches through
+                # func_receiver_types / udt_var_types, so a mangled name would
+                # never be found from the call site.
+                emitted = self._safe_ident(pine_name)
+                self.library_udt_methods.add(emitted)
+            else:
+                emitted = self._safe_ident(f"__lib_{alias}_{pine_name}")
+                fn.name = emitted
             fn.export = None
             self.visit_FunctionDef(fn)
             self.library_methods[(str(alias), str(pine_name))] = emitted
@@ -1641,6 +1691,13 @@ class CompilerVisitor(NodeVisitor):
     # ---------------------------------------------------------------- statements
     def visit_TypeDef(self, node: ast.TypeDef):
         """Register UDT field names and defaults; forces object mode. No runtime emit."""
+        if not self._registering_library_type and node.name in self.library_type_names:
+            # Library types keep their Pine name (no mangling), so a script type
+            # of the same name would silently merge two different layouts.
+            self.library_inline_error = (
+                f"script type {node.name} collides with an imported library type; use mode=interpret or auto"
+            )
+            return ""
         self.object_mode = True
         fields: list[str] = []
         defaults: dict[str, str] = {}
@@ -2327,8 +2384,11 @@ class CompilerVisitor(NodeVisitor):
         # Prefer AST stringiness; the visited-string heuristic is only a fallback
         # for color hex that AST missed — never override structured numeric
         # ternaries/switches (``f('SMA') ? sma() : ema()`` has quotes in cond).
+        # A UDT constructor/copy may carry color/string fields; the visited dict
+        # contains quoted hex, which must not classify the *variable* as stringy.
+        is_udt_handle_rhs = self._looks_like_udt_ctor(node.value) or self._looks_like_udt_copy(node.value)
         is_stringy_rhs = False
-        if not typed_numeric:
+        if not typed_numeric and not is_udt_handle_rhs:
             if typed_stringy or self._is_stringy_value(node.value):
                 is_stringy_rhs = True
             elif self._call_returns_string(node.value):
@@ -3669,8 +3729,8 @@ class CompilerVisitor(NodeVisitor):
 
     def _looks_like_udt_ctor(self, node) -> bool:
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-            if node.func.attr == "new" and isinstance(node.func.value, ast.Name):
-                return node.func.value.id in self.udt_types
+            if node.func.attr == "new":
+                return self._library_type_name(node.func.value) is not None
         return False
 
     def _looks_like_udt_copy(self, node) -> bool:
@@ -5208,6 +5268,27 @@ class CompilerVisitor(NodeVisitor):
                 self.object_mode = True
                 method_src = self.visit(func.value)
                 return f"(dict({method_src}) if isinstance({method_src}, dict) else {{}})"
+            elif (
+                func.attr == "new"
+                and isinstance(func.value, ast.Attribute)
+                and isinstance(func.value.value, ast.Name)
+                and (
+                    (func.value.value.id, func.value.attr) in self.library_types
+                    or (func.value.value.id, func.value.attr) in self.library_types_skipped
+                )
+            ):
+                # ``alias.Type.new(...)`` — exported library UDT constructor.
+                lib_type_alias = func.value.value.id
+                lib_type_name = func.value.attr
+                registered = self.library_types.get((lib_type_alias, lib_type_name))
+                if registered:
+                    return self._emit_udt_new(registered, node)
+                skipped_reason = self.library_types_skipped.get((lib_type_alias, lib_type_name))
+                if skipped_reason:
+                    self.library_inline_error = (
+                        f"library type {lib_type_alias}.{lib_type_name} is not supported: {skipped_reason}; use mode=interpret or auto"
+                    )
+                    return "np.nan"
             elif isinstance(func.value, ast.Name) and func.value.id in _NS:
                 func_name = f"{func.value.id}_{func.attr}"
             elif func.attr in _METHOD_TA:
@@ -5311,6 +5392,12 @@ class CompilerVisitor(NodeVisitor):
                 self.object_mode = True
             else:
                 # Unknown method on a value — still call as func(src, …) not ``src_meth``
+                if func.attr in self.library_skipped_methods and func.attr not in self.user_funcs:
+                    self.library_inline_error = (
+                        f"library method {func.attr} is not supported: "
+                        f"{self.library_skipped_methods[func.attr]}; use mode=interpret or auto"
+                    )
+                    return "np.nan"
                 method_src = self.visit(func.value)
                 func_name = func.attr
                 self.object_mode = True
@@ -5351,6 +5438,18 @@ class CompilerVisitor(NodeVisitor):
                 # Preserve the first, more specific import/body error.
                 return "np.nan"
             mapped = self.library_methods.get((str(lib_alias), str(func_name)))
+            if mapped and arg_nodes:
+                # Receiver guard: a library UDT method must not be called with a
+                # scalar (``lib.bump(close)``) — that would silently read a field
+                # off a float and return na.
+                declared = self.func_receiver_types.get(mapped)
+                inferred = self._infer_udf_arg_type(arg_nodes[0], args[0] if args else None)
+                if declared and inferred and self._udf_type_match_score(declared, inferred) < 0:
+                    self.library_inline_error = (
+                        f"library method {lib_alias}.{func_name} expects a {declared} receiver, "
+                        f"got {inferred}; use mode=interpret or auto"
+                    )
+                    return "np.nan"
             if mapped and not kwargs:
                 return f"{mapped}({', '.join(args)})"
             if mapped:
@@ -5360,6 +5459,12 @@ class CompilerVisitor(NodeVisitor):
                 return "np.nan"
             self.library_inline_error = f"unsupported library method {lib_alias}.{func_name}; use mode=interpret or auto"
             return "np.nan"
+
+        # Instance-form UDF/UDT method whose name matches a builtin
+        # (``b.plot()``, ``t.alert()``): the method must win over builtin
+        # lowering, which only sees ``func_name`` and would otherwise hijack it.
+        if method_src is not None and func_name in self.user_funcs:
+            return self._emit_user_func_call(func_name, args, kwargs, arg_nodes=arg_nodes)
 
         # Bare collection verbs: push(arr, x) / put(map, k, v) / cell(...)
         if method_src is None and func_name in _BARE_COLLECTION:
@@ -7331,7 +7436,18 @@ class CompilerVisitor(NodeVisitor):
             if isinstance(cur, ast.Name):
                 parts.append(cur.id)
             parts.reverse()
+            if len(parts) == 2 and (parts[0], parts[1]) in self.library_types:
+                # ``lib.Box`` in a declaration/param → registered UDT name.
+                return self.library_types[(parts[0], parts[1])]
             return ".".join(parts) if parts else None
+        return None
+
+    def _library_type_name(self, type_expr) -> str | None:
+        """Resolve ``Type`` / ``alias.Type`` to a registered UDT type name."""
+        if isinstance(type_expr, ast.Name):
+            return type_expr.id if type_expr.id in self.udt_types else None
+        if isinstance(type_expr, ast.Attribute) and isinstance(type_expr.value, ast.Name):
+            return self.library_types.get((type_expr.value.id, type_expr.attr))
         return None
 
     def _infer_udf_arg_type(self, node, expr: str | None = None) -> str | None:
@@ -7593,6 +7709,16 @@ class CompilerVisitor(NodeVisitor):
         if not recv and args:
             recv = self._receiver_type_from_expr(args[0])
         func_name = self._resolve_user_func_overload(pine_key, provided, recv)
+        if func_name in self.library_udt_methods and recv:
+            declared = self.func_receiver_types.get(func_name)
+            if declared and self._udf_type_match_score(declared, recv) < 0:
+                # Instance form of a library UDT method on a non-UDT receiver
+                # (``close.bump()``) must fail closed, not return na.
+                self.library_inline_error = (
+                    f"library method {pine_key} expects a {declared} receiver, "
+                    f"got {recv}; use mode=interpret or auto"
+                )
+                return "np.nan"
         py_mapped = self.func_name_map.get(func_name, self.func_name_map.get(pine_key, func_name))
         # Do not fall back to the Pine id after a distinct overload remap —
         # later defs must not leak last-wins metadata onto the first py name.
@@ -10184,8 +10310,10 @@ class CompilerVisitor(NodeVisitor):
                 return node.id
             return getattr(self, "udt_var_types", {}).get(node.id)
         if isinstance(node, ast.Attribute):
-            if node.attr == "new" and isinstance(node.value, ast.Name) and node.value.id in self.udt_types:
-                return node.value.id
+            if node.attr == "new":
+                resolved = self._library_type_name(node.value)
+                if resolved:
+                    return resolved
             # Chained ctor helpers only — not ``obj.update()`` / arbitrary methods
             if node.attr in ("init", "copy", "new"):
                 return self._infer_udt_type(node.value)
@@ -10370,6 +10498,34 @@ class CompilerVisitor(NodeVisitor):
                     self._mark_series_params(c)
             else:
                 self._mark_series_params(child)
+
+    def _library_type_unsupported(self, td) -> str | None:
+        """Return why an exported library type is outside this inline slice.
+
+        Only scalar fields with literal defaults are inlined. A UDT/array/map
+        field needs nested type registration, so those types stay fail-closed
+        (the constructor call reports this reason).
+        """
+        scalar = {"float", "int", "bool", "color", "string"}
+        for stmt in getattr(td, "body", []) or []:
+            if not (isinstance(stmt, ast.Assign) and isinstance(stmt.target, ast.Name)):
+                return f"field {type(stmt).__name__} is not a scalar field"
+            tag = self._type_spec_name(getattr(stmt, "type", None))
+            if tag is not None and tag not in scalar:
+                return f"field {stmt.target.id} has non-scalar type {tag}"
+            val = getattr(stmt, "value", None)
+            if val is not None and not self._library_default_literal(val):
+                return f"field {stmt.target.id} has a non-literal default"
+        return None
+
+    @staticmethod
+    def _library_default_literal(node) -> bool:
+        """True for ``1.0`` / ``-1`` / ``na`` / ``true`` / ``false`` defaults."""
+        if isinstance(node, ast.Constant):
+            return isinstance(node.value, (int, float, bool, str)) or node.value is None
+        if isinstance(node, ast.UnaryOp) and isinstance(getattr(node, "op", None), (ast.USub, ast.UAdd)):
+            return isinstance(getattr(node, "operand", None), ast.Constant)
+        return isinstance(node, ast.Name) and node.id in ("na", "true", "false")
 
     def _library_function_unsupported(self, fn, params: set[str]) -> str | None:
         """Return why an exported library function is outside this inline slice.

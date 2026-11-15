@@ -232,7 +232,7 @@ plot(lib.scale(close, 2.0), "x")
 
 _LIB_UDT_METHOD = """//@version=6
 library("Lib")
-type Box
+export type Box
     float v
 export method bump(Box this) =>
     this.v + 1
@@ -256,15 +256,233 @@ def test_library_scalar_receiver_method_inlines() -> None:
     assert out["series"]["x"] == [201.0, 203.0, 205.0, 207.0]
 
 
-def test_library_udt_receiver_method_still_fails_closed() -> None:
+_LIB_UDT = """//@version=6
+library("Lib")
+export type Box
+    float v
+    float pad = 2.0
+export method bump(Box this) =>
+    this.v + 1
+"""
+
+_SRC_LIB_UDT = """//@version=6
+indicator("inline udt")
+import ns/Lib/1 as lib
+b = lib.Box.new(close)
+plot(b.v, "v")
+plot(b.pad, "pad")
+plot(b.bump(), "b")
+"""
+
+_SRC_LIB_UDT_ALIAS_CALL = """//@version=6
+indicator("inline udt alias")
+import ns/Lib/1 as lib
+b = lib.Box.new(close)
+plot(lib.bump(b), "b")
+"""
+
+
+def _lib_udt(source: str = _LIB_UDT) -> list[dict[str, object]]:
+    return [{"namespace": "ns", "name": "Lib", "version": 1, "source": source}]
+
+
+def test_library_udt_type_constructor_and_method_inline() -> None:
+    interp = Runtime(symbol="TEST").run(_SRC_LIB_UDT, _bars(), mode="interpret", libraries=_lib_udt())
+    compiled = Runtime(symbol="TEST").run(_SRC_LIB_UDT, _bars(), mode="compile", libraries=_lib_udt())
+    assert "error" not in interp, interp.get("error")
+    assert "error" not in compiled, compiled.get("error")
+    assert compiled["series"]["v"] == [100.5, 101.5, 102.5, 103.5]
+    assert compiled["series"]["pad"] == [2.0, 2.0, 2.0, 2.0]
+    assert compiled["series"]["b"] == [101.5, 102.5, 103.5, 104.5]
+    assert compiled["series"] == interp["series"]
+
+
+def test_library_udt_method_alias_form_inlines() -> None:
+    out = Runtime(symbol="TEST").run(_SRC_LIB_UDT_ALIAS_CALL, _bars(), mode="compile", libraries=_lib_udt())
+    assert "error" not in out, out.get("error")
+    assert out["series"]["b"] == [101.5, 102.5, 103.5, 104.5]
+
+
+_LIB_UDT_PARAM_FN = """//@version=6
+library("Lib")
+export type Box
+    float v
+export twice(Box b) =>
+    b.v * 2
+"""
+
+_SRC_LIB_UDT_TYPED = """//@version=6
+indicator("inline udt typed")
+import ns/Lib/1 as lib
+lib.Box b = lib.Box.new(close)
+plot(b.v, "v")
+plot(lib.twice(b), "x")
+"""
+
+
+def test_library_udt_typed_declaration_and_udt_param_inline() -> None:
+    interp = Runtime(symbol="TEST").run(
+        _SRC_LIB_UDT_TYPED, _bars(), mode="interpret", libraries=_lib_udt(_LIB_UDT_PARAM_FN)
+    )
+    compiled = Runtime(symbol="TEST").run(
+        _SRC_LIB_UDT_TYPED, _bars(), mode="compile", libraries=_lib_udt(_LIB_UDT_PARAM_FN)
+    )
+    assert "error" not in interp, interp.get("error")
+    assert "error" not in compiled, compiled.get("error")
+    assert compiled["series"]["v"] == [100.5, 101.5, 102.5, 103.5]
+    assert compiled["series"]["x"] == [201.0, 203.0, 205.0, 207.0]
+    assert compiled["series"] == interp["series"]
+
+
+_LIB_UDT_COLOR = """//@version=6
+library("Lib")
+export type C
+    color c
+    float v
+export method col(C this) =>
+    this.v + 1
+"""
+
+_SRC_LIB_UDT_COLOR = """//@version=6
+indicator("inline udt color")
+import ns/Lib/1 as lib
+x = lib.C.new(color.red, close)
+plot(x.col(), "x")
+"""
+
+
+def test_library_udt_color_field_variable_is_not_stringy() -> None:
+    interp = Runtime(symbol="TEST").run(
+        _SRC_LIB_UDT_COLOR, _bars(), mode="interpret", libraries=_lib_udt(_LIB_UDT_COLOR)
+    )
+    compiled = Runtime(symbol="TEST").run(
+        _SRC_LIB_UDT_COLOR, _bars(), mode="compile", libraries=_lib_udt(_LIB_UDT_COLOR)
+    )
+    assert "error" not in interp, interp.get("error")
+    assert "error" not in compiled, compiled.get("error")
+    assert compiled["series"]["x"] == [101.5, 102.5, 103.5, 104.5]
+    assert compiled["series"] == interp["series"]
+
+
+_LIB_UDT_BUILTIN_NAME = """//@version=6
+library("Lib")
+export type Box
+    float v
+export method plot(Box this) =>
+    this.v + 1
+"""
+
+_SRC_LIB_UDT_BUILTIN_NAME = """//@version=6
+indicator("inline udt builtin name")
+import ns/Lib/1 as lib
+b = lib.Box.new(close)
+plot(b.plot(), "x")
+"""
+
+_SRC_LIB_UDT_BUILTIN_NAME_ALIAS = """//@version=6
+indicator("inline udt builtin name alias")
+import ns/Lib/1 as lib
+b = lib.Box.new(close)
+plot(lib.plot(b), "x")
+"""
+
+
+def test_library_udt_method_named_like_builtin_dispatches() -> None:
     out = Runtime(symbol="TEST").run(
-        _SRC_LIB_UDT_METHOD,
-        _bars(),
-        mode="compile",
-        libraries=[{"namespace": "ns", "name": "Lib", "version": 1, "source": _LIB_UDT_METHOD}],
+        _SRC_LIB_UDT_BUILTIN_NAME, _bars(), mode="compile", libraries=_lib_udt(_LIB_UDT_BUILTIN_NAME)
+    )
+    assert "error" not in out, out.get("error")
+    assert out["series"]["x"] == [101.5, 102.5, 103.5, 104.5]
+
+    alias_out = Runtime(symbol="TEST").run(
+        _SRC_LIB_UDT_BUILTIN_NAME_ALIAS, _bars(), mode="compile", libraries=_lib_udt(_LIB_UDT_BUILTIN_NAME)
+    )
+    assert "error" not in alias_out, alias_out.get("error")
+    assert alias_out["series"]["x"] == [101.5, 102.5, 103.5, 104.5]
+
+
+_LIB_UDT_NESTED = """//@version=6
+library("Lib")
+export type Inner
+    float x
+export type Outer
+    Inner inner
+"""
+
+_SRC_LIB_UDT_NESTED = """//@version=6
+indicator("nested udt")
+import ns/Lib/1 as lib
+o = lib.Outer.new(1.0)
+plot(o.inner, "x")
+"""
+
+
+def test_library_udt_with_udt_field_fails_closed() -> None:
+    out = Runtime(symbol="TEST").run(
+        _SRC_LIB_UDT_NESTED, _bars(), mode="compile", libraries=_lib_udt(_LIB_UDT_NESTED)
     )
     assert out.get("error_kind") == "compile"
-    assert "unsupported library method" in str(out.get("error") or "").lower()
+    message = str(out.get("error") or "").lower()
+    assert "outer" in message
+    assert "interpret" in message
+
+
+_SRC_SCRIPT_TYPE_COLLISION = """//@version=6
+indicator("collision")
+import ns/Lib/1 as lib
+type Box
+    float w
+plot(lib.Box.new(close).v, "v")
+"""
+
+
+def test_script_type_colliding_with_library_type_fails_closed() -> None:
+    out = Runtime(symbol="TEST").run(
+        _SRC_SCRIPT_TYPE_COLLISION, _bars(), mode="compile", libraries=_lib_udt()
+    )
+    assert out.get("error_kind") == "compile"
+    message = str(out.get("error") or "").lower()
+    assert "box" in message
+    assert "collides" in message
+
+
+_LIB_UDT_UNSUPPORTED_BODY = """//@version=6
+library("Lib")
+export type Box
+    float v
+export const float BIAS = 1.0
+export method bump(Box this) =>
+    this.v + BIAS
+"""
+
+
+def test_library_udt_method_unsupported_body_fails_closed() -> None:
+    out = Runtime(symbol="TEST").run(
+        _SRC_LIB_UDT, _bars(), mode="compile", libraries=_lib_udt(_LIB_UDT_UNSUPPORTED_BODY)
+    )
+    assert out.get("error_kind") == "compile"
+    message = str(out.get("error") or "").lower()
+    assert "bump" in message
+    assert "unsupported name bias" in message
+
+
+def test_library_udt_method_wrong_receiver_fails_closed() -> None:
+    alias_out = Runtime(symbol="TEST").run(
+        _SRC_LIB_UDT_METHOD, _bars(), mode="compile", libraries=_lib_udt(_LIB_UDT_METHOD)
+    )
+    assert alias_out.get("error_kind") == "compile"
+    assert "receiver" in str(alias_out.get("error") or "").lower()
+
+    instance_src = """//@version=6
+indicator("inline udt wrong receiver")
+import ns/Lib/1 as lib
+plot(close.bump(), "b")
+"""
+    instance_out = Runtime(symbol="TEST").run(
+        instance_src, _bars(), mode="compile", libraries=_lib_udt(_LIB_UDT_METHOD)
+    )
+    assert instance_out.get("error_kind") == "compile"
+    assert "receiver" in str(instance_out.get("error") or "").lower()
 
 
 _LIB_METHOD_OVERLOAD = """//@version=6
