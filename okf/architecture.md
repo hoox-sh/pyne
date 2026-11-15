@@ -4,6 +4,7 @@ title: Architecture
 description: The project shape and the OpenOrchestrate team.
 tags: [architecture, openorchestrate]
 status: stable
+okf_lock: human
 ---
 
 # Architecture
@@ -41,5 +42,5 @@ Todo, Working, Blocked, Ready for Review, Done. A card moves to Done only with p
 
 ## Related
 
-- [Development](development.md)
-- [Security](security.md)
+- [Development](/development.md)
+- [Security](/security.md)

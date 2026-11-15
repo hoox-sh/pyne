@@ -1131,9 +1131,7 @@ class CompilerVisitor(NodeVisitor):
             None,
         )
         if lib is None:
-            self.library_inline_error = (
-                f"library source not supplied for {node.namespace}/{node.name}/{node.version}; use mode=interpret or auto"
-            )
+            self.library_inline_error = f"library source not supplied for {node.namespace}/{node.name}/{node.version}; use mode=interpret or auto"
             return ""
         try:
             from pynescript.ast.helper import parse as _parse_pine
@@ -1155,9 +1153,7 @@ class CompilerVisitor(NodeVisitor):
             if type(stmt).__name__ == "TypeDef" and getattr(stmt, "export", None)
         ]
         if not exported and not exported_types:
-            self.library_inline_error = (
-                f"library imports are not supported: {node.namespace}/{node.name} has no exported functions or types; use mode=interpret or auto"
-            )
+            self.library_inline_error = f"library imports are not supported: {node.namespace}/{node.name} has no exported functions or types; use mode=interpret or auto"
             return ""
         # Resolve this library's own imports first: cross-library calls are
         # rewritten to a synthetic alias that cannot collide with the consumer's
@@ -1307,9 +1303,7 @@ class CompilerVisitor(NodeVisitor):
             params = {arg.name for arg in getattr(fn, "args", []) or [] if hasattr(arg, "name")}
             unsupported = self._library_function_unsupported(fn, params, set(local_funcs), cross_namespaces)
             if unsupported:
-                self.library_inline_error = (
-                    f"library function {pine_name} {unsupported}; use mode=interpret or auto"
-                )
+                self.library_inline_error = f"library function {pine_name} {unsupported}; use mode=interpret or auto"
                 return ""
             # Reachable same-library callees are emitted before this body; the
             # seed stack catches self-recursion on the entry point.
@@ -3354,9 +3348,10 @@ class CompilerVisitor(NodeVisitor):
                 "range",
                 "numba_store",
                 "numba_store_src",
-                # na-safe bool/not. Overloaded for nopython; result is 0/1/bool.
+                # na-safe bool/not/iff. Overloaded for nopython.
                 "pine_bool",
                 "pine_not",
+                "pine_iff",
             }
         )
         _KW_NOT_CALLS = frozenset({"if", "else", "and", "or", "not", "in", "is", "for", "while", "lambda"})
@@ -3408,6 +3403,7 @@ class CompilerVisitor(NodeVisitor):
                 "range",
                 "pine_bool",
                 "pine_not",
+                "pine_iff",
                 "__bar_idx",
                 "n_bars",
                 # barstate flags: plain bools (loop locals or UDF ctx params)
@@ -5326,11 +5322,7 @@ class CompilerVisitor(NodeVisitor):
 
         method_src: str | None = None  # set for method-style TA (expr.rma(p))
         import_lib_method = False  # unknown ``import … as alias`` method call
-        lib_alias = (
-            func.value.id
-            if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name)
-            else None
-        )
+        lib_alias = func.value.id if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) else None
         if isinstance(func, ast.Name):
             func_name = func.id
         elif isinstance(func, ast.Attribute):
@@ -5432,9 +5424,7 @@ class CompilerVisitor(NodeVisitor):
                     return self._emit_udt_new(registered, node)
                 skipped_reason = self.library_types_skipped.get((lib_type_alias, lib_type_name))
                 if skipped_reason:
-                    self.library_inline_error = (
-                        f"library type {lib_type_alias}.{lib_type_name} is not supported: {skipped_reason}; use mode=interpret or auto"
-                    )
+                    self.library_inline_error = f"library type {lib_type_alias}.{lib_type_name} is not supported: {skipped_reason}; use mode=interpret or auto"
                     return "np.nan"
             elif isinstance(func.value, ast.Name) and func.value.id in _NS:
                 func_name = f"{func.value.id}_{func.attr}"
@@ -5600,11 +5590,11 @@ class CompilerVisitor(NodeVisitor):
             if mapped and not kwargs:
                 return f"{mapped}({', '.join(args)})"
             if mapped:
-                self.library_inline_error = (
-                    f"keyword arguments for inlined library method {lib_alias}.{func_name} are not supported; use mode=interpret or auto"
-                )
+                self.library_inline_error = f"keyword arguments for inlined library method {lib_alias}.{func_name} are not supported; use mode=interpret or auto"
                 return "np.nan"
-            self.library_inline_error = f"unsupported library method {lib_alias}.{func_name}; use mode=interpret or auto"
+            self.library_inline_error = (
+                f"unsupported library method {lib_alias}.{func_name}; use mode=interpret or auto"
+            )
             return "np.nan"
 
         # Instance-form UDF/UDT method whose name matches a builtin
@@ -7341,24 +7331,38 @@ class CompilerVisitor(NodeVisitor):
         if func_name in ("math_exp", "exp"):
             return f"np.exp({args[0]})" if args else "np.nan"
         if func_name in ("math_log", "log"):
-            return f"np.log({args[0]})" if args else "np.nan"
+            if not args:
+                return "np.nan"
+            base = args[1] if len(args) > 1 else kwargs.get("base")
+            # One-arg stays np.log (natural). The base form is na for base 1.
+            if base is None:
+                return f"np.log({args[0]})"
+            return f"numba_log({args[0]}, {base})"
         if func_name in ("math_log10", "log10"):
             return f"np.log10({args[0]})" if args else "np.nan"
         if func_name in ("math_pow", "pow"):
             if not args:
                 return "np.nan"
-            return f"({args[0]} ** {args[1]})" if len(args) > 1 else f"({args[0]} ** 2)"
+            # na ** 0 is 1 in IEEE. numba_pow keeps na.
+            if len(args) > 1:
+                return f"numba_pow({args[0]}, {args[1]})"
+            return f"({args[0]} ** 2)"
         if func_name in ("math_round", "round"):
             # User ``round(value)`` UDF (def ``round_``) must keep extras arity.
             if func_name == "round" and ("round" in self.user_funcs or "round_" in self.user_funcs):
                 return self._emit_user_func_call("round", args, kwargs)
-            if not args:
+            value = args[0] if args else None
+            prec = args[1] if len(args) > 1 else kwargs.get("precision")
+            if value is None:
                 return "0.0"
-            # None / non-numeric → NaN (np.round(None) raises)
-            if self.object_mode or not self._is_safe_numeric_expr(args[0]):
+            # Precision was dropped before (compile rounded to an integer).
+            call = f"numba_round({value}, 0.0)" if prec is None else f"numba_round({value}, {prec})"
+            unsafe = not self._is_safe_numeric_expr(value) or (
+                prec is not None and not self._is_safe_numeric_expr(prec)
+            )
+            if self.object_mode or unsafe:
                 self.object_mode = True
-                return f"safe_float(np.round(safe_float({args[0]})))"
-            return f"float(np.round({args[0]}))"
+            return call
         if func_name in ("math_floor", "floor"):
             return f"float(np.floor({args[0]}))" if args else "0.0"
         if func_name in ("math_ceil", "ceil"):
@@ -7444,12 +7448,13 @@ class CompilerVisitor(NodeVisitor):
                 return f"(({args[0]}) is None or ({args[0]}) != ({args[0]}))"
             return "True"
         if func_name == "iff":
-            # v3 iff(cond, then, else). Lazy in the condition (one eval).
-            # Interpret returns na when the condition is na, which this
-            # ternary does not (``if np.nan`` is true). Kept as a ternary so
-            # the branches stay lazy.
+            # v3 iff(cond, then, else). ``na`` yields na (not the then-branch).
+            # Both branches are evaluated, matching the interpreter: ``iff`` is
+            # a call there, so the arguments run before the builtin. A lazy
+            # ternary does not type-check in nopython when the condition is a
+            # bool (``close > open``).
             if len(args) >= 3:
-                return f"({args[1]} if {args[0]} else {args[2]})"
+                return f"pine_iff({args[0]}, {args[1]}, {args[2]})"
             return "np.nan"
         if func_name == "heikinashi":
             # Bare heikinashi(symbol) — same as ticker.heikinashi (chart HA)
@@ -7862,8 +7867,7 @@ class CompilerVisitor(NodeVisitor):
                 # Instance form of a library UDT method on a non-UDT receiver
                 # (``close.bump()``) must fail closed, not return na.
                 self.library_inline_error = (
-                    f"library method {pine_key} expects a {declared} receiver, "
-                    f"got {recv}; use mode=interpret or auto"
+                    f"library method {pine_key} expects a {declared} receiver, got {recv}; use mode=interpret or auto"
                 )
                 return "np.nan"
         py_mapped = self.func_name_map.get(func_name, self.func_name_map.get(pine_key, func_name))
@@ -8790,7 +8794,10 @@ class CompilerVisitor(NodeVisitor):
                 else:
                     right = self._na_wrap_num(right_raw)
                     if op_str == "==":
-                        parts.append(f"numba_pine_eq({left}, {right})")
+                        # Operator ``==`` is false when either side is na,
+                        # including ``na == na``. Switch arms use numba_pine_eq,
+                        # where an na subject matches an na pattern.
+                        parts.append(f"(({left}) == ({right}))")
                     elif op_str == "!=":
                         parts.append(f"numba_pine_ne({left}, {right})")
                     else:
@@ -10962,6 +10969,34 @@ class CompilerVisitor(NodeVisitor):
         val = self.visit(stmt)
         return val or None
 
+    @staticmethod
+    def _for_end_rebinds_counter(node: Any, target: str) -> bool:
+        """True when ``to`` reads *target* and contains no call.
+
+        A second visit after the counter is bound emits the scalar. A call
+        in ``to`` is left alone so TA state is not allocated twice.
+        """
+        stack: list[Any] = [node]
+        saw = False
+        while stack:
+            current = stack.pop()
+            if current is None:
+                continue
+            if isinstance(current, ast.Call):
+                return False
+            if isinstance(current, ast.Name) and current.id == target:
+                saw = True
+            fields = getattr(current, "_fields", None)
+            if not fields:
+                continue
+            for fname in fields:
+                child = getattr(current, fname, None)
+                if isinstance(child, list):
+                    stack.extend(child)
+                elif getattr(child, "_fields", None):
+                    stack.append(child)
+        return saw
+
     def visit_ForTo(self, node: ast.ForTo):
         target = node.target.id if isinstance(node.target, ast.Name) else self.visit(node.target)
         if isinstance(node.target, ast.Name) and target in self._MODULE_SHADOW_IDENTS:
@@ -10987,6 +11022,13 @@ class CompilerVisitor(NodeVisitor):
         elif target not in self.scalar_vars:
             self.scalar_vars.add(target)
             added_scalar = True
+        # Re-read of ``to`` must see the counter, not the series the name
+        # denoted before the loop (``i = 5`` then ``for i = 0 to i``).
+        # The first read stays the pre-bind expression. Calls are not
+        # visited twice — that would allocate a second TA state buffer.
+        end_refresh = end
+        if not isinstance(node.end, ast.Constant) and self._for_end_rebinds_counter(node.end, target):
+            end_refresh = self.visit(node.end)
         end_tmp = f"__end_{target}"
         # Constant ``to`` cannot change. A name / call is re-read each iteration
         # (Pine v6). Step direction stays the value captured at loop entry.
@@ -11004,8 +11046,10 @@ class CompilerVisitor(NodeVisitor):
             lines.append(f"{self._loop_result_target} = np.nan")
         lines.extend(
             [
-                f"{target} = {start}",
+                # First ``to`` sees the pre-loop binding. Assigning the counter
+                # first hides a scalar ``i`` from ``for i = 0 to i``.
                 f"{end_tmp} = {end}",
+                f"{target} = {start}",
                 f"__step_{target} = {step_expr}",
                 f"while ({target} <= {end_tmp}) if __step_{target} > 0 else ({target} >= {end_tmp}):",
             ]
@@ -11015,7 +11059,7 @@ class CompilerVisitor(NodeVisitor):
             # Re-read ``to`` while the counter still has this iteration's value,
             # then increment. Refreshing after ``i += step`` makes ``for i = 0 to i``
             # chase itself. ``continue`` uses the same snippet.
-            inc = f"{end_tmp} = {end}\n{inc}"
+            inc = f"{end_tmp} = {end_refresh}\n{inc}"
         self._loop_inc_stack.append(inc)
         try:
             body = list(node.body or [])

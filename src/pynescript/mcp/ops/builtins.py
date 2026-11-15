@@ -77,8 +77,14 @@ def list_builtins(*, category: str | None = None, limit: int = 200) -> dict[str,
 
 def list_facade_templates(*, limit: int | None = None) -> dict[str, Any]:
     """List TradingView pine-facade builtin templates (network). Does not download."""
-    from pynescript.util.pine_facade import _meta_name
-    from pynescript.util.pine_facade import list_builtin_scripts
+    try:
+        from pynescript.util.pine_facade import _meta_name
+        from pynescript.util.pine_facade import list_builtin_scripts
+    except ImportError:
+        return fail(
+            "TradingView builtin download was removed from this package.",
+            kind="unsupported",
+        )
 
     try:
         catalog = list_builtin_scripts()
