@@ -216,3 +216,82 @@ def test_library_export_named_alert_is_not_builtin_alert() -> None:
     )
     assert "error" not in out, out.get("error")
     assert out["series"]["x"] == [101.5, 102.5, 103.5, 104.5]
+
+
+_LIB_METHOD = """//@version=6
+library("Lib")
+export method scale(float this, float factor) =>
+    this * factor
+"""
+
+_SRC_LIB_METHOD = """//@version=6
+indicator("inline method")
+import ns/Lib/1 as lib
+plot(lib.scale(close, 2.0), "x")
+"""
+
+_LIB_UDT_METHOD = """//@version=6
+library("Lib")
+type Box
+    float v
+export method bump(Box this) =>
+    this.v + 1
+"""
+
+_SRC_LIB_UDT_METHOD = """//@version=6
+indicator("inline udt method")
+import ns/Lib/1 as lib
+plot(lib.bump(close), "x")
+"""
+
+
+def test_library_scalar_receiver_method_inlines() -> None:
+    out = Runtime(symbol="TEST").run(
+        _SRC_LIB_METHOD,
+        _bars(),
+        mode="compile",
+        libraries=[{"namespace": "ns", "name": "Lib", "version": 1, "source": _LIB_METHOD}],
+    )
+    assert "error" not in out, out.get("error")
+    assert out["series"]["x"] == [201.0, 203.0, 205.0, 207.0]
+
+
+def test_library_udt_receiver_method_still_fails_closed() -> None:
+    out = Runtime(symbol="TEST").run(
+        _SRC_LIB_UDT_METHOD,
+        _bars(),
+        mode="compile",
+        libraries=[{"namespace": "ns", "name": "Lib", "version": 1, "source": _LIB_UDT_METHOD}],
+    )
+    assert out.get("error_kind") == "compile"
+    assert "unsupported library method" in str(out.get("error") or "").lower()
+
+
+_LIB_METHOD_OVERLOAD = """//@version=6
+library("Lib")
+type Box
+    float v
+export method scale(float this, float k) =>
+    this * k
+export method scale(Box this) =>
+    this.v
+"""
+
+_SRC_LIB_METHOD_OVERLOAD = """//@version=6
+indicator("inline method overload")
+import ns/Lib/1 as lib
+plot(lib.scale(close, 2.0), "x")
+"""
+
+
+def test_scalar_and_udt_method_overload_fails_closed() -> None:
+    out = Runtime(symbol="TEST").run(
+        _SRC_LIB_METHOD_OVERLOAD,
+        _bars(),
+        mode="compile",
+        libraries=[{"namespace": "ns", "name": "Lib", "version": 1, "source": _LIB_METHOD_OVERLOAD}],
+    )
+    assert out.get("error_kind") == "compile"
+    message = str(out.get("error") or "").lower()
+    assert "overloaded library method" in message
+    assert "scale" in message

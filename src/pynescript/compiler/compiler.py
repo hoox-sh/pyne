@@ -1103,15 +1103,26 @@ class CompilerVisitor(NodeVisitor):
             )
             return ""
         seen: set[str] = set()
+        skipped: set[str] = set()
+        accepted: set[str] = set()
+        scalar_receivers = {"float", "int", "bool", "color", "string"}
         for fn in exported:
             if getattr(fn, "method", 0):
-                # Methods/types are a later slice; fail closed if called.
-                continue
+                recv = self._type_spec_name(getattr(fn.args[0], "type", None)) if getattr(fn, "args", None) else None
+                if recv not in scalar_receivers:
+                    # UDT-receiver methods need type/constructor inlining; fail
+                    # closed if the consumer calls one. Track the name so a
+                    # same-name scalar method cannot silently win the overload.
+                    skipped.add(fn.name)
+                    continue
             pine_name = fn.name
-            if pine_name in seen:
-                self.library_inline_error = f"overloaded library function {pine_name} is not supported; use mode=interpret or auto"
+            if pine_name in seen or pine_name in skipped:
+                self.library_inline_error = (
+                    f"overloaded library method/function {pine_name} is not supported; use mode=interpret or auto"
+                )
                 return ""
             seen.add(pine_name)
+            accepted.add(pine_name)
             params = {arg.name for arg in getattr(fn, "args", []) or [] if hasattr(arg, "name")}
             unsupported = self._library_function_unsupported(fn, params)
             if unsupported:
@@ -1124,6 +1135,12 @@ class CompilerVisitor(NodeVisitor):
             fn.export = None
             self.visit_FunctionDef(fn)
             self.library_methods[(str(alias), str(pine_name))] = emitted
+        if accepted & skipped:
+            name = sorted(accepted & skipped)[0]
+            self.library_inline_error = (
+                f"overloaded library method/function {name} is not supported; use mode=interpret or auto"
+            )
+            return ""
         return ""
 
     def visit_Script(self, node: ast.Script):

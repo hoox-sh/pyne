@@ -64,6 +64,50 @@ export add(float a) =>
     helper(a)
 """
 
+_LIB_METHOD = """//@version=6
+library("Lib")
+export method scale(float this, float factor) =>
+    this * factor
+"""
+
+_SRC_LIB_METHOD = """//@version=6
+indicator("inline method")
+import ns/Lib/1 as lib
+plot(lib.scale(close, 2.0), "x")
+"""
+
+_LIB_UDT_METHOD = """//@version=6
+library("Lib")
+type Box
+    float v
+export method bump(Box this) =>
+    this.v + 1
+"""
+
+_LIB_METHOD_OVERLOAD = """//@version=6
+library("Lib")
+type Box
+    float v
+export method scale(float this, float k) =>
+    this * k
+export method scale(Box this) =>
+    this.v
+"""
+
+_SRC_LIB_METHOD_OVERLOAD = """//@version=6
+indicator("inline method overload")
+import ns/Lib/1 as lib
+plot(lib.scale(close, 2.0), "x")
+"""
+
+
+_SRC_LIB_UDT_METHOD = """//@version=6
+indicator("inline udt method")
+import ns/Lib/1 as lib
+plot(lib.bump(close), "x")
+"""
+
+
 _LIB_PLOT = """//@version=6
 library("Lib")
 export plot(float a) =>
@@ -176,13 +220,41 @@ def main() -> None:
     assert "error" not in alert_lib, alert_lib.get("error")
     assert alert_lib["series"]["x"] == [101.5, 102.5, 103.5, 104.5]
 
+    method = Runtime(symbol="TEST").run(
+        _SRC_LIB_METHOD,
+        _bars(),
+        mode="compile",
+        libraries=_libs(_LIB_METHOD),
+    )
+    assert "error" not in method, method.get("error")
+    assert method["series"]["x"] == [201.0, 203.0, 205.0, 207.0]
+
+    udt_method = Runtime(symbol="TEST").run(
+        _SRC_LIB_UDT_METHOD,
+        _bars(),
+        mode="compile",
+        libraries=_libs(_LIB_UDT_METHOD),
+    )
+    assert udt_method.get("error_kind") == "compile", udt_method.get("error")
+    assert "unsupported library method" in str(udt_method.get("error") or "").lower()
+
+    method_overload = Runtime(symbol="TEST").run(
+        _SRC_LIB_METHOD_OVERLOAD,
+        _bars(),
+        mode="compile",
+        libraries=_libs(_LIB_METHOD_OVERLOAD),
+    )
+    assert method_overload.get("error_kind") == "compile", method_overload.get("error")
+    assert "overloaded library method" in str(method_overload.get("error") or "").lower()
+
     # No supplied library source: preserve the legacy stub/no-raise contract.
     no_lib = Runtime(symbol="TEST").run(_SRC, _bars(), mode="compile")
     assert "error" not in no_lib, no_lib.get("error")
 
     print(
         "LIBRARY_INLINE_OK sum=101.5 reuse=1 same_name=1 const=1 internal=1 "
-        "plot_collision=1 alert_collision=1 unsupported=1 no_lib=1"
+        "plot_collision=1 alert_collision=1 method=201.0 udt_method=1 overload=1 "
+        "unsupported=1 no_lib=1"
     )
 
 
