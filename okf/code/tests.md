@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-15T10:56:16Z
+  at: 2026-11-15T11:57:38Z
 sources:
   - id: tree
     resource: "tests"
@@ -75,6 +75,7 @@ okf_lock: generated
 - `test_drawing_edges_coverage.py` — TestDrawingDirectHandlersAndExport, TestDrawingExportHelpers, TestLineLabelBoxRuntimeEdges, TestTablePolylineLinefillEdges
 - `test_drawing_export_last_bar.py` — TestCompilePathDrawingDelete, TestExportForApiLastBarLine, TestExportLineFill, TestExportXToTime, TestFoldCompileDrawingMutations
 - `test_drawing_gc.py` — TestDrawingGarbageCollection
+- `test_drawing_realtime_rollback.py` — test_interpret_label_set_text_rolls_back_on_unconfirmed_tick, test_interpret_line_delete_rolls_back_on_unconfirmed_tick, test_interpret_line_set_xy2_rolls_back_on_unconfirmed_tick, test_interpret_line_set_xy_commits_on_confirmed_tick, test_interpret_line_set_xy_rolls_back_on_unconfirmed_tick, test_interpret_new_drawing_on_unconfirmed_tick_is_truncated
 - `test_drawings_plot_parity.py` — test_all_collections_and_merge_cells, test_plot_family_kinds, test_time_and_last_bar
 - `test_error_handling.py` — TestBodyTypeErrorFailClosed, TestCamarillaPlotLinewidth, TestColorNewKwargsDispatch, TestRequestSoftFailPreserved, TestRuntimeErrorClassification, TestStrategyDeclarationFailClosed, TestTypeErrorHelper
 - `test_evaluator.py` — test_bid_ask_default_na_when_host_omits_quotes, test_bid_ask_host_supplied_quotes_win, test_callee_body_typeerror_fail_closed, test_defs_locked_skips_top_level_indicator_after_first_visit, test_eval_arg_plan_reuses_empty_kwargs_and_scratch, test_evaluator_abs, test_evaluator_array_abs, test_evaluator_array_avg, test_evaluator_array_binary_search, test_evaluator_array_binary_search_leftmost, test_evaluator_array_binary_search_rightmost, test_evaluator_array_concat

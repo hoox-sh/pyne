@@ -1374,6 +1374,59 @@ def _restore_container_contents(target: Any, snap: Any) -> None:
         return
 
 
+def _snapshot_drawing_registry() -> dict[str, Any] | None:
+    """Snapshot interpret DrawingRegistry lists and existing object fields.
+
+    Unconfirmed realtime ticks re-execute the body; drawing setters mutate the
+    same Line/Label/Box/... dataclass objects in place. Compile mode already
+    truncates append-only ``__drawings`` events. This snapshot preserves object
+    identity while allowing the registry to truncate new drawings and restore
+    field mutations (set_xy/set_text/delete).
+    """
+    try:
+        from pynescript.ast.evaluator.builtins.drawing import DrawingRegistry
+
+        snap: dict[str, Any] = {}
+        for name in ("lines", "boxes", "labels", "tables", "polylines", "linefills"):
+            items = getattr(DrawingRegistry, name, None)
+            if not isinstance(items, list):
+                continue
+            states: list[tuple[Any, dict[str, Any]]] = []
+            for obj in items:
+                fields = getattr(obj, "__dict__", None)
+                if isinstance(fields, dict):
+                    states.append((obj, dict(fields)))
+            snap[name] = (len(items), states)
+        return snap
+    except Exception as _exc:
+        _swallow(_exc, what="snapshot drawing registry")
+        return None
+
+
+def _restore_drawing_registry(snap: dict[str, Any] | None) -> None:
+    """Restore drawing list lengths and in-place dataclass fields from a snapshot."""
+    if not snap:
+        return
+    try:
+        from pynescript.ast.evaluator.builtins.drawing import DrawingRegistry
+
+        for name, payload in snap.items():
+            if not isinstance(payload, tuple) or len(payload) != 2:
+                continue
+            length, states = payload
+            items = getattr(DrawingRegistry, name, None)
+            if not isinstance(items, list):
+                continue
+            del items[int(length) :]
+            for obj, fields in states:
+                target = getattr(obj, "__dict__", None)
+                if isinstance(target, dict):
+                    target.clear()
+                    target.update(fields)
+    except Exception as _exc:
+        _swallow(_exc, what="restore drawing registry")
+
+
 def _snapshot_realtime_scope(evaluator: Any) -> dict[str, Any] | None:
     """Snapshot ``var`` scope before an intermediate realtime tick.
 
@@ -1422,6 +1475,7 @@ def _snapshot_realtime_scope(evaluator: Any) -> dict[str, Any] | None:
             "varip_names": varip_names,
             "var_declarations": set(declared) if declared else set(),
             "once_fired": dict(once_fired) if isinstance(once_fired, dict) else {},
+            "drawings": _snapshot_drawing_registry(),
         }
     except Exception as _exc:
         _swallow(_exc, what="snapshot realtime scope")
@@ -1495,6 +1549,10 @@ def _restore_realtime_scope(evaluator: Any, snap: dict[str, Any] | None) -> None
             evaluator._once_fired = dict(restored)
     except Exception as _exc:
         _swallow(_exc, what="restore once-fired flags")
+    try:
+        _restore_drawing_registry(snap.get("drawings"))
+    except Exception as _exc:
+        _swallow(_exc, what="restore drawing registry")
 
 
 def _copy_ta_value(value: Any) -> Any:
