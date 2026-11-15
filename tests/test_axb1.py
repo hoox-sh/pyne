@@ -442,6 +442,39 @@ def test_map_script_delta_with_times_and_interval_becomes_plot_tip_in_full_mode(
     assert out[5] == int(axb1.Axb1Opcode.PLOT_TIP)
 
 
+def test_map_empty_script_delta_becomes_zero_tip_plot_tip_in_full_mode():
+    payload = {
+        "base_index": 9504,
+        "count": 9505,
+        "tail_len": 1,
+        "closed_upto": 0,
+        "forming": True,
+        "plots": [],
+        "series": {},
+        "times": [1794745320],
+        "interval": "1m",
+    }
+    out = map_live_frame(_frame("delta", payload), mode="full")
+    assert isinstance(out, bytes)
+    assert out[:4] == b"AXB1"
+    assert out[5] == int(axb1.Axb1Opcode.PLOT_TIP)
+
+
+def test_map_empty_script_delta_stays_json_in_basic_mode():
+    payload = {
+        "base_index": 9504,
+        "count": 9505,
+        "tail_len": 1,
+        "closed_upto": 0,
+        "forming": True,
+        "plots": [],
+        "series": {},
+        "times": [1794745320],
+        "interval": "1m",
+    }
+    assert map_live_frame(_frame("delta", payload), mode="basic") is None
+
+
 def test_map_script_delta_with_bad_times_stays_json():
     payload = {
         "base_index": 10,

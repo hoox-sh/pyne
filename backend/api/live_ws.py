@@ -1399,6 +1399,7 @@ def _map_delta_plots(header: Any, payload: dict[str, Any]) -> bytes | None:
     if not isinstance(count, int) or count < 1:
         return None
     series = payload.get("series")
+    plots_list = payload.get("plots")
     tips: list[dict[str, Any]] = []
     if isinstance(series, dict) and series:
         for key, values in series.items():
@@ -1411,9 +1412,15 @@ def _map_delta_plots(header: Any, payload: dict[str, Any]) -> bytes | None:
             if not math.isfinite(value):
                 return None
             tips.append({"key_hash": _axb1.fnv1a32(key), "kind": _axb1.ValueKind.UnitFloat64, "value": value})
+    elif isinstance(series, dict) and not series:
+        # Strategy with no plotted series for this tick: a zero-tip PLOT_TIP is
+        # still a valid AXB1 frame and keeps the seq cursor moving.
+        if plots_list not in (None, []):
+            return None
     else:
-        plots_list = payload.get("plots")
         if not isinstance(plots_list, list) or len(plots_list) != 1:
+            if not plots_list:
+                return _axb1.encode_plot_tip(header, [])
             return None
         inner = plots_list[0]
         if not isinstance(inner, list) or len(inner) != 1:
@@ -1425,8 +1432,6 @@ def _map_delta_plots(header: Any, payload: dict[str, Any]) -> bytes | None:
         if not math.isfinite(value):
             return None
         tips.append({"key_hash": _axb1.fnv1a32("0"), "kind": _axb1.ValueKind.UnitFloat64, "value": value})
-    if not tips:
-        return None
     return _axb1.encode_plot_tip(header, tips)
 
 
