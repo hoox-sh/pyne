@@ -366,6 +366,9 @@ class StrategyState(StrategyRiskCore):
         self._size_hist: list[float] = []
         self._avg_price_hist: list[float] = []
         self._closed_trades_hist: list[float] = []
+        # Per-bar partial-fill budget: order id -> qty filled on this bar.
+        self._bar_fill_budget: dict[str, float] = {}
+        self._bar_fill_bar: int = -1
 
     def snapshot(self) -> dict[str, Any]:
         """Copy broker books for unconfirmed realtime tick rollback.
@@ -380,6 +383,8 @@ class StrategyState(StrategyRiskCore):
                 snap[k] = {oid: replace(o) for oid, o in v.items()}
             elif k in {"open_trades", "closed_trades"}:
                 snap[k] = [replace(x) for x in v]
+            elif k == "_bar_fill_budget":
+                snap[k] = dict(v)
             elif k in {"_events", "_size_hist", "_avg_price_hist", "_closed_trades_hist"}:
                 snap[k] = list(v)
             else:
@@ -395,6 +400,9 @@ class StrategyState(StrategyRiskCore):
             if k == "pending_orders" and isinstance(cur, dict):
                 cur.clear()
                 cur.update({oid: replace(o) for oid, o in v.items()})
+            elif k == "_bar_fill_budget" and isinstance(cur, dict):
+                cur.clear()
+                cur.update(v)
             elif k in {"open_trades", "closed_trades"} and isinstance(cur, list):
                 cur[:] = [replace(x) for x in v]
             elif k in {"_events", "_size_hist", "_avg_price_hist", "_closed_trades_hist"} and isinstance(cur, list):
@@ -2238,6 +2246,10 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
 
         fully_filled: list[str] = []
         cur_bar = self._bar_index()
+        state = self._strategy_state
+        if state._bar_fill_bar != cur_bar:
+            state._bar_fill_budget.clear()
+            state._bar_fill_bar = cur_bar
         # Snapshot ids — OCA may delete siblings mid-loop
         for order_id in list(pending.keys()):
             order = self._strategy_state.pending_orders.get(order_id)
@@ -2258,11 +2270,16 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
             if fill_price is None:
                 continue
             fill_qty = order.remaining_qty
+            budget_cap = 0.0
             if order.max_fill_per_bar and order.max_fill_per_bar > 0:
-                fill_qty = min(fill_qty, float(order.max_fill_per_bar))
+                used = state._bar_fill_budget.get(order_id, 0.0)
+                budget_cap = max(0.0, float(order.max_fill_per_bar) - used)
+                fill_qty = min(fill_qty, budget_cap)
             if fill_qty <= 0:
                 continue
             self._fill_order(order, fill_price, fill_qty)
+            if budget_cap > 0.0:
+                state._bar_fill_budget[order_id] = state._bar_fill_budget.get(order_id, 0.0) + fill_qty
             if order.remaining_qty <= 1e-12:
                 fully_filled.append(order_id)
         return fully_filled

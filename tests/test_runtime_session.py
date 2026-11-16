@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from pynescript.ast.evaluator.builtins.strategy import StrategyState
 from pynescript.runtime import Runtime
+from pynescript.util.datafeed import MockDataFeed
 
 
 def _bars(n: int, offset: int = 0) -> list[dict]:
@@ -338,3 +340,144 @@ plot(strategy.position_size, "ps")
     out_kinds = [str(e.get("kind")) for e in (out2.get("events") or [])]
     assert out_kinds.count("entry") == 1
     assert out_kinds.count("entry") == full_kinds.count("entry")
+
+
+_PENDING_LIMIT_SRC = """//@version=6
+strategy("sess pending", overlay=true)
+if barstate.isfirst
+    strategy.entry("L", strategy.long, limit=95.0)
+plot(strategy.position_size, "pos")
+"""
+
+
+def test_session_update_last_bar_fills_pending_limit() -> None:
+    """A pending limit fills when ``update_last_bar`` supplies a crossing low."""
+    sess = Runtime(symbol="TEST").create_session(_PENDING_LIMIT_SRC, _bars(4), mode="interpret")
+    tick = dict(_bars(4)[-1])
+    tick["low"] = 94.0
+    out = sess.update_last_bar(tick)
+    assert "error" not in out, out.get("error")
+    assert out["series"]["pos"][-1] == 1.0, out["series"]["pos"]
+
+
+def test_session_update_last_bar_keeps_append_tick_fill() -> None:
+    """A fill committed by ``append_bars(realtime_ticks=3)`` survives re-tick."""
+    ts = 1_700_000_000_000 + 4 * 60_000
+    feed = MockDataFeed(
+        scripted=[
+            [ts, 104.0, 105.0, 96.0, 104.0, 10.0],
+            [ts, 104.0, 105.0, 94.0, 104.0, 20.0],
+            [ts, 104.0, 105.0, 94.0, 104.0, 30.0],
+        ]
+    )
+    sess = Runtime(symbol="TEST").create_session(_PENDING_LIMIT_SRC, _bars(4), mode="interpret", data_feed=feed)
+    out1 = sess.append_bars(_bars(1, offset=4), realtime_ticks=3)
+    assert "error" not in out1, out1.get("error")
+    assert out1["series"]["pos"][-1] == 1.0, out1["series"]["pos"]
+    tick = dict(_bars(1, offset=4)[0])
+    tick["low"] = 94.0
+    out2 = sess.update_last_bar(tick)
+    assert "error" not in out2, out2.get("error")
+    assert out2["series"]["pos"][-1] == 1.0, out2["series"]["pos"]
+
+
+def test_session_confirm_keeps_update_last_bar_fill() -> None:
+    """Confirming the forming bar (append) must not lose the intra-bar fill."""
+    sess = Runtime(symbol="TEST").create_session(_PENDING_LIMIT_SRC, _bars(4), mode="interpret")
+    tick = dict(_bars(4)[-1])
+    tick["low"] = 94.0
+    out1 = sess.update_last_bar(tick)
+    assert out1["series"]["pos"][-1] == 1.0, out1["series"]["pos"]
+    out2 = sess.append_bars(_bars(1, offset=4))
+    assert "error" not in out2, out2.get("error")
+    assert out2["series"]["pos"][-1] == 1.0, out2["series"]["pos"]
+
+
+_PARTIAL_LIMIT_SRC = """//@version=6
+strategy("sess partial", overlay=true)
+if barstate.isfirst
+    strategy.entry("L", strategy.long, qty=10, limit=95.0, max_fill_per_bar=3)
+plot(strategy.position_size, "pos")
+"""
+
+_FULL_PARTIAL_SRC = """//@version=6
+strategy("sess full partial", overlay=true)
+if barstate.isfirst
+    strategy.entry("L", strategy.long, qty=3, limit=95.0, max_fill_per_bar=3)
+plot(strategy.position_size, "pos")
+"""
+
+
+def _crossing_tick(bar: dict) -> dict:
+    tick = dict(bar)
+    tick["low"] = 94.0
+    return tick
+
+
+def test_strategy_state_snapshot_isolates_bar_fill_budget() -> None:
+    """``restore`` must copy the per-bar budget, not alias the snapshot dict."""
+    state = StrategyState()
+    state._bar_fill_budget["L"] = 3.0
+    snap = state.snapshot()
+    state.restore(snap)
+    assert state._bar_fill_budget is not snap["_bar_fill_budget"]
+    state._bar_fill_budget["L"] = 6.0
+    assert snap["_bar_fill_budget"] == {"L": 3.0}
+
+
+def test_session_partial_update_last_bar_twice_keeps_budget() -> None:
+    """Two re-ticks each refill the bar budget from the bar-open snapshot."""
+    sess = Runtime(symbol="TEST").create_session(_PARTIAL_LIMIT_SRC, _bars(4), mode="interpret")
+    for _ in range(2):
+        out = sess.update_last_bar(_crossing_tick(_bars(4)[-1]))
+        assert "error" not in out, out.get("error")
+        assert out["series"]["pos"][-1] == 3.0, out["series"]["pos"]
+
+
+def test_session_partial_update_last_bar_then_confirm() -> None:
+    """An empty append (confirmation) keeps the partial fill."""
+    sess = Runtime(symbol="TEST").create_session(_PARTIAL_LIMIT_SRC, _bars(4), mode="interpret")
+    sess.update_last_bar(_crossing_tick(_bars(4)[-1]))
+    out = sess.append_bars([])
+    assert "error" not in out, out.get("error")
+    assert out["series"]["pos"][-1] == 3.0, out["series"]["pos"]
+
+
+def test_session_partial_update_last_bar_then_next_crossing_bar() -> None:
+    """The next crossing bar fills another bar budget (3 -> 6)."""
+    sess = Runtime(symbol="TEST").create_session(_PARTIAL_LIMIT_SRC, _bars(4), mode="interpret")
+    sess.update_last_bar(_crossing_tick(_bars(4)[-1]))
+    next_bar = _bars(1, offset=4)
+    next_bar[0]["low"] = 94.0
+    out = sess.append_bars(next_bar)
+    assert "error" not in out, out.get("error")
+    assert out["series"]["pos"][-1] == 6.0, out["series"]["pos"]
+
+
+def test_session_partial_append_tick_then_two_update_last_bar() -> None:
+    """A committed append-tick partial fill survives two re-ticks."""
+    ts = 1_700_000_000_000 + 4 * 60_000
+    feed = MockDataFeed(
+        scripted=[
+            [ts, 104.0, 105.0, 96.0, 104.0, 10.0],
+            [ts, 104.0, 105.0, 94.0, 104.0, 20.0],
+            [ts, 104.0, 105.0, 94.0, 104.0, 30.0],
+        ]
+    )
+    sess = Runtime(symbol="TEST").create_session(_PARTIAL_LIMIT_SRC, _bars(4), mode="interpret", data_feed=feed)
+    appended = sess.append_bars(_bars(1, offset=4), realtime_ticks=3)
+    assert appended["series"]["pos"][-1] == 3.0, appended["series"]["pos"]
+    tick = _crossing_tick(_bars(1, offset=4)[0])
+    for _ in range(2):
+        out = sess.update_last_bar(tick)
+        assert "error" not in out, out.get("error")
+        assert out["series"]["pos"][-1] == 3.0, out["series"]["pos"]
+
+
+def test_session_full_partial_fill_survives_second_update_last_bar() -> None:
+    """An even qty/max_fill fully filled order refills after a re-tick restore."""
+    sess = Runtime(symbol="TEST").create_session(_FULL_PARTIAL_SRC, _bars(4), mode="interpret")
+    for _ in range(2):
+        out = sess.update_last_bar(_crossing_tick(_bars(4)[-1]))
+        assert "error" not in out, out.get("error")
+        assert out["series"]["pos"][-1] == 3.0, out["series"]["pos"]

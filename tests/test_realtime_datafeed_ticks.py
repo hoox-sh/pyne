@@ -80,6 +80,106 @@ def test_feed_ticks_use_third_polled_close() -> None:
     assert plotted[:-1] == [float(b["close"]) for b in bars[:-1]]
 
 
+_PENDING_LIMIT = """//@version=6
+strategy("rt pending", overlay=true)
+if barstate.isfirst
+    strategy.entry("L", strategy.long, limit=95.0)
+plot(strategy.position_size, "pos")
+"""
+
+
+def test_feed_tick_fills_pending_limit_intrabar() -> None:
+    """A pending limit fills on the tick whose forming low crosses it."""
+    ts = 1_704_067_200_000 + 4 * 86_400_000
+    candles = [
+        [ts, 104.0, 105.0, 96.0, 104.0, 10.0],
+        [ts, 104.0, 105.0, 94.0, 104.0, 20.0],
+        [ts, 104.0, 105.0, 94.0, 104.0, 30.0],
+    ]
+    out = Runtime(symbol="RT").run(
+        _PENDING_LIMIT,
+        _bars(5),
+        mode="interpret",
+        realtime_ticks=3,
+        data_feed=MockDataFeed(scripted=candles),
+    )
+    assert "error" not in out, out.get("error")
+    pos = [float(v) for v in out["series"]["pos"]]
+    assert pos[-1] == 1.0, pos
+    assert pos[:-1] == [0.0, 0.0, 0.0, 0.0], pos
+
+
+def test_no_feed_pending_limit_does_not_fill_intrabar() -> None:
+    """Without a crossing forming bar, the limit stays pending."""
+    out = Runtime(symbol="RT").run(_PENDING_LIMIT, _bars(5), mode="interpret", realtime_ticks=3)
+    assert "error" not in out, out.get("error")
+    assert [float(v) for v in out["series"]["pos"]] == [0.0, 0.0, 0.0, 0.0, 0.0]
+
+
+_PARTIAL_FILL = """//@version=6
+strategy("rt partial", overlay=true)
+if barstate.isfirst
+    strategy.entry("L", strategy.long, qty=10, limit=95.0, max_fill_per_bar=3)
+plot(strategy.position_size, "pos")
+"""
+
+
+def test_partial_fill_budget_consumed_once_per_bar_no_feed() -> None:
+    """``max_fill_per_bar`` fills once per bar across bar-start and tick paths."""
+    bars = _bars(5)
+    bars[-1]["low"] = 94.0
+    for ticks in (1, 3):
+        out = Runtime(symbol="RT").run(_PARTIAL_FILL, bars, mode="interpret", realtime_ticks=ticks)
+        assert "error" not in out, out.get("error")
+        assert out["series"]["pos"][-1] == 3.0, (ticks, out["series"]["pos"])
+
+
+def test_partial_fill_budget_consumed_once_per_bar_with_feed() -> None:
+    """A feed tick that crosses fills the bar budget once, not once per tick."""
+    ts = 1_704_067_200_000 + 4 * 86_400_000
+    feed = MockDataFeed(
+        scripted=[
+            [ts, 104.0, 105.0, 94.0, 104.0, 10.0],
+            [ts, 104.0, 105.0, 94.0, 104.0, 20.0],
+            [ts, 104.0, 105.0, 94.0, 104.0, 30.0],
+        ]
+    )
+    bars = _bars(5)
+    bars[-1]["low"] = 94.0
+    out = Runtime(symbol="RT").run(
+        _PARTIAL_FILL, bars, mode="interpret", realtime_ticks=3, data_feed=feed
+    )
+    assert "error" not in out, out.get("error")
+    assert out["series"]["pos"][-1] == 3.0, out["series"]["pos"]
+
+
+def test_tick_order_fill_error_returns_order_kind(monkeypatch) -> None:
+    """An exception in the tick fill path returns ERROR_KIND_ORDER, not a crash."""
+    from pynescript.ast.evaluator.builtins.strategy import StrategyBuiltinsMixin
+
+    real = StrategyBuiltinsMixin.process_pending_orders
+
+    def boom(self, *, open_=None, high=None, low=None, close=None):
+        if low is not None and float(low) <= 94.0:
+            raise RuntimeError("tick fill boom")
+        return real(self, open_=open_, high=high, low=low, close=close)
+
+    monkeypatch.setattr(StrategyBuiltinsMixin, "process_pending_orders", boom)
+    ts = 1_704_067_200_000 + 4 * 86_400_000
+    feed = MockDataFeed(
+        scripted=[
+            [ts, 104.0, 105.0, 96.0, 104.0, 10.0],
+            [ts, 104.0, 105.0, 94.0, 104.0, 20.0],
+            [ts, 104.0, 105.0, 94.0, 104.0, 30.0],
+        ]
+    )
+    out = Runtime(symbol="RT").run(
+        _PENDING_LIMIT, _bars(5), mode="interpret", realtime_ticks=3, data_feed=feed
+    )
+    assert out.get("error_kind") == "order", out
+    assert "tick fill boom" in str(out.get("error") or "")
+
+
 def test_no_feed_keeps_historical_close() -> None:
     """Without ``data_feed``, ticks re-visit the same last-bar OHLC."""
     bars = _bars(5)

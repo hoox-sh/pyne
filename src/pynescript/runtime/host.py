@@ -2554,6 +2554,39 @@ class InterpretSession:
                 reset_plots()
                 if self._need_strategy and strategy_events:
                     strategy_events.clear()
+                # Intra-bar tick path: pending limit/stop orders from earlier
+                # bars are re-evaluated against each polled forming bar. The
+                # per-tick broker snapshot above rolls unconfirmed fills back;
+                # the confirmed tick commits and its events drain after the loop.
+                if (
+                    self._need_strategy
+                    and bar_rt
+                    and n_ticks > 1
+                    and process_pending is not None
+                    and strategy_state.pending_orders
+                ):
+                    forming = self._ohlcv_data[bar_index] if 0 <= bar_index < len(self._ohlcv_data) else None
+                    if isinstance(forming, dict):
+                        try:
+                            process_pending(
+                                open_=forming.get("open"),
+                                high=forming.get("high"),
+                                low=forming.get("low"),
+                                close=forming.get("close"),
+                            )
+                        except Exception as e:
+                            self._error_result = _error_payload(
+                                _format_exc_message(
+                                    f"Order fill error at bar {bar_time} (index {bar_index})",
+                                    e,
+                                ),
+                                kind=ERROR_KIND_ORDER,
+                                exc=e,
+                                bar_index=bar_index,
+                                bar_time=bar_time,
+                            )
+                            _stats.count("interpret.errors", dim="order_fill")
+                            return
                 if self._need_cross:
                     ev._cross_call_i = 0  # type: ignore[attr-defined]
                 ev._ta_call_i = 0  # type: ignore[attr-defined]
@@ -2861,6 +2894,25 @@ class InterpretSession:
             v,
         )
         _stats.count("delta.update_last_bar_calls")
+        # Intra-bar tick path: re-evaluate pending limit/stop orders against
+        # the updated forming bar before the script sees it.
+        process_pending = getattr(ev, "process_pending_orders", None)
+        if self._need_strategy and process_pending is not None and strategy_state.pending_orders:
+            try:
+                process_pending(open_=o, high=h, low=low, close=c)
+            except Exception as e:
+                self._error_result = _error_payload(
+                    _format_exc_message(
+                        f"Order fill error at bar {bar_time} (index {idx})",
+                        e,
+                    ),
+                    kind=ERROR_KIND_ORDER,
+                    exc=e,
+                    bar_index=idx,
+                    bar_time=bar_time,
+                )
+                _stats.count("interpret.errors", dim="order_fill")
+                return self._error_result
         _dbg_t0 = time.perf_counter() if _dbg_on() else 0.0
         try:
             ev.visit(self._tree)
@@ -2993,6 +3045,23 @@ class InterpretSession:
         ev._ta_call_i = 0  # type: ignore[attr-defined]
         ev._plot_call_i = 0  # type: ignore[attr-defined]
         _drop_as_series_cache(ev)
+        process_pending = getattr(ev, "process_pending_orders", None)
+        if self._need_strategy and process_pending is not None and strategy_state.pending_orders:
+            try:
+                process_pending(open_=o, high=h, low=low, close=c)
+            except Exception as e:
+                self._error_result = _error_payload(
+                    _format_exc_message(
+                        f"Order fill error at bar {bar_time} (index {idx})",
+                        e,
+                    ),
+                    kind=ERROR_KIND_ORDER,
+                    exc=e,
+                    bar_index=idx,
+                    bar_time=bar_time,
+                )
+                _stats.count("interpret.errors", dim="order_fill")
+                return
         try:
             ev.visit(self._tree)
         except Exception as e:
@@ -3984,6 +4053,45 @@ class Runtime:
                 reset_plots()
                 if need_strategy and strategy_events:
                     strategy_events.clear()
+                # Intra-bar tick path: pending limit/stop orders from earlier
+                # bars are re-evaluated against each polled forming bar. The
+                # per-tick broker snapshot above rolls unconfirmed fills back;
+                # the confirmed tick commits and its events drain after the loop.
+                if (
+                    need_strategy
+                    and bar_rt
+                    and n_ticks > 1
+                    and process_pending is not None
+                    and strategy_state.pending_orders
+                ):
+                    forming = ohlcv_data[bar_index] if 0 <= bar_index < len(ohlcv_data) else None
+                    if isinstance(forming, dict):
+                        try:
+                            process_pending(
+                                open_=forming.get("open"),
+                                high=forming.get("high"),
+                                low=forming.get("low"),
+                                close=forming.get("close"),
+                            )
+                        except Exception as e:
+                            eval_ms = (time.perf_counter() - t_eval0) * 1000.0
+                            return _attach_logs_profile(
+                                _error_payload(
+                                    _format_exc_message(
+                                        f"Order fill error at bar {bar_time} (index {bar_index})",
+                                        e,
+                                    ),
+                                    kind=ERROR_KIND_ORDER,
+                                    exc=e,
+                                    bar_index=bar_index,
+                                    bar_time=bar_time,
+                                ),
+                                total_ms=(time.perf_counter() - t_total0) * 1000.0,
+                                bars=n_bars,
+                                mode="interpret",
+                                parse_ms=parse_ms,
+                                eval_ms=eval_ms,
+                            )
                 # Always reset TA slots. v4 bare sma/wma, math.sum, and other
                 # rolling helpers call ``_ta_next_slot`` even with no ``ta.``
                 # in source (gating on ``"ta."`` left those sites all-na).
