@@ -31,6 +31,7 @@ from pynescript.compiler.engine import clear_compile_cache
 from pynescript.compiler.engine import compile_script
 from pynescript.compiler.engine import has_numba
 from pynescript.compiler.engine import transpile
+from pynescript.runtime import Runtime
 
 
 def _clear_caches() -> None:
@@ -44,6 +45,21 @@ pytestmark = pytest.mark.skipif(not has_numba(), reason="numba not installed")
 def _ohlcv(n: int = 100, start: float = 100.0):
     close = np.arange(start, start + n, dtype=np.float64)
     return close, close + 1, close - 1, close, np.ones(n)
+
+
+def _bars_list(n: int = 5) -> list[dict[str, float | int]]:
+    o, h, l, c, v = _ohlcv(n)
+    return [
+        {
+            "time": 1_700_000_000_000 + i * 60_000,
+            "open": float(o[i]),
+            "high": float(h[i]),
+            "low": float(l[i]),
+            "close": float(c[i]),
+            "volume": float(v[i]),
+        }
+        for i in range(n)
+    ]
 
 
 class TestTranspile:
@@ -3683,6 +3699,66 @@ plot(close, title="p", color=c)
         ):
             compiled = compile_script(src, use_cache=False)
             assert compiled.object_mode is True, src
+
+    def test_runtime_error_literal_stays_numeric(self) -> None:
+        """A literal runtime.error in an unreachable branch stays numeric."""
+        src = """//@version=5
+indicator("err")
+if close < 0
+    runtime.error("unreachable")
+plot(close, title="c")
+"""
+        compiled = compile_script(src, use_cache=False)
+        assert compiled.object_mode is False
+        assert "@numba.njit" in transpile(src)
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert np.allclose(out["c"], c)
+
+    def test_runtime_error_literal_reachable_matches_interpret(self) -> None:
+        """A reachable literal runtime.error raises on both hosts."""
+        src = """//@version=5
+indicator("err")
+if close > 0
+    runtime.error("halted by design")
+plot(close, title="c")
+"""
+        bars = _bars_list(5)
+        interp = Runtime(symbol="TEST").run(src, bars, mode="interpret")
+        compiled = Runtime(symbol="TEST").run(src, bars, mode="compile")
+        assert interp.get("error_kind") == "runtime", interp
+        assert compiled.get("error_kind") == "runtime", compiled
+        assert "halted by design" in str(interp.get("error")), interp
+        assert "halted by design" in str(compiled.get("error")), compiled
+        assert compile_script(src, use_cache=False).object_mode is False
+
+    def test_runtime_error_no_arg_reachable_matches_interpret(self) -> None:
+        """No-arg runtime.error raises an empty-message RuntimeError like interpret."""
+        src = """//@version=5
+indicator("err")
+if close > 0
+    runtime.error()
+plot(close, title="c")
+"""
+        bars = _bars_list(5)
+        interp = Runtime(symbol="TEST").run(src, bars, mode="interpret")
+        compiled = Runtime(symbol="TEST").run(src, bars, mode="compile")
+        assert interp.get("error_kind") == "runtime", interp
+        assert compiled.get("error_kind") == "runtime", compiled
+        assert str(interp.get("error")).endswith("RuntimeError"), interp
+        assert str(compiled.get("error")).endswith("RuntimeError"), compiled
+        assert "runtime.error" not in str(compiled.get("error")).lower()
+        assert compile_script(src, use_cache=False).object_mode is False
+
+    def test_runtime_error_dynamic_message_stays_object(self) -> None:
+        """String-heavy/dynamic runtime.error messages keep object mode."""
+        src = """//@version=5
+indicator("err")
+msg = "value=" + str.tostring(close)
+runtime.error(msg)
+plot(close, title="c")
+"""
+        assert compile_script(src, use_cache=False).object_mode is True
 
     def test_math_random_and_hyperbolic_stay_numeric(self) -> None:
         src = """//@version=5

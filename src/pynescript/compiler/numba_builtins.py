@@ -2359,6 +2359,16 @@ def pine_raise(msg) -> None:
     raise RuntimeError(str(msg))
 
 
+@numba.njit(cache=False)
+def pine_raise_njit(msg) -> None:
+    """njit-safe ``runtime.error`` raise for numeric compile mode.
+
+    Used only for compile-time literal messages; Numba supports raising with
+    a Unicode argument. Object-mode/dynamic messages keep :func:`pine_raise`.
+    """
+    raise RuntimeError(str(msg))
+
+
 # Host chart identity for compile-mode ``syminfo.ticker`` / ``tickerid`` / ``prefix``.
 # Runtime sets these before ``CompiledScript.run`` so error strings and ticker
 # concatenation match interpret (``:PARITY`` vs hardcoded ``SYMBOL``).

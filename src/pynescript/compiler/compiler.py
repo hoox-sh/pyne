@@ -6176,10 +6176,18 @@ class CompilerVisitor(NodeVisitor):
 
         if func_name in ("runtime_error", "runtime_error_code"):
             # Expression-safe: never emit bare ``raise`` (invalid inside ternary /
-            # ``return raise …``). ``pine_raise`` always raises at call time and
-            # is exported by ``from numba_builtins import *``.
+            # ``return raise …``). Literal ``runtime.error`` messages can use
+            # the njit-safe helper and stay numeric; dynamic/string-heavy
+            # messages keep object mode + the plain-Python helper.
+            # No-arg runtime.error() → empty message (interpret parity).
+            msg = args[0] if args else repr("")
+            if (
+                func_name == "runtime_error"
+                and len(args) <= 1
+                and self._is_quoted_string_expr(msg)
+            ):
+                return f"pine_raise_njit({msg})"
             self.object_mode = True
-            msg = args[0] if args else repr("runtime.error")
             return f"pine_raise({msg})"
 
         if func_name == "color_from_gradient":
