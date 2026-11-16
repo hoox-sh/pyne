@@ -67,6 +67,15 @@ from pynescript.strategy_risk_core import StrategyBracketCore
 from pynescript.strategy_risk_core import StrategyRiskCore
 
 
+class StrategyOrderError(RuntimeError):
+    """Compile object-mode tick order-fill failure.
+
+    The host maps this to ``ERROR_KIND_ORDER`` (the interpret tick path sets
+    the same kind directly). Keep the original message so the runtime payload
+    is actionable.
+    """
+
+
 def _contracts_risk_mode() -> bool:
     """True when ``PYNE_STRATEGY_RISK_CONTRACTS`` opts into absolute contracts.
 
@@ -365,6 +374,10 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
         self.pending_orders: dict[str, PendingOrder] = {}
         self._bar_index: int = 0
         self._bar_time: int = 0
+        # Per-bar ``max_fill_per_bar`` budget keyed by order id (interpret
+        # parity). Reset when the bar changes; copied by snapshot/restore.
+        self._bar_fill_budget: dict[str, float] = {}
+        self._bar_fill_bar: int = -1
         self._mark: float = 0.0
         self._open: float = 0.0
         self._high: float = 0.0
@@ -413,6 +426,10 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
                 snap[k] = {oid: replace(o) for oid, o in v.items()}
             elif k in {"open_legs", "closed_trade_records"}:
                 snap[k] = [replace(x) for x in v]
+            elif k == "_bar_fill_budget" and isinstance(v, dict):
+                # Copy-on-snapshot: a tick that consumes budget must not mutate
+                # the bar-open snapshot restored on the next unconfirmed tick.
+                snap[k] = dict(v)
             elif k == "events":
                 snap[k] = [dict(e) for e in v]
             else:
@@ -430,6 +447,9 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
                 cur.update({oid: replace(o) for oid, o in v.items()})
             elif k in {"open_legs", "closed_trade_records"} and isinstance(cur, list):
                 cur[:] = [replace(x) for x in v]
+            elif k == "_bar_fill_budget" and isinstance(cur, dict):
+                cur.clear()
+                cur.update(v)
             elif k == "events" and isinstance(cur, list):
                 cur[:] = [dict(e) for e in v]
             else:
@@ -516,6 +536,12 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
     ) -> list[str]:
         fully: list[str] = []
         cur_bar = int(getattr(self, "_bar_index", -1))
+        # Per-bar ``max_fill_per_bar`` budget resets when the bar changes.
+        # Bar-start and intra-bar tick calls share it, so a fill cannot be
+        # repeated on every tick of the same bar.
+        if self._bar_fill_bar != cur_bar:
+            self._bar_fill_budget.clear()
+            self._bar_fill_bar = cur_bar
         # Snapshot keys — OCA may delete siblings mid-loop
         for oid in list(self.pending_orders.keys()):
             order = self.pending_orders.get(oid)
@@ -536,11 +562,17 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
             if fill_px is None:
                 continue
             fill_qty = order.remaining
+            budget_cap = 0.0
+            used = 0.0
             if order.max_fill_per_bar and order.max_fill_per_bar > 0:
-                fill_qty = min(fill_qty, float(order.max_fill_per_bar))
+                used = self._bar_fill_budget.get(oid, 0.0)
+                budget_cap = max(0.0, float(order.max_fill_per_bar) - used)
+                fill_qty = min(fill_qty, budget_cap)
             if fill_qty <= 0:
                 continue
             self._apply_fill(order, fill_px, fill_qty)
+            if budget_cap > 0.0:
+                self._bar_fill_budget[oid] = used + fill_qty
             if order.remaining <= 1e-12:
                 fully.append(oid)
         return fully

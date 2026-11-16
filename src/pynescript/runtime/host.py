@@ -4775,10 +4775,19 @@ class Runtime:
             )
         except Exception as e:
             run_ms = (time.perf_counter() - t_run0) * 1000.0
+            # Object-mode tick order fills raise StrategyOrderError so the
+            # payload kind matches the interpret tick path (ERROR_KIND_ORDER)
+            # instead of the generic compiled-runtime kind.
+            from pynescript.compiler.strategy_broker import StrategyOrderError
+
+            is_order_error = isinstance(e, StrategyOrderError)
             return _attach_logs_profile(
                 _error_payload(
-                    _format_exc_message("Compiled Runtime Error", e),
-                    kind=ERROR_KIND_RUNTIME,
+                    _format_exc_message(
+                        "Order fill error" if is_order_error else "Compiled Runtime Error",
+                        e,
+                    ),
+                    kind=ERROR_KIND_ORDER if is_order_error else ERROR_KIND_RUNTIME,
                     exc=e,
                 ),
                 total_ms=(time.perf_counter() - t_total0) * 1000.0,

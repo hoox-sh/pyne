@@ -1460,6 +1460,7 @@ class CompilerVisitor(NodeVisitor):
         ]
         if self.uses_strategy:
             lines.append("from pynescript.compiler.strategy_broker import CompileStrategyBroker")
+            lines.append("from pynescript.compiler.strategy_broker import StrategyOrderError")
             lines.append("")
         if self.uses_alerts:
             lines.append("from pynescript.ast.evaluator.builtins.alerts import AlertEvent")
@@ -1819,6 +1820,25 @@ class CompilerVisitor(NodeVisitor):
         if self.uses_strategy:
             lines.append("                __st_snap = __strategy.snapshot()")
         self._emit_rt_tick_snapshot(lines, indent="                ")
+        if self.uses_strategy:
+            # Intra-bar tick path (interpret parity): pending limit/stop orders
+            # from earlier bars are re-evaluated against each polled forming
+            # bar *after* the per-tick broker snapshot, so unconfirmed fills
+            # roll back and the confirmed tick commits. Errors become
+            # StrategyOrderError → host ERROR_KIND_ORDER.
+            lines.append("            if __bar_rt and __n_ticks > 1 and __strategy.pending_orders:")
+            lines.append("                try:")
+            lines.append("                    __strategy.process_pending_orders(")
+            lines.append("                        open_arr[__bar_idx], high_arr[__bar_idx],")
+            lines.append("                        low_arr[__bar_idx], close_arr[__bar_idx],")
+            lines.append("                    )")
+            lines.append("                except StrategyOrderError:")
+            lines.append("                    raise")
+            lines.append("                except Exception as __order_exc:")
+            lines.append("                    raise StrategyOrderError(str(__order_exc)) from __order_exc")
+            lines.append("                __strategy.update_open_trade_extremes(")
+            lines.append("                    high_arr[__bar_idx], low_arr[__bar_idx]")
+            lines.append("                )")
         if not body_lines and not self.uses_strategy:
             lines.append("            pass")
         for raw_line in body_lines:

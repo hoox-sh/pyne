@@ -180,6 +180,80 @@ def test_tick_order_fill_error_returns_order_kind(monkeypatch) -> None:
     assert "tick fill boom" in str(out.get("error") or "")
 
 
+_COMPILE_TICK_CANDLES = [
+    [1_704_067_200_000 + 4 * 86_400_000, 104.0, 105.0, 96.0, 104.0, 10.0],
+    [1_704_067_200_000 + 4 * 86_400_000, 104.0, 105.0, 94.0, 104.0, 20.0],
+    [1_704_067_200_000 + 4 * 86_400_000, 104.0, 105.0, 94.0, 104.0, 30.0],
+]
+
+
+def _compile_tick_feed() -> MockDataFeed:
+    """Fresh scripted feed: a feed instance advances its own candle list."""
+    return MockDataFeed(scripted=[list(candle) for candle in _COMPILE_TICK_CANDLES])
+
+
+def test_compile_feed_tick_fills_pending_limit_intrabar() -> None:
+    """Compile object mode must fill a pending limit on the crossing tick."""
+    interp = Runtime(symbol="RT").run(
+        _PENDING_LIMIT,
+        _bars(5),
+        mode="interpret",
+        realtime_ticks=3,
+        data_feed=_compile_tick_feed(),
+    )
+    compiled = Runtime(symbol="RT").run(
+        _PENDING_LIMIT,
+        _bars(5),
+        mode="compile",
+        realtime_ticks=3,
+        data_feed=_compile_tick_feed(),
+    )
+    assert "error" not in interp, interp.get("error")
+    assert "error" not in compiled, compiled.get("error")
+    pos_i = [float(v) for v in interp["series"]["pos"]]
+    pos_c = [float(v) for v in compiled["series"]["pos"]]
+    assert pos_i[-1] == 1.0, pos_i
+    assert pos_c[-1] == 1.0, pos_c
+    assert pos_c == pos_i
+
+
+def test_compile_partial_fill_budget_consumed_once_per_bar_with_feed() -> None:
+    """Compile tick fills share the per-bar ``max_fill_per_bar`` budget."""
+    for mode in ("interpret", "compile"):
+        out = Runtime(symbol="RT").run(
+            _PARTIAL_FILL,
+            _bars(5),
+            mode=mode,
+            realtime_ticks=3,
+            data_feed=_compile_tick_feed(),
+        )
+        assert "error" not in out, (mode, out.get("error"))
+        assert out["series"]["pos"][-1] == 3.0, (mode, out["series"]["pos"])
+
+
+def test_compile_tick_order_fill_error_returns_order_kind(monkeypatch) -> None:
+    """An exception in the compile tick fill path returns ERROR_KIND_ORDER."""
+    from pynescript.compiler.strategy_broker import CompileStrategyBroker
+
+    real = CompileStrategyBroker.process_pending_orders
+
+    def boom(self, open_=None, high=None, low=None, close=None):
+        if low is not None and float(low) <= 94.0:
+            raise RuntimeError("compile tick fill boom")
+        return real(self, open_=open_, high=high, low=low, close=close)
+
+    monkeypatch.setattr(CompileStrategyBroker, "process_pending_orders", boom)
+    out = Runtime(symbol="RT").run(
+        _PENDING_LIMIT,
+        _bars(5),
+        mode="compile",
+        realtime_ticks=3,
+        data_feed=_compile_tick_feed(),
+    )
+    assert out.get("error_kind") == "order", out
+    assert "compile tick fill boom" in str(out.get("error") or "")
+
+
 def test_no_feed_keeps_historical_close() -> None:
     """Without ``data_feed``, ticks re-visit the same last-bar OHLC."""
     bars = _bars(5)
