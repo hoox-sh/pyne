@@ -202,6 +202,64 @@ def test_library_internal_helper_defaults_and_locals() -> None:
     assert out["series"]["x"] == [202.0, 204.0, 206.0, 208.0]
 
 
+_LIB_EXPORT_DEFAULT = """//@version=6
+library("Lib")
+export helper(float a, float k = 2.0) =>
+    a * k
+"""
+
+_SRC_EXPORT_DEFAULT = """//@version=6
+indicator("export default")
+import ns/Lib/1 as lib
+plot(lib.helper(close), "x")
+"""
+
+
+def test_exported_library_default_arg_direct_call() -> None:
+    """Direct ``lib.helper(close)`` must bind the declared ``k=2.0`` default."""
+    libraries = [{"namespace": "ns", "name": "Lib", "version": 1, "source": _LIB_EXPORT_DEFAULT}]
+    interp = Runtime(symbol="TEST").run(_SRC_EXPORT_DEFAULT, _bars(), mode="interpret", libraries=libraries)
+    compiled = Runtime(symbol="TEST").run(_SRC_EXPORT_DEFAULT, _bars(), mode="compile", libraries=libraries)
+    assert "error" not in interp, interp.get("error")
+    assert "error" not in compiled, compiled.get("error")
+    assert compiled["series"]["x"] == [201.0, 203.0, 205.0, 207.0]
+    assert compiled["series"]["x"] == interp["series"]["x"]
+
+
+_LIB_DEFAULT_A = """//@version=6
+library("A")
+export scale(float a, float k = 2.0) =>
+    a * k
+"""
+
+_LIB_DEFAULT_B = """//@version=6
+library("B")
+import ns/A/1 as a
+export twice(float x) =>
+    a.scale(x)
+"""
+
+_SRC_CROSS_DEFAULT = """//@version=6
+indicator("cross default")
+import ns/B/1 as b
+plot(b.twice(close), "x")
+"""
+
+
+def test_exported_library_default_arg_cross_library_call() -> None:
+    """Cross-library ``b.twice(close)`` must bind A's declared ``k=2.0``."""
+    libraries = [
+        {"namespace": "ns", "name": "A", "version": 1, "source": _LIB_DEFAULT_A},
+        {"namespace": "ns", "name": "B", "version": 1, "source": _LIB_DEFAULT_B},
+    ]
+    interp = Runtime(symbol="TEST").run(_SRC_CROSS_DEFAULT, _bars(), mode="interpret", libraries=libraries)
+    compiled = Runtime(symbol="TEST").run(_SRC_CROSS_DEFAULT, _bars(), mode="compile", libraries=libraries)
+    assert "error" not in interp, interp.get("error")
+    assert "error" not in compiled, compiled.get("error")
+    assert compiled["series"]["x"] == [201.0, 203.0, 205.0, 207.0]
+    assert compiled["series"]["x"] == interp["series"]["x"]
+
+
 _LIB_INTERNAL_UNKNOWN = """//@version=6
 library("Lib")
 export add(float a) =>

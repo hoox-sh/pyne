@@ -5655,7 +5655,19 @@ class CompilerVisitor(NodeVisitor):
                     )
                     return "np.nan"
             if mapped and not kwargs:
-                return f"{mapped}({', '.join(args)})"
+                # Direct and cross-library calls bypass _emit_user_func_call,
+                # so bind declared defaults here. The emitted def deliberately
+                # omits Python defaults: trailing series/context plumbing would
+                # make a mid-signature default invalid syntax.
+                params = self.func_param_names.get(mapped) or []
+                defaults = self.func_param_defaults.get(mapped) or {}
+                call_args = list(args)
+                if params and len(call_args) < len(params):
+                    for pname in params[len(call_args) :]:
+                        if pname not in defaults:
+                            break
+                        call_args.append(defaults[pname])
+                return f"{mapped}({', '.join(call_args)})"
             if mapped:
                 self.library_inline_error = f"keyword arguments for inlined library method {lib_alias}.{func_name} are not supported; use mode=interpret or auto"
                 return "np.nan"
