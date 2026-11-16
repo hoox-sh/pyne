@@ -5683,19 +5683,22 @@ class CompilerVisitor(NodeVisitor):
                     )
                     return "np.nan"
             if mapped and not kwargs:
-                # Direct and cross-library calls bypass _emit_user_func_call,
-                # so bind declared defaults here. The emitted def deliberately
-                # omits Python defaults: trailing series/context plumbing would
-                # make a mid-signature default invalid syntax.
+                # Preserve the pre-existing strict short-call contract: a
+                # missing required library argument must reach Python as a
+                # TypeError, not be padded with np.nan by the UDF emitter.
+                # Fill only consecutive trailing defaults; stop at the first
+                # required missing arg and emit the short call.
                 params = self.func_param_names.get(mapped) or []
                 defaults = self.func_param_defaults.get(mapped) or {}
-                call_args = list(args)
-                if params and len(call_args) < len(params):
-                    for pname in params[len(call_args) :]:
+                short_args = list(args)
+                if params and len(short_args) < len(params):
+                    for pname in params[len(short_args) :]:
                         if pname not in defaults:
-                            break
-                        call_args.append(defaults[pname])
-                return f"{mapped}({', '.join(call_args)})"
+                            return f"{mapped}({', '.join(short_args)})"
+                        short_args.append(defaults[pname])
+                # All required args supplied: full UDF emitter for defaults,
+                # ta/series state, and chart-context plumbing.
+                return self._emit_user_func_call(mapped, args, {}, arg_nodes=arg_nodes)
             if mapped:
                 self.library_inline_error = f"keyword arguments for inlined library method {lib_alias}.{func_name} are not supported; use mode=interpret or auto"
                 return "np.nan"
@@ -10886,9 +10889,9 @@ class CompilerVisitor(NodeVisitor):
     ) -> str | None:
         """Return why an exported library function is outside this inline slice.
 
-        Allowed: parameters, locals, literals, ``math.*``/``str.*``, a small set
-        of pure bare builtins, and calls to same-library functions in
-        *local_names*. Library constants (free names) and calls to functions
+        Allowed: parameters, locals, literals, ``math.*``/``str.*``,
+        ``ta.sma``/``ta.ema``, a small set of pure bare builtins, and calls to
+        same-library functions in *local_names*. Library constants (free names) and calls to functions
         outside the library must fail closed instead of becoming runtime
         NameErrors or silent na.
         """
@@ -10910,6 +10913,10 @@ class CompilerVisitor(NodeVisitor):
             "fixnan",
         } | local_names
         allowed_namespaces = {"math", "str"} | (extra_namespaces or set())
+        # Small, audited ta.* slice for inlined library bodies. Stateful ta
+        # kernels are supported through the same UDF series/state plumbing as
+        # script-level calls; everything else stays fail-closed.
+        allowed_ta = {"sma", "ema"}
 
         def walk(node: Any) -> str | None:
             if node is None or not hasattr(node, "_fields"):
@@ -10924,7 +10931,10 @@ class CompilerVisitor(NodeVisitor):
                     if f.id not in allowed_calls:
                         return f"calls unsupported function {f.id}"
                 elif isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name):
-                    if f.value.id not in allowed_namespaces:
+                    if f.value.id == "ta":
+                        if f.attr not in allowed_ta:
+                            return f"calls unsupported ta function ta.{f.attr}"
+                    elif f.value.id not in allowed_namespaces:
                         return f"calls unsupported namespace {f.value.id}"
                 else:
                     err = walk(f)

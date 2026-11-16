@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from pynescript.runtime import Runtime
 
 
@@ -258,6 +260,157 @@ def test_exported_library_default_arg_cross_library_call() -> None:
     assert "error" not in compiled, compiled.get("error")
     assert compiled["series"]["x"] == [201.0, 203.0, 205.0, 207.0]
     assert compiled["series"]["x"] == interp["series"]["x"]
+
+
+_LIB_TA_SMA = """//@version=6
+library("Lib")
+export ind(float src) =>
+    ta.sma(src, 3)
+"""
+
+_LIB_TA_EMA = """//@version=6
+library("Lib")
+export ind(float src) =>
+    ta.ema(src, 3)
+"""
+
+_LIB_TA_RSI = """//@version=6
+library("Lib")
+export ind(float src) =>
+    ta.rsi(src, 3)
+"""
+
+_SRC_TA_LIB = """//@version=6
+indicator("lib ta")
+import ns/Lib/1 as lib
+plot(lib.ind(close), "x")
+"""
+
+
+def _ta_libraries(source: str) -> list[dict[str, object]]:
+    return [{"namespace": "ns", "name": "Lib", "version": 1, "source": source}]
+
+
+def _assert_ta_series(actual: list[object], expected: list[object]) -> None:
+    assert len(actual) == len(expected)
+    for got, want in zip(actual, expected, strict=True):
+        if want is None or (isinstance(want, float) and want != want):
+            assert got is None or (isinstance(got, float) and got != got), (got, want)
+        else:
+            assert got == pytest.approx(float(want)), (got, want)
+
+
+def test_library_ta_sma_inline_matches_interpret() -> None:
+    """``ta.sma`` inside an inlined library body matches interpret."""
+    interp = Runtime(symbol="TEST").run(
+        _SRC_TA_LIB,
+        _bars(8),
+        mode="interpret",
+        libraries=_ta_libraries(_LIB_TA_SMA),
+    )
+    compiled = Runtime(symbol="TEST").run(
+        _SRC_TA_LIB,
+        _bars(8),
+        mode="compile",
+        libraries=_ta_libraries(_LIB_TA_SMA),
+    )
+    assert "error" not in interp, interp.get("error")
+    assert "error" not in compiled, compiled.get("error")
+    _assert_ta_series(compiled["series"]["x"], interp["series"]["x"])
+
+
+def test_library_ta_ema_inline_matches_interpret() -> None:
+    """``ta.ema`` inside an inlined library body matches interpret."""
+    interp = Runtime(symbol="TEST").run(
+        _SRC_TA_LIB,
+        _bars(8),
+        mode="interpret",
+        libraries=_ta_libraries(_LIB_TA_EMA),
+    )
+    compiled = Runtime(symbol="TEST").run(
+        _SRC_TA_LIB,
+        _bars(8),
+        mode="compile",
+        libraries=_ta_libraries(_LIB_TA_EMA),
+    )
+    assert "error" not in interp, interp.get("error")
+    assert "error" not in compiled, compiled.get("error")
+    _assert_ta_series(compiled["series"]["x"], interp["series"]["x"])
+
+
+def test_library_unknown_ta_fails_closed() -> None:
+    """A ta.* outside the audited allowlist stays fail-closed."""
+    out = Runtime(symbol="TEST").run(
+        _SRC_TA_LIB,
+        _bars(8),
+        mode="compile",
+        libraries=_ta_libraries(_LIB_TA_RSI),
+    )
+    assert out.get("error_kind") == "compile", out
+    assert "unsupported ta function ta.rsi" in str(out.get("error") or "").lower()
+
+
+_LIB_MISSING_REQUIRED = """//@version=6
+library("Lib")
+export helper(float a, float k) =>
+    a * k
+"""
+
+_LIB_REQUIRED_BEFORE_DEFAULT = """//@version=6
+library("Lib")
+export helper(float a, float b, float k = 2.0) =>
+    a * b * k
+"""
+
+_SRC_LIB_MISSING = """//@version=6
+indicator("lib missing")
+import ns/Lib/1 as lib
+plot(lib.helper(close), "x")
+"""
+
+
+def test_library_missing_required_arg_both_hosts() -> None:
+    """Compile preserves the short-call TypeError; interpret stays na."""
+    interp = Runtime(symbol="TEST").run(
+        _SRC_LIB_MISSING,
+        _bars(4),
+        mode="interpret",
+        libraries=_ta_libraries(_LIB_MISSING_REQUIRED),
+    )
+    compiled = Runtime(symbol="TEST").run(
+        _SRC_LIB_MISSING,
+        _bars(4),
+        mode="compile",
+        libraries=_ta_libraries(_LIB_MISSING_REQUIRED),
+    )
+    assert "error" not in interp, interp.get("error")
+    assert all(v is None for v in interp["series"]["x"])
+    assert compiled.get("error_kind") == "runtime", compiled
+    message = str(compiled.get("error") or "")
+    assert "missing 1 required positional argument" in message, message
+    assert "'k'" in message, message
+
+
+def test_library_required_before_default_both_hosts() -> None:
+    """A required arg before a default still raises the short-call TypeError."""
+    interp = Runtime(symbol="TEST").run(
+        _SRC_LIB_MISSING,
+        _bars(4),
+        mode="interpret",
+        libraries=_ta_libraries(_LIB_REQUIRED_BEFORE_DEFAULT),
+    )
+    compiled = Runtime(symbol="TEST").run(
+        _SRC_LIB_MISSING,
+        _bars(4),
+        mode="compile",
+        libraries=_ta_libraries(_LIB_REQUIRED_BEFORE_DEFAULT),
+    )
+    assert "error" not in interp, interp.get("error")
+    assert all(v is None for v in interp["series"]["x"])
+    assert compiled.get("error_kind") == "runtime", compiled
+    message = str(compiled.get("error") or "")
+    assert "missing 2 required positional arguments" in message, message
+    assert "'b'" in message and "'k'" in message, message
 
 
 _LIB_INTERNAL_UNKNOWN = """//@version=6

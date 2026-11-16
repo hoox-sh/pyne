@@ -1,0 +1,21 @@
+# Failing-before — library-body ta.* allowlist (ta.sma/ta.ema)
+# date: 2026-11-16
+# command: .venv/bin/python -m pytest tests/test_compiler_library_inline.py -q --tb=short -k "library_ta_sma or library_ta_ema or library_unknown_ta"
+# pre-plumbing: after allowing the ta namespace, the direct mapped library call omitted the UDF ta state/chart-context params (12 missing args); ta.rsi stayed fail-closed.
+
+FF.                                                                      [100%]
+=================================== FAILURES ===================================
+_________________ test_library_ta_sma_inline_matches_interpret _________________
+tests/test_compiler_library_inline.py:318: in test_library_ta_sma_inline_matches_interpret
+    assert "error" not in compiled, compiled.get("error")
+E   AssertionError: Compiled Runtime Error: TypeError: __lib_lib_ind() missing 12 required positional arguments: '__sma0_st', 'open_arr', 'high_arr', 'low_arr', 'close_arr', 'vol_arr', 'time_arr', '__bar_idx', '__isrealtime', '__ishistory', '__isnew', and '__isconfirmed'
+E   assert 'error' not in {'error': "Compiled Runtime Error: TypeError: __lib_lib_ind() missing 12 required positional arguments: '__sma0_st', '...', '__ishistory', '__isnew', and '__isconfirmed'", 'error_kind': 'runtime', 'error_type': 'TypeError', 'logs': [], ...}
+_________________ test_library_ta_ema_inline_matches_interpret _________________
+tests/test_compiler_library_inline.py:337: in test_library_ta_ema_inline_matches_interpret
+    assert "error" not in compiled, compiled.get("error")
+E   AssertionError: Compiled Runtime Error: TypeError: __lib_lib_ind() missing 12 required positional arguments: '__ema0_st', 'open_arr', 'high_arr', 'low_arr', 'close_arr', 'vol_arr', 'time_arr', '__bar_idx', '__isrealtime', '__ishistory', '__isnew', and '__isconfirmed'
+E   assert 'error' not in {'error': "Compiled Runtime Error: TypeError: __lib_lib_ind() missing 12 required positional arguments: '__ema0_st', '...', '__ishistory', '__isnew', and '__isconfirmed'", 'error_kind': 'runtime', 'error_type': 'TypeError', 'logs': [], ...}
+=========================== short test summary info ============================
+FAILED tests/test_compiler_library_inline.py::test_library_ta_sma_inline_matches_interpret
+FAILED tests/test_compiler_library_inline.py::test_library_ta_ema_inline_matches_interpret
+2 failed, 1 passed, 44 deselected in 1.68s
