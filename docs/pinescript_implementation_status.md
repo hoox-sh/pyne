@@ -130,7 +130,7 @@ The compile path has two modes:
 
 ### Numeric Mode (Numba)
 
-Pure numeric scripts are lowered to Python/numpy source and JIT-compiled via Numba. Handles series assignments, arithmetic, history access, control flow, selected `ta.*` routines, tuple unpack, scalar math, plots, and `var`/`varip` persistence.
+Pure numeric scripts are lowered to Python/numpy source and JIT-compiled via Numba. Handles series assignments, arithmetic, history access, control flow, selected `ta.*` routines, tuple unpack, scalar math, plots, and `var` persistence. Scripts containing `varip` route to object mode, which owns per-tick persistence; numeric nopython is historical-only.
 
 ### Object Mode
 

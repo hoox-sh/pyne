@@ -1375,6 +1375,14 @@ class CompilerVisitor(NodeVisitor):
         if self.force_object_mode:
             self.object_mode = True
 
+        # Numeric nopython is historical-only: it hardcodes barstate flags and
+        # has no tick loop, so it cannot honor varip's per-tick persistence.
+        # Route any script containing varip through object mode, which owns
+        # var/varip rollback. UDF varip already forces object mode; this closes
+        # the top-level silent varip-as-var path.
+        if self.varip_vars:
+            self.object_mode = True
+
         # Statement hline/fill skipped in-loop drawings to stay nopython.
         # Mixed scripts that later flip object_mode still need those events.
         if self.object_mode and self._hline_fill_events:

@@ -103,7 +103,7 @@ Data providers include Mock, Yahoo Finance, AlphaVantage, and CCXT (100+ crypto 
 
 ### Compiler
 
-The Numba compile path handles pure numeric scripts: series assignments, arithmetic, history access, control flow, selected `ta.*` routines, tuple unpack, scalar math, plots, and `var`/`varip` persistence. Object mode handles UDTs, maps, and drawings. Warm-compile with disk IR cache is available via prewarm API/CLI.
+The Numba compile path handles pure numeric scripts: series assignments, arithmetic, history access, control flow, selected `ta.*` routines, tuple unpack, scalar math, plots, and `var` persistence. Scripts containing `varip` route to object mode, which owns per-tick persistence; numeric nopython is historical-only. Object mode handles UDTs, maps, drawings, and `varip`. Warm-compile with disk IR cache is available via prewarm API/CLI.
 
 ---
 

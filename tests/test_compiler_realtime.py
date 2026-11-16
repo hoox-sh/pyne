@@ -406,8 +406,8 @@ def test_numeric_compiled_run_routes_realtime_to_object_mode() -> None:
     assert list(hist["hist"]) == [1.0] * n
 
 
-def test_numeric_compiled_run_varip_matches_interpret_realtime() -> None:
-    """Numeric varip must re-init per realtime tick, not behave like var."""
+def test_varip_compiled_run_matches_interpret_realtime() -> None:
+    """Varip scripts compile in object mode and re-init per realtime tick."""
     n = 8
     ticks = 3
     bars = _bars(n)
@@ -422,7 +422,7 @@ def test_numeric_compiled_run_varip_matches_interpret_realtime() -> None:
     interp_vip = _series(interp, "vip")
 
     compiled = compile_script(_VAR_VARIP_SRC, use_cache=False)
-    assert compiled.object_mode is False
+    assert compiled.object_mode is True
     opens, highs, lows, closes, vols, times = _compiled_arrays(bars)
     out = compiled.run(
         opens,
@@ -439,7 +439,22 @@ def test_numeric_compiled_run_varip_matches_interpret_realtime() -> None:
     assert out["vip"][-1] == 1.0
     assert list(out["v"]) == interp_v
     assert list(out["vip"]) == interp_vip
-    assert compiled.object_mode is False
+    assert compiled.object_mode is True
     hist = compiled.run(opens, highs, lows, closes, vols, time=times)
     assert hist["v"][-1] == n
     assert hist["vip"][-1] == n
+
+
+def test_varip_forces_object_mode_not_numeric() -> None:
+    """A varip script must not take the historical-only numeric path."""
+    compiled = compile_script(_VAR_VARIP_SRC, use_cache=False)
+    assert compiled.object_mode is True
+
+    code = transpile(_VAR_VARIP_SRC)
+    assert "@numba.njit" not in code
+    assert "for __tick_i" in code
+
+    n = 6
+    interp, out = _dual(_VAR_VARIP_SRC, _bars(n))
+    assert _series(out, "vip") == _series(interp, "vip")
+    assert _series(out, "vip")[-1] == n
