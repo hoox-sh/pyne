@@ -285,3 +285,199 @@ def test_update_last_bar_updates_forming_mae() -> None:
     kinds = [str(e.get("kind")) for e in (out2.get("events") or [])]
     assert kinds.count("entry") == 1
     assert kinds.count("close") == 0
+
+
+_TICK_FILL_SRC = """//@version=6
+strategy("tick mae fill", commission_value=0)
+if barstate.isfirst
+    strategy.entry("L", strategy.long, qty=1, limit=95.0)
+plot(strategy.opentrades.max_runup(0), "ru")
+plot(strategy.opentrades.max_drawdown(0), "dd")
+plot(strategy.position_size, "ps")
+"""
+
+_TICK_STOP_SRC = """//@version=6
+strategy("tick mae stop", commission_value=0)
+if barstate.isfirst
+    strategy.entry("L", strategy.long, qty=1, stop=105.0)
+plot(strategy.opentrades.max_runup(0), "ru")
+plot(strategy.opentrades.max_drawdown(0), "dd")
+plot(strategy.position_size, "ps")
+"""
+
+
+def _tick_fill_candles() -> list[list[float | int]]:
+    # Tick 1 high 120 is pre-entry and must not inflate runup. Tick 3 fills the
+    # 95 limit and trades 100 / 94 -> runup 5, drawdown 1.
+    ts = _TS0 + 2 * _DAY
+    return [
+        [ts, 100.5, 120.0, 119.5, 119.8, 10.0],
+        [ts, 100.5, 118.0, 117.0, 117.5, 11.0],
+        [ts, 100.5, 100.0, 94.0, 96.0, 12.0],
+    ]
+
+
+def _tick_stop_candles() -> list[list[float | int]]:
+    # Tick 1 low 80 is pre-entry; tick 2/3 trigger the 105 stop with low 90.
+    ts = _TS0 + 2 * _DAY
+    return [
+        [ts, 100.5, 100.0, 80.0, 100.0, 10.0],
+        [ts, 100.5, 110.0, 90.0, 108.0, 11.0],
+        [ts, 100.5, 110.0, 90.0, 108.0, 12.0],
+    ]
+
+
+def test_tick_fill_counts_fill_tick_extremes_interpret() -> None:
+    """D-03: a limit filled on a tick counts that tick's excursion, not pre-entry ticks."""
+    out = Runtime(symbol="RTMAE").run(
+        _TICK_FILL_SRC,
+        _hist_bars(),
+        mode="interpret",
+        realtime_ticks=3,
+        data_feed=MockDataFeed(scripted=_tick_fill_candles()),
+    )
+    assert "error" not in out, out.get("error")
+    ru = _series(out, "ru")
+    dd = _series(out, "dd")
+    ps = _series(out, "ps")
+    assert ps[-1] == pytest.approx(1.0), ps
+    assert ru[-1] == pytest.approx(5.0), ru
+    assert dd[-1] == pytest.approx(1.0), dd
+    assert ru[-1] != pytest.approx(25.0), ru  # 120 - 95 would count the pre-entry high
+
+
+def test_tick_fill_counts_fill_tick_extremes_session() -> None:
+    """The session twin applies the same post-fill tick envelope."""
+    sess = Runtime(symbol="RTMAE").create_session(
+        _TICK_FILL_SRC,
+        _hist_bars(),
+        mode="interpret",
+        realtime_ticks=3,
+        data_feed=MockDataFeed(scripted=_tick_fill_candles()),
+    )
+    trade = sess.evaluator._strategy_state.open_trades[0]
+    assert trade.max_runup == pytest.approx(5.0)
+    assert trade.max_drawdown == pytest.approx(1.0)
+    assert sess.evaluator._strategy_state.position_direction == "long"
+
+
+def test_tick_stop_entry_ignores_pre_entry_low() -> None:
+    """A stop entry counts the trigger tick's low, not an earlier tick's low."""
+    out = Runtime(symbol="RTMAE").run(
+        _TICK_STOP_SRC,
+        _hist_bars(),
+        mode="interpret",
+        realtime_ticks=3,
+        data_feed=MockDataFeed(scripted=_tick_stop_candles()),
+    )
+    assert "error" not in out, out.get("error")
+    ru = _series(out, "ru")
+    dd = _series(out, "dd")
+    ps = _series(out, "ps")
+    assert ps[-1] == pytest.approx(1.0), ps
+    assert ru[-1] == pytest.approx(5.0), ru
+    assert dd[-1] == pytest.approx(15.0), dd
+    assert dd[-1] != pytest.approx(25.0), dd  # 105 - 80 would count the pre-entry low
+
+
+_TICK_EXIT_LIMIT_SRC = """//@version=6
+strategy("tick exit limit", commission_value=0)
+if barstate.isfirst
+    strategy.entry("L", strategy.long, qty=1)
+if bar_index == 1
+    strategy.exit("X", "L", limit=110.0)
+plot(strategy.closedtrades.max_runup(0), "cru")
+plot(strategy.closedtrades.max_drawdown(0), "cdd")
+plot(strategy.closedtrades, "ct")
+"""
+
+_TICK_EXIT_STOP_SRC = """//@version=6
+strategy("tick exit stop", commission_value=0)
+if barstate.isfirst
+    strategy.entry("L", strategy.long, qty=1)
+if bar_index == 1
+    strategy.exit("X", "L", stop=90.0)
+plot(strategy.closedtrades.max_runup(0), "cru")
+plot(strategy.closedtrades.max_drawdown(0), "cdd")
+plot(strategy.closedtrades, "ct")
+"""
+
+
+def _tick_exit_limit_candles() -> list[list[float | int]]:
+    # Entry at 100; ticks 1-2 leave the exit pending, tick 3 fills the 110
+    # limit. The exit tick's 120 / 90 envelope is the trade's 20 / 10.
+    ts = _TS0 + 2 * _DAY
+    return [
+        [ts, 100.0, 115.0, 95.0, 100.0, 10.0],
+        [ts, 100.0, 118.0, 92.0, 100.0, 11.0],
+        [ts, 100.0, 120.0, 90.0, 100.0, 12.0],
+    ]
+
+
+def _tick_exit_stop_candles() -> list[list[float | int]]:
+    # Entry at 100; ticks 1-2 leave the 90 stop pending, tick 3 triggers it and
+    # its 120 / 80 envelope is the trade's 20 / 20.
+    ts = _TS0 + 2 * _DAY
+    return [
+        [ts, 100.0, 115.0, 95.0, 100.0, 10.0],
+        [ts, 100.0, 118.0, 92.0, 100.0, 11.0],
+        [ts, 100.0, 120.0, 80.0, 100.0, 12.0],
+    ]
+
+
+def test_tick_limit_exit_keeps_exit_tick_extremes_interpret() -> None:
+    """A trade closed by a tick fill keeps that tick's envelope (20 / 10)."""
+    out = Runtime(symbol="RTMAE").run(
+        _TICK_EXIT_LIMIT_SRC,
+        _hist_bars(),
+        mode="interpret",
+        realtime_ticks=3,
+        data_feed=MockDataFeed(scripted=_tick_exit_limit_candles()),
+    )
+    assert "error" not in out, out.get("error")
+    assert _series(out, "ct")[-1] == pytest.approx(1.0), out["series"]["ct"]
+    assert _series(out, "cru")[-1] == pytest.approx(20.0), out["series"]["cru"]
+    assert _series(out, "cdd")[-1] == pytest.approx(10.0), out["series"]["cdd"]
+
+
+def test_tick_stop_exit_keeps_exit_tick_extremes_interpret() -> None:
+    """A stop exit closed by a tick fill keeps that tick's envelope (20 / 20)."""
+    out = Runtime(symbol="RTMAE").run(
+        _TICK_EXIT_STOP_SRC,
+        _hist_bars(),
+        mode="interpret",
+        realtime_ticks=3,
+        data_feed=MockDataFeed(scripted=_tick_exit_stop_candles()),
+    )
+    assert "error" not in out, out.get("error")
+    assert _series(out, "ct")[-1] == pytest.approx(1.0), out["series"]["ct"]
+    assert _series(out, "cru")[-1] == pytest.approx(20.0), out["series"]["cru"]
+    assert _series(out, "cdd")[-1] == pytest.approx(20.0), out["series"]["cdd"]
+
+
+def test_tick_limit_exit_keeps_exit_tick_extremes_session() -> None:
+    """Session twin: the closed trade keeps the exit tick's envelope."""
+    sess = Runtime(symbol="RTMAE").create_session(
+        _TICK_EXIT_LIMIT_SRC,
+        _hist_bars(),
+        mode="interpret",
+        realtime_ticks=3,
+        data_feed=MockDataFeed(scripted=_tick_exit_limit_candles()),
+    )
+    trade = sess.evaluator._strategy_state.closed_trades[0]
+    assert trade.max_runup == pytest.approx(20.0)
+    assert trade.max_drawdown == pytest.approx(10.0)
+
+
+def test_tick_stop_exit_keeps_exit_tick_extremes_session() -> None:
+    """Session twin: a stop exit keeps the exit tick's envelope (20 / 20)."""
+    sess = Runtime(symbol="RTMAE").create_session(
+        _TICK_EXIT_STOP_SRC,
+        _hist_bars(),
+        mode="interpret",
+        realtime_ticks=3,
+        data_feed=MockDataFeed(scripted=_tick_exit_stop_candles()),
+    )
+    trade = sess.evaluator._strategy_state.closed_trades[0]
+    assert trade.max_runup == pytest.approx(20.0)
+    assert trade.max_drawdown == pytest.approx(20.0)

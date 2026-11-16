@@ -1665,15 +1665,17 @@ def _apply_feed_forming_bar(
     evaluator: Any,
     data_feed: Any,
     symbol: str,
-) -> None:
+) -> tuple[float, float] | None:
     """Overwrite the forming bar from ``DataFeed.poll_ohlcv`` (sync).
 
-    No-op when *data_feed* is missing, ``poll_ohlcv`` is absent, or the
-    poll returns ``None`` / a malformed candle. Never raises; does not
-    await (the bar loop stays sync).
+    Returns the polled tick's ``(high, low)`` so the tick loops can apply the
+    tick envelope after that tick's fills (D-03). Returns ``None`` when
+    *data_feed* is missing, ``poll_ohlcv`` is absent, or the poll returns
+    ``None`` / a malformed candle. Never raises; does not await (the bar loop
+    stays sync).
     """
     if data_feed is None or not ohlcv_data:
-        return
+        return None
     tf = "1m"
     ctx = getattr(evaluator, "context", None)
     try:
@@ -1689,7 +1691,7 @@ def _apply_feed_forming_bar(
         return
     polled = poll_forming_ohlcv(data_feed, symbol or "", tf)
     if polled is None:
-        return
+        return None
     ts, o, h, low, c, vol = polled
     ts = int(ts)
     try:
@@ -1713,9 +1715,9 @@ def _apply_feed_forming_bar(
             }
     except Exception as _exc:
         _swallow(_exc, what="write the forming bar into OHLCV")
-        return
+        return None
     if ctx is None:
-        return
+        return (float(h), float(low))
 
     def _set_current(name: str, value: Any) -> None:
         series = ctx.get(name)
@@ -1784,6 +1786,7 @@ def _apply_feed_forming_bar(
                     col[bar_index] = val
             except Exception as _exc:
                 _swallow(_exc, what="apply forming tick to plot columns")
+    return (float(h), float(low))
 
 
 def _ratchet_forming_trails(evaluator: Any, high: Any, low: Any) -> None:
@@ -1805,11 +1808,12 @@ def _ratchet_forming_trails(evaluator: Any, high: Any, low: Any) -> None:
 
 
 def _update_forming_trade_extremes(evaluator: Any, high: Any, low: Any) -> None:
-    """Re-apply open-trade MAE/MFE from forming-bar high/low (no fills).
+    """Apply open-trade MAE/MFE from one tick's high/low (no fills).
 
     Broker snapshot/restore rolls per-trade ``max_drawdown`` / ``max_runup``
-    back with fills; call this after ``poll_ohlcv`` and after each unconfirmed
-    restore so forming-bar extremes persist like ``varip``.
+    back with fills; call this after the tick's pending fills and after each
+    unconfirmed restore so tick extremes persist like ``varip``. The caller
+    passes the polled tick envelope (D-03), not the aggregate bar envelope.
     """
     if high is None or low is None:
         return
@@ -2535,8 +2539,11 @@ class InterpretSession:
                 except Exception as _exc:
                     _swallow(_exc, what="record alert buffer lengths")
             for tick_i in range(n_ticks):
+                tick_hl: tuple[float, float] | None = None
                 if bar_rt:
-                    _apply_feed_forming_bar(self._ohlcv_data, bar_index, ev, self._data_feed, self._runtime.symbol)
+                    tick_hl = _apply_feed_forming_bar(
+                        self._ohlcv_data, bar_index, ev, self._data_feed, self._runtime.symbol
+                    )
                     barstate.isrealtime = True
                     barstate.ishistory = False
                     barstate.isnew = tick_i == 0
@@ -2545,7 +2552,13 @@ class InterpretSession:
                     if self._need_strategy:
                         fh, fl = _forming_hl(self._ohlcv_data, bar_index)
                         _ratchet_forming_trails(ev, fh, fl)
-                        _update_forming_trade_extremes(ev, fh, fl)
+                        # D-03: trades already open at tick start see this tick
+                        # before the fills, so a trade closed by the fill keeps
+                        # the exit tick's envelope. Trades opened by the fill
+                        # get it in the post-fill apply below.
+                        eh, el = tick_hl if tick_hl is not None else (fh, fl)
+                        if eh is not None and el is not None:
+                            _update_forming_trade_extremes(ev, eh, el)
                 tick_var_snap = _snapshot_realtime_scope(ev) if bar_rt and tick_i < n_ticks - 1 else None
                 tick_ta_snap = _snapshot_ta_state(ev) if bar_rt and tick_i < n_ticks - 1 else None
                 tick_broker_snap = (
@@ -2587,6 +2600,13 @@ class InterpretSession:
                             )
                             _stats.count("interpret.errors", dim="order_fill")
                             return
+                # D-03 tick path: apply this tick's envelope after its fills so
+                # a trade opened by the fill counts the fill tick's excursion
+                # (the pre-fill apply above already covered trades that closed).
+                if self._need_strategy and bar_rt:
+                    eh, el = tick_hl if tick_hl is not None else _forming_hl(self._ohlcv_data, bar_index)
+                    if eh is not None and el is not None:
+                        _update_forming_trade_extremes(ev, eh, el)
                 if self._need_cross:
                     ev._cross_call_i = 0  # type: ignore[attr-defined]
                 ev._ta_call_i = 0  # type: ignore[attr-defined]
@@ -2625,7 +2645,9 @@ class InterpretSession:
                         strategy_state.restore(tick_broker_snap)
                         fh, fl = _forming_hl(self._ohlcv_data, bar_index)
                         _ratchet_forming_trails(ev, fh, fl)
-                        _update_forming_trade_extremes(ev, fh, fl)
+                        eh, el = tick_hl if tick_hl is not None else (fh, fl)
+                        if eh is not None and el is not None:
+                            _update_forming_trade_extremes(ev, eh, el)
                     _discard_realtime_plot_tick(ev)
                     continue
                 if snapshot_bar is not None:
@@ -4027,9 +4049,10 @@ class Runtime:
                     )
 
             for tick_i in range(n_ticks):
+                tick_hl: tuple[float, float] | None = None
                 if bar_rt:
                     # Forming bar in realtime window: isrealtime drives varip RHS re-eval.
-                    _apply_feed_forming_bar(ohlcv_data, bar_index, evaluator, data_feed, self.symbol)
+                    tick_hl = _apply_feed_forming_bar(ohlcv_data, bar_index, evaluator, data_feed, self.symbol)
                     barstate.isrealtime = True
                     barstate.ishistory = False
                     barstate.isnew = tick_i == 0
@@ -4039,7 +4062,13 @@ class Runtime:
                     if need_strategy:
                         fh, fl = _forming_hl(ohlcv_data, bar_index)
                         _ratchet_forming_trails(evaluator, fh, fl)
-                        _update_forming_trade_extremes(evaluator, fh, fl)
+                        # D-03: trades already open at tick start see this tick
+                        # before the fills, so a trade closed by the fill keeps
+                        # the exit tick's envelope. Trades opened by the fill
+                        # get it in the post-fill apply below.
+                        eh, el = tick_hl if tick_hl is not None else (fh, fl)
+                        if eh is not None and el is not None:
+                            _update_forming_trade_extremes(evaluator, eh, el)
 
                 # Intermediate realtime ticks start from confirmed state:
                 # snapshot var scope + TA windows, restore after the visit
@@ -4092,6 +4121,13 @@ class Runtime:
                                 parse_ms=parse_ms,
                                 eval_ms=eval_ms,
                             )
+                # D-03 tick path: apply this tick's envelope after its fills so
+                # a trade opened by the fill counts the fill tick's excursion
+                # (the pre-fill apply above already covered trades that closed).
+                if need_strategy and bar_rt:
+                    eh, el = tick_hl if tick_hl is not None else _forming_hl(ohlcv_data, bar_index)
+                    if eh is not None and el is not None:
+                        _update_forming_trade_extremes(evaluator, eh, el)
                 # Always reset TA slots. v4 bare sma/wma, math.sum, and other
                 # rolling helpers call ``_ta_next_slot`` even with no ``ta.``
                 # in source (gating on ``"ta."`` left those sites all-na).
@@ -4137,7 +4173,9 @@ class Runtime:
                         strategy_state.restore(broker_snap)
                         fh, fl = _forming_hl(ohlcv_data, bar_index)
                         _ratchet_forming_trails(evaluator, fh, fl)
-                        _update_forming_trade_extremes(evaluator, fh, fl)
+                        eh, el = tick_hl if tick_hl is not None else (fh, fl)
+                        if eh is not None and el is not None:
+                            _update_forming_trade_extremes(evaluator, eh, el)
                     _discard_realtime_plot_tick(evaluator)
                     continue
 
