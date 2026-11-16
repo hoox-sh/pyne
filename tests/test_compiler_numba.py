@@ -4720,14 +4720,37 @@ fill(plot(s), plot(close), title="band")
         assert np.isfinite(out["sma"][-1])
         assert abs(out["hline"][-1] - 0.0) < 1e-12
 
-    def test_hline_handle_still_object_mode(self) -> None:
+    def test_assigned_hline_unused_stays_numeric(self) -> None:
+        """A dead assigned hline folds to metadata + numeric series."""
         src = """//@version=5
 indicator("x")
-h = hline(50)
+h = hline(50, "mid", color=color.red, linestyle=hline.style_dashed)
 plot(close, "c")
 """
+        code = transpile(src)
+        assert "@numba.njit" in code
+        assert "__drawings" not in code
         compiled = compile_script(src, use_cache=False)
-        assert compiled.object_mode is True
+        assert compiled.object_mode is False
+        assert compiled.plot_attrs[0]["linestyle"] == "style_dashed"
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert np.allclose(out["mid"], 50.0)
+        assert np.allclose(out["c"], c)
+
+    def test_assigned_hline_handle_use_still_object_mode(self) -> None:
+        """Any read of the assigned hline handle keeps object mode."""
+        for body in (
+            'hline.delete(h)\nplot(close, "c")',
+            'fill(h, h, color=color.red)\nplot(close, "c")',
+        ):
+            src = f"""//@version=5
+indicator("x")
+h = hline(50)
+{body}
+"""
+            compiled = compile_script(src, use_cache=False)
+            assert compiled.object_mode is True, body
 
     def test_numeric_udf_plot_stays_nopython(self) -> None:
         src = """//@version=5

@@ -206,6 +206,7 @@ plot(high, title="y")
         src = """//@version=5
 indicator("hl")
 h = hline(50, title="mid")
+hline.delete(h)
 plot(close, title="c")
 """
         compiled = compile_script(src, use_cache=False)

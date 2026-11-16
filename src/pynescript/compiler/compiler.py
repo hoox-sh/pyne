@@ -755,6 +755,9 @@ class CompilerVisitor(NodeVisitor):
         self._stmt_expr: bool = False
         # Statement-form hline/fill to inject into object-mode body (mixed scripts).
         self._hline_fill_events: list[tuple[str, list[str], dict[str, str]]] = []
+        # Top-level assigned hline targets whose handle is never referenced:
+        # safe to synthesize metadata + plot series and stay numeric.
+        self._unused_hline_targets: set[str] = set()
         # Interpret capture index (plot/hline/fill/bgcolor/plotshape/plotchar).
         # Empty ``plot(..., title="")`` keys use ``plot_{index}`` so they match
         # Runtime packaging even when drawings are not in ``self.plots``.
@@ -1344,6 +1347,7 @@ class CompilerVisitor(NodeVisitor):
         """
         self._register_enums(node.body)
         self._register_func_names(node.body)
+        self._unused_hline_targets = self._collect_unused_hline_targets(node.body)
         body_lines: list[str] = []
         for stmt in node.body:
             val = self.visit(stmt)
@@ -2246,6 +2250,97 @@ class CompilerVisitor(NodeVisitor):
                     return True
         return False
 
+    def _count_name_occurrences(self, node, name: str) -> int:
+        """Count every ``Name`` occurrence (assignment target counts as one)."""
+        if node is None or not hasattr(node, "_fields"):
+            return 0
+        total = 1 if isinstance(node, ast.Name) and node.id == name else 0
+        for child in _iter_child_values(node):
+            if isinstance(child, list):
+                for item in child:
+                    total += self._count_name_occurrences(item, name)
+            else:
+                total += self._count_name_occurrences(child, name)
+        return total
+
+    def _collect_unused_hline_targets(self, body) -> set[str]:
+        """Top-level ``h = hline(...)`` where ``h`` is never referenced again.
+
+        Only a dead handle can be folded to metadata safely; any later read
+        (``hline.delete(h)`` / ``fill(h1, h2)`` / ``plot(h)``) keeps object mode.
+        """
+        out: set[str] = set()
+        for stmt in body or []:
+            if not isinstance(stmt, ast.Assign):
+                continue
+            target = getattr(stmt, "target", None)
+            value = getattr(stmt, "value", None)
+            if not isinstance(target, ast.Name) or not isinstance(value, ast.Call):
+                continue
+            f = value.func
+            if isinstance(f, ast.Specialize):
+                f = f.value
+            if not (isinstance(f, ast.Name) and f.id == "hline"):
+                continue
+            # One occurrence == the assignment target itself; no reads/rebinds.
+            occurrences = sum(self._count_name_occurrences(stmt, target.id) for stmt in body)
+            if occurrences == 1:
+                out.add(target.id)
+        return out
+
+    def _emit_assigned_hline(self, call: ast.Call, name: str) -> str | None:
+        """Synthesize a dead assigned ``hline`` as metadata + numeric series.
+
+        Returns a body snippet (plot write + dead-handle placeholder) when the
+        price is proven numeric, else ``None`` and lets the normal object path
+        handle it.
+        """
+        f = call.func
+        if isinstance(f, ast.Specialize):
+            f = f.value
+        if not (isinstance(f, ast.Name) and f.id == "hline"):
+            return None
+        args: list[str] = []
+        kwargs: dict[str, str] = {}
+        prev_fold = self._fold_literal_color
+        self._fold_literal_color = True
+        try:
+            for arg in call.args:
+                if hasattr(arg, "value"):
+                    expr = self.visit(arg.value)
+                    if getattr(arg, "name", None):
+                        kwargs[str(arg.name)] = expr
+                    else:
+                        args.append(expr)
+                else:
+                    args.append(self.visit(arg))
+        finally:
+            self._fold_literal_color = prev_fold
+        price_expr = args[0] if args else "np.nan"
+        if not (
+            self._is_safe_numeric_expr(price_expr)
+            or self._is_numeric_or_bool_literal(price_expr)
+        ):
+            self.object_mode = True
+            return None
+        title = "hline"
+        if "title" in kwargs:
+            title = self._literal_str(kwargs["title"], default="hline") or "hline"
+        elif len(args) > 1 and args[1]:
+            title = self._literal_str(args[1], default="hline") or "hline"
+        title = self._unique_plot_title(title)
+        entry: dict[str, Any] = {"expr": price_expr, "title": title, "kind": "hline"}
+        attrs = self._collect_plot_attrs("hline", args, kwargs)
+        if attrs:
+            entry["attrs"] = attrs
+        self.plots.append(entry)
+        self._note_visual_series()
+        idx = len(self.plots) - 1
+        draw_kwargs = dict(kwargs)
+        draw_kwargs["title"] = repr(title)
+        self._hline_fill_events.append(("hline", list(args), draw_kwargs))
+        return f"plot_{idx}[__bar_idx] = {price_expr}\n{name} = np.nan"
+
     def visit_Assign(self, node: ast.Assign):
         # Tuple unpack: [a, b, c] = ta.macd(...) / ta.bb(...)
         if isinstance(node.target, ast.Tuple):
@@ -2262,6 +2357,16 @@ class CompilerVisitor(NodeVisitor):
             return ""
 
         name = node.target.id
+        if (
+            not self.in_function
+            and not self.object_mode
+            and getattr(node, "mode", None) is None
+            and name in self._unused_hline_targets
+            and isinstance(node.value, ast.Call)
+        ):
+            hline_code = self._emit_assigned_hline(node.value, name)
+            if hline_code is not None:
+                return hline_code
         if self._ast_is_numeric(getattr(node, "value", None)):
             self.numeric_locals.add(name)
         else:
