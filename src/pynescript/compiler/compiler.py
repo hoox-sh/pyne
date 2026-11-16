@@ -4424,6 +4424,15 @@ class CompilerVisitor(NodeVisitor):
         return f"{node.id}_arr[__bar_idx]"
 
     def visit_Attribute(self, node: ast.Attribute):
+        # input.integer / input.float / input.bool / input.source are metadata
+        # tokens for ``input(..., type=...)``. They must not fall through to the
+        # generic UDT/object-field path (which forced object mode). Stringy
+        # input tokens still need object mode for their string/color values.
+        if isinstance(node.value, ast.Name) and node.value.id == "input":
+            if node.attr in self._NUMERIC_INPUT_ATTRS:
+                return repr(node.attr)
+            self.object_mode = True
+            return repr(node.attr)
         # color.red etc.
         if isinstance(node.value, ast.Name) and node.value.id == "ta":
             # Bare series-style TA attrs (no Call) — always emit a call expr, never

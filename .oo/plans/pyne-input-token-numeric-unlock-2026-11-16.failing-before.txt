@@ -1,0 +1,21 @@
+# Failing-before — bare input.* numeric type tokens force object mode
+# date: 2026-11-16
+# pre-fix worktree: detached HEAD 98cc8e70 + current test file
+# command: PYTHONPATH=<98cc8e70>/src .venv/bin/python -m pytest tests/test_compiler_numba.py -q --tb=short -k "bare_input_numeric_type_tokens or bare_input_source_type_token or bare_input_string_and_color"
+# pre-fix: input(..., type=input.integer/float/bool) emitted object code; type=input.source had object_mode=True; string/color already object.
+
+FF.                                                                      [100%]
+=================================== FAILURES ===================================
+_ TestLanguageSurfaceNumeric.test_bare_input_numeric_type_tokens_stay_numeric __
+tests/test_compiler_numba.py:3648: in test_bare_input_numeric_type_tokens_stay_numeric
+    assert "@numba.njit" in code
+E   assert '@numba.njit' in "import numpy as np\nfrom pynescript.compiler.numba_builtins import *\nfrom pynescript.util.datafeed import poll_formi...ma0_st[:] = __rt_snap___sma0_st\n    return {'p': plot_0, 'q': plot_1, '__drawings': __drawings, '__alerts': __alerts}"
+__ TestLanguageSurfaceNumeric.test_bare_input_source_type_token_stays_numeric __
+tests/test_compiler_numba.py:3665: in test_bare_input_source_type_token_stays_numeric
+    assert compiled.object_mode is False
+E   assert True is False
+E    +  where True = CompiledScript(source='//@version=5\nindicator("x")\ns = input(close, type=input.source)\nplot(s, title="s")\n', gener...f09020bb270>, plot_titles=['s'], plot_kinds=['plot'], plot_attrs=[{}], object_mode=True, nopython_fallback_reason=None).object_mode
+=========================== short test summary info ============================
+FAILED tests/test_compiler_numba.py::TestLanguageSurfaceNumeric::test_bare_input_numeric_type_tokens_stay_numeric
+FAILED tests/test_compiler_numba.py::TestLanguageSurfaceNumeric::test_bare_input_source_type_token_stays_numeric
+2 failed, 1 passed, 210 deselected in 4.96s

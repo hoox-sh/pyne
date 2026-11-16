@@ -3634,6 +3634,56 @@ plot(ta.sma(close, a) * b, title="p")
         expected = float(np.mean(c[-14:])) * 2.0
         assert abs(out["p"][-1] - expected) < 1e-6
 
+    def test_bare_input_numeric_type_tokens_stay_numeric(self) -> None:
+        """``input(..., type=input.integer/float/bool)`` is metadata-only."""
+        src = """//@version=5
+indicator("x")
+a = input(3, type=input.integer)
+b = input(2.0, type=input.float)
+flag = input(true, type=input.bool)
+plot(ta.sma(close, a) * b, title="p")
+plot(flag ? 1 : 0, title="q")
+"""
+        code = transpile(src)
+        assert "@numba.njit" in code
+        compiled = compile_script(src, use_cache=False)
+        assert compiled.object_mode is False
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        expected = float(np.mean(c[-3:])) * 2.0
+        assert abs(out["p"][-1] - expected) < 1e-6
+        assert out["q"][-1] == 1.0
+
+    def test_bare_input_source_type_token_stays_numeric(self) -> None:
+        """``type=input.source`` is a series token, not an object namespace."""
+        src = """//@version=5
+indicator("x")
+s = input(close, type=input.source)
+plot(s, title="s")
+"""
+        compiled = compile_script(src, use_cache=False)
+        assert compiled.object_mode is False
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert np.allclose(out["s"], c)
+
+    def test_bare_input_string_and_color_tokens_stay_object(self) -> None:
+        """String/color inputs keep object mode (value path, not just metadata)."""
+        for src in (
+            """//@version=5
+indicator("x")
+s = input("hi", type=input.string)
+plot(close, title="p")
+""",
+            """//@version=5
+indicator("x")
+c = input(color.red, type=input.color)
+plot(close, title="p", color=c)
+""",
+        ):
+            compiled = compile_script(src, use_cache=False)
+            assert compiled.object_mode is True, src
+
     def test_math_random_and_hyperbolic_stay_numeric(self) -> None:
         src = """//@version=5
 indicator("x")
