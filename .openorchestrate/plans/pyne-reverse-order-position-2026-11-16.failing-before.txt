@@ -1,0 +1,33 @@
+# Failing-before — pre-placed opposite strategy.order (net sum)
+# date: 2026-11-16
+# command: .venv/bin/python -m pytest tests/test_reverse_order_semantics.py -q --tb=line
+# pre-fix: interpret nets (+1/0/-1); compile closes the whole position and opens the full order qty (-1/-1/-2).
+
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+E   AssertionError: ('compile', [0.0, -1.0, -1.0])
+    assert -1.0 == 1.0 ± 1.0e-06
+      
+      comparison failed
+      Obtained: -1.0
+      Expected: 1.0 ± 1.0e-06
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_reverse_order_semantics.py:78: AssertionError: ('compile', [0.0, -1.0, -1.0])
+E   AssertionError: ('compile', [0.0, -1.0, -1.0])
+    assert -1.0 == 0.0 ± 1.0e-12
+      
+      comparison failed
+      Obtained: -1.0
+      Expected: 0.0 ± 1.0e-12
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_reverse_order_semantics.py:78: AssertionError: ('compile', [0.0, -1.0, -1.0])
+E   AssertionError: ('compile', [0.0, -2.0, -2.0])
+    assert -2.0 == -1.0 ± 1.0e-06
+      
+      comparison failed
+      Obtained: -2.0
+      Expected: -1.0 ± 1.0e-06
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_reverse_order_semantics.py:78: AssertionError: ('compile', [0.0, -2.0, -2.0])
+=========================== short test summary info ============================
+FAILED tests/test_reverse_order_semantics.py::test_preplaced_opposite_order_nets_both_hosts[2-1-1.0]
+FAILED tests/test_reverse_order_semantics.py::test_preplaced_opposite_order_nets_both_hosts[1-1-0.0]
+FAILED tests/test_reverse_order_semantics.py::test_preplaced_opposite_order_nets_both_hosts[1-2--1.0]
+3 failed in 1.85s

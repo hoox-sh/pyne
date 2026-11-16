@@ -7,7 +7,7 @@ tags: [doc, docs, known-divergences]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-16T12:54:52Z
 sources:
   - id: tree
     resource: "docs/known_divergences.md"
@@ -27,6 +27,7 @@ Repo path `docs/known_divergences.md`.
   - Fixed
 - Strategy
   - strategy.exit pending brackets (fixed Wave B — trail still OHLC-approx)
+  - strategy.order net position (fixed 2026-11-16)
   - strategy.risk. partial on compile path
   - Open/closed trade query surface (compile) — partial honesty
 - Technical analysis

@@ -710,19 +710,21 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
         # Reference Pine quotes fills on the tick grid (nearest tick).
         px = self._round_tick(px, "nearest")
         fe = order.from_entry
-        if order.is_entry:
-            covering = (d == "long" and self.position_size < 0) or (d == "short" and self.position_size > 0)
-            if not covering and not self._risk_allows_entry(d):
-                self._emit(
-                    "order",
-                    id=order.order_id,
-                    direction=d,
-                    qty=0.0,
-                    order_type="market",
-                    comment="risk_blocked",
-                )
-                self.pending_orders.pop(order.order_id, None)
-                return
+        # Risk-gate opens (flat / same-direction), never pure covers. For
+        # ``strategy.entry`` the reverse re-open is gated again in the covering
+        # branch; for ``strategy.order`` the leftover is gated below.
+        covering = (d == "long" and self.position_size < 0) or (d == "short" and self.position_size > 0)
+        if not covering and not self._risk_allows_entry(d):
+            self._emit(
+                "order",
+                id=order.order_id,
+                direction=d,
+                qty=0.0,
+                order_type="market",
+                comment="risk_blocked",
+            )
+            self.pending_orders.pop(order.order_id, None)
+            return
         order.filled_qty += fill_qty
         # Closing opposite / reducing — honor from_entry when set (exit brackets)
         if not order.is_entry:
@@ -730,22 +732,30 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
             # exit id is the script-level id (strip the suffix).
             close_oid = order.order_id.removesuffix(":close")
             # Force close in this direction (sell covers long, buy covers short)
-            if d == "short" and self.position_size > 0:
-                self.close(
-                    id=close_oid,
-                    qty=fill_qty,
-                    price=px,
-                    comment=order.comment,
-                    from_entry=fe,
-                )
-            elif d == "long" and self.position_size < 0:
-                self.close(
-                    id=close_oid,
-                    qty=fill_qty,
-                    price=px,
-                    comment=order.comment,
-                    from_entry=fe,
-                )
+            if (d == "short" and self.position_size > 0) or (d == "long" and self.position_size < 0):
+                # Net order: cover up to the open size, open the remainder.
+                cover = min(fill_qty, abs(float(self.position_size)))
+                if cover > 0:
+                    self.close(
+                        id=close_oid,
+                        qty=cover,
+                        price=px,
+                        comment=order.comment,
+                        from_entry=fe,
+                    )
+                leftover = fill_qty - cover
+                if leftover > 1e-12:
+                    if not self._risk_allows_entry(d):
+                        self._emit(
+                            "order",
+                            id=order.order_id,
+                            direction=d,
+                            qty=0.0,
+                            order_type="market",
+                            comment="risk_blocked",
+                        )
+                    else:
+                        self._open_or_add(d, leftover, px, order.order_id, order.comment)
             else:
                 self._open_or_add(d, fill_qty, px, order.order_id, order.comment)
         else:
@@ -2146,10 +2156,11 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
             otype = "cancel"
         elif otype in {"strategy.oca.none", "oca.none"}:
             otype = "none"
-        # Closing order if opposite to current position size sign and qty matches cover intent
-        is_entry = True
-        if (d == "short" and self.position_size > 0) or (d == "long" and self.position_size < 0):
-            is_entry = False
+        # ``strategy.order`` is a basic net order: Pine docs say it does not
+        # auto-reverse; the resulting position is the net sum of the open
+        # position and the filled qty. Entry target-position semantics belong
+        # to ``strategy.entry`` only, so never mark a raw order as an entry.
+        is_entry = False
         self.pending_orders[str(id)] = PendingOrder(
             order_id=str(id),
             order_type=ot,

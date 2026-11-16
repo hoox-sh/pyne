@@ -43,6 +43,7 @@ when moving it between tables.
 | F-14 | Realtime           | Intrabar rollback of `var` scope + series currents on interpret realtime ticks (`varip` persists via `_varip_declarations`); `once` fires once from confirmed state                                                                                                                       | 0.6.0 ([details](#sec-varip))                  |
 | F-15 | Strategy risk      | Intraday parity: `max_intraday_loss(value, type)` honors percent-of-initial-capital vs cash on both brokers; interpret enforces intraday loss + day-scoped fill cap; order-level fill counting on both hosts                                                                              | 0.6.0 ([details](#sec-risk-compile))           |
 | F-16 | `request.security` | `gaps_on` / `lookahead_on` honored on HTF resample paths (OHLCV + allowlisted `ta.*`): bucket-start na-gaps; `lookahead_on` leaks each HTF bucket's final value from the period start; presence-vs-effect policy tags (`gaps_lookahead_provided` vs `gaps_applied` / `lookahead_applied`) | 0.6.0 ([details](#sec-security))               |
+| F-17 | Strategy orders    | Pre-placed opposite `strategy.order` nets (cover up to the open size, open the remainder); compile no longer applies entry target-position reverse                                                                                                                                        | 2026-11-16 ([details](#sec-order-netting))     |
 
 ---
 
@@ -67,6 +68,16 @@ when moving it between tables.
 
 **Track:** interpret feed ticks ratchet per tick; compile and bar-level `update_last_bar` stay OHLC-path; intratick order remains approximate.
 
+<span id="sec-order-netting"></span>
+
+### `strategy.order` net position (fixed 2026-11-16)
+
+**Reference Pine:** `strategy.order` creates a basic order and does **not** auto-reverse. The resulting position is the net sum of the open position size and the filled order quantity; only `strategy.entry` reverses (close the whole opposite position, then open the entry qty).
+
+**pynescript (after):** interpret already netted. Compile latched `is_entry=True` at placement, so an opposite fill closed the whole position and opened the full order qty (over-reversing: long 2 + sell 1 became short 1). Fixed: `strategy.order` is never an entry-target order; an opposite fill covers `min(qty, open size)` and opens the remainder. Risk gates mirror interpret: flat / same-direction raw opens and an opposite fill's leftover are gated (`allow_entry_in` / halts); a pure cover is ungated. Reduce / full / excess and both risk shapes match interpret in `tests/test_reverse_order_semantics.py`.
+
+**Track:** `tests/test_reverse_order_semantics.py`, `tests/test_compiler_strategy.py`.
+
 <span id="sec-risk-compile"></span>
 
 ### `strategy.risk.*` partial on compile path
@@ -86,7 +97,7 @@ when moving it between tables.
 
 **Known residual:** `strategy.risk.max_position_size` defaults to a %-of-equity per-entry cap on both hosts (pinned). Set `PYNE_STRATEGY_RISK_CONTRACTS=1` for reference-style absolute contracts instead (both hosts, invalid values ignored). Cash thresholds stay account units without FX conversion; risk accounting is not tick-accurate.
 
-**D-02 landed:** `max_intraday_loss` halt clears when the calendar day rolls in `syminfo.timezone` (UTC default; DST-aware midnight-to-midnight, same rules as `timeframe.change`). Day-scoped fill cap uses the same bucket. A bar that is still “yesterday” in `America/New_York` does not resume. `max_drawdown` halt stays permanent. `allow_entry_in` is unchanged.
+**D-02 landed:** `max_intraday_loss` halt clears when the calendar day rolls in `syminfo.timezone` (UTC default; DST-aware midnight-to-midnight, same rules as `timeframe.change`). Day-scoped fill cap uses the same bucket. A bar that is still “yesterday” in `America/New_York` does not resume. `max_drawdown` halt stays permanent. `allow_entry_in` policy is unchanged; raw `strategy.order` opens now honor it (F-17).
 
 **D-02 residual:** `max_position_size` %-of-equity by default (pinned); `PYNE_STRATEGY_RISK_CONTRACTS=1` switches both hosts to absolute contracts. Cash thresholds stay account units without FX conversion; risk accounting is not tick-accurate.
 
@@ -110,7 +121,7 @@ when moving it between tables.
 
 **D-03 landed (interpret feed ticks, 2026-11-16):** when a `data_feed` supplies ticks on the interpret path, each tick's own OHLC envelope is applied in two phases — before the tick's fills to trades already open at tick start (so a trade closed by the fill keeps the exit tick's extremes), and after the fills to trades opened by the fill (so an entry fill sees its own tick). The same envelope is re-applied after an unconfirmed restore, so it persists like `varip` while fills roll back. Compile and bar-level `update_last_bar` / confirmation stay OHLC-path.
 
-**Residual:** intratick order inside one OHLC tick is not modeled (the tick envelope is the finest path); multi-leg close aggregates max extremes across reduced legs. Pre-placed `strategy.order` reverse-order position semantics still differ between hosts (pre-existing, separate card); the closed-leg MAE/MFE matches. Compile intra-bar fills remain deferred.
+**Residual:** intratick order inside one OHLC tick is not modeled (the tick envelope is the finest path); multi-leg close aggregates max extremes across reduced legs. Pre-placed `strategy.order` net position now matches between hosts (F-17); the closed-leg MAE/MFE matches. Compile intra-bar fills remain deferred.
 
 **Track:** audit AGENT_04; `tests/test_compiler_strategy.py` (`TestCompileTradeQueries`), `tests/test_mae_realtime_ticks.py`.
 

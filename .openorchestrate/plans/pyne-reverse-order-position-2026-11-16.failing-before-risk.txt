@@ -1,0 +1,25 @@
+# Failing-before — strategy.order risk gate (compile)
+# date: 2026-11-16
+# command: .venv/bin/python -m pytest tests/test_reverse_order_semantics.py -q --tb=line -k 'raw_order'
+# pre-fix: flat raw short and opposite-fill leftover open despite allow_entry_in(long) (compile ps -1); pure cover stays flat.
+
+FF.                                                                      [100%]
+=================================== FAILURES ===================================
+E   AssertionError: ('compile', [0.0, -1.0, -1.0])
+    assert -1.0 == 0.0 ± 1.0e-12
+      
+      comparison failed
+      Obtained: -1.0
+      Expected: 0.0 ± 1.0e-12
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_reverse_order_semantics.py:121: AssertionError: ('compile', [0.0, -1.0, -1.0])
+E   AssertionError: ('compile', [0.0, -1.0, -1.0])
+    assert -1.0 == 0.0 ± 1.0e-12
+      
+      comparison failed
+      Obtained: -1.0
+      Expected: 0.0 ± 1.0e-12
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_reverse_order_semantics.py:130: AssertionError: ('compile', [0.0, -1.0, -1.0])
+=========================== short test summary info ============================
+FAILED tests/test_reverse_order_semantics.py::test_raw_order_flat_open_blocked_by_allow_entry_in
+FAILED tests/test_reverse_order_semantics.py::test_raw_order_leftover_blocked_but_cover_allowed
+2 failed, 1 passed, 3 deselected in 1.89s
