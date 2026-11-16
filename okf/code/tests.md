@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-16T09:58:24Z
+  at: 2026-11-16T11:16:08Z
 sources:
   - id: tree
     resource: "tests"
@@ -114,7 +114,7 @@ okf_lock: generated
 - `test_lsp_http.py` — client, test_lsp_completion_ta, test_lsp_convert_requires_source, test_lsp_convert_v4_to_v6, test_lsp_diagnostics_ok, test_lsp_diagnostics_syntax_error, test_lsp_hover_plot
 - `test_lsp_navigation_extras.py` — TestCallHierarchy, TestCodeLens, TestDeclaration, TestInlineCompletion, TestTypeDefinition
 - `test_lsp_semantics.py` — TestCompletionSemantics, TestFormattingSafety, TestLinterPrecision, TestNavigationSemantics, TestQualifierPropagation, TestQuickFixes, TestSemanticDiagnostics, TestSeriesSimpleSemanticTokens, TestSignatureAndInlaySemantics, TestUtf16Positions, TestWorkspaceFreshness, TestWorkspaceIndex
-- `test_mae_realtime_ticks.py` — test_compile_emits_extremes_after_restore, test_forming_high_low_update_mae_dual_host, test_historical_ticks_one_keeps_bar_open_mae, test_tick_fill_counts_fill_tick_extremes_interpret, test_tick_fill_counts_fill_tick_extremes_session, test_tick_limit_exit_keeps_exit_tick_extremes_interpret, test_tick_limit_exit_keeps_exit_tick_extremes_session, test_tick_stop_entry_ignores_pre_entry_low, test_tick_stop_exit_keeps_exit_tick_extremes_interpret, test_tick_stop_exit_keeps_exit_tick_extremes_session, test_update_last_bar_updates_forming_mae, test_update_open_trade_extremes_survives_broker_restore_compile
+- `test_mae_realtime_ticks.py` — test_compile_emits_extremes_after_restore, test_forming_high_low_update_mae_dual_host, test_historical_held_trade_extremes_match_compile, test_historical_held_trade_extremes_match_compile_session, test_historical_ticks_one_keeps_bar_open_mae, test_same_bar_open_close_keeps_entry_extremes_full, test_same_bar_open_close_keeps_entry_extremes_partial, test_tick_fill_counts_fill_tick_extremes_interpret, test_tick_fill_counts_fill_tick_extremes_session, test_tick_limit_exit_keeps_exit_tick_extremes_interpret, test_tick_limit_exit_keeps_exit_tick_extremes_session, test_tick_stop_entry_ignores_pre_entry_low
 - `test_map_collections.py` — TestMapBasics, TestMapCopy, TestMapDifferentKeyTypes, TestMapDifferentValueTypes, TestMapEdgeCases, TestMapPutAll, TestMapQueryMethods
 - `test_matrix_collections.py` — TestMatrixAggregations, TestMatrixColumnOperations, TestMatrixCore, TestMatrixFilling, TestMatrixRowOperations, TestMatrixTransformations
 - `test_matrix_v6_surface.py` — test_array_binary_search_udt_method_form, test_array_binary_search_udt_sort_field, test_array_sort_udt_sort_field, test_input_text_area_returns_value, test_matrix_add_row_inserts_not_only_appends, test_matrix_eval_dispatch_det_and_avg, test_matrix_linear_algebra_det_inv_trace, test_matrix_new_empty_and_add_row_at_index, test_matrix_predicates_and_sort, test_matrix_sort_order_descending_numeric, test_matrix_sort_udt_sort_field, test_order_ascending_descending_constants

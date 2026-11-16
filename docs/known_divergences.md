@@ -106,9 +106,11 @@ when moving it between tables.
 
 **D-03 landed (forming bar):** forming-bar OHLC MAE/MFE (interpret + object-mode compile + `InterpretSession.update_last_bar`). After `poll_ohlcv` and after each unconfirmed broker restore, open-trade `max_drawdown` / `max_runup` follow the forming bar's high/low (`update_open_trade_extremes`; persists across restore like `varip`). Fills still roll back. Historical `realtime_ticks=1` is unchanged.
 
+**D-03 landed (historical bars, 2026-11-16):** interpret historical bars apply the same bar-level update as compile — before the bar-start fill for trades already open (exit bars) and again after the fill for entries opened by it (entry bar). The fill path also applies the envelope immediately when a fill opens a leg (`process_pending_orders`), so a same-bar entry+exit keeps the entry bar's extremes: full close 11/1 and partial 22/2 match compile. `Runtime.run` and `InterpretSession` historical paths now match the compile `begin_bar` / `_update_leg_extremes` series.
+
 **D-03 landed (interpret feed ticks, 2026-11-16):** when a `data_feed` supplies ticks on the interpret path, each tick's own OHLC envelope is applied in two phases — before the tick's fills to trades already open at tick start (so a trade closed by the fill keeps the exit tick's extremes), and after the fills to trades opened by the fill (so an entry fill sees its own tick). The same envelope is re-applied after an unconfirmed restore, so it persists like `varip` while fills roll back. Compile and bar-level `update_last_bar` / confirmation stay OHLC-path.
 
-**Residual:** intratick order inside one OHLC tick is not modeled (the tick envelope is the finest path); a trade opened and closed within the same tick is atomic and keeps its pre-tick extremes; multi-leg close aggregates max extremes across reduced legs. Compile intra-bar fills remain deferred.
+**Residual:** intratick order inside one OHLC tick is not modeled (the tick envelope is the finest path); multi-leg close aggregates max extremes across reduced legs. Pre-placed `strategy.order` reverse-order position semantics still differ between hosts (pre-existing, separate card); the closed-leg MAE/MFE matches. Compile intra-bar fills remain deferred.
 
 **Track:** audit AGENT_04; `tests/test_compiler_strategy.py` (`TestCompileTradeQueries`), `tests/test_mae_realtime_ticks.py`.
 

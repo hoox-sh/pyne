@@ -259,7 +259,8 @@ def test_update_last_bar_updates_forming_mae() -> None:
     sess = rt.create_session(_SRC, bars, mode="interpret")
     last = dict(bars[-1])
     trade = sess.evaluator._strategy_state.open_trades[0]
-    assert trade.max_runup == pytest.approx(0.0)
+    # Historical bar 2 already applied its high/low (101 - 100 = 1.0).
+    assert trade.max_runup == pytest.approx(1.0)
 
     tick1 = dict(last)
     tick1.update({"high": 120.0, "low": 119.5, "close": 119.8})
@@ -481,3 +482,106 @@ def test_tick_stop_exit_keeps_exit_tick_extremes_session() -> None:
     trade = sess.evaluator._strategy_state.closed_trades[0]
     assert trade.max_runup == pytest.approx(20.0)
     assert trade.max_drawdown == pytest.approx(20.0)
+_HIST_HELD_SRC = """//@version=6
+strategy("hist held mae", commission_value=0)
+if bar_index == 0
+    strategy.entry("L", strategy.long, qty=1)
+plot(strategy.opentrades.max_runup(0), "ru")
+plot(strategy.opentrades.max_drawdown(0), "dd")
+plot(strategy.position_size, "ps")
+"""
+
+
+def _hist_held_bars() -> list[dict[str, float | int]]:
+    # Entry fills at bar 1 open (100). Bars 2-4 expand the range to 105 / 95.
+    return [
+        _bar(100.0, 101.0, 99.0, 100.0, i=0),
+        _bar(100.0, 102.0, 98.0, 100.0, i=1),
+        _bar(100.0, 103.0, 97.0, 100.0, i=2),
+        _bar(100.0, 104.0, 96.0, 100.0, i=3),
+        _bar(100.0, 105.0, 95.0, 100.0, i=4),
+    ]
+
+
+def test_historical_held_trade_extremes_match_compile() -> None:
+    """D-03: interpret historical bars accumulate bar high/low like compile."""
+    bars = _hist_held_bars()
+    interp = Runtime(symbol="HIST").run(_HIST_HELD_SRC, bars, mode="interpret")
+    compiled = Runtime(symbol="HIST").run(_HIST_HELD_SRC, bars, mode="compile")
+    expected = [0.0, 2.0, 3.0, 4.0, 5.0]
+    for label, out in (("interpret", interp), ("compile", compiled)):
+        assert "error" not in out, (label, out.get("error"))
+        assert _series(out, "ru") == pytest.approx(expected), (label, out["series"]["ru"])
+        assert _series(out, "dd") == pytest.approx(expected), (label, out["series"]["dd"])
+        assert _series(out, "ps")[-1] == pytest.approx(1.0), (label, out["series"]["ps"])
+    assert _series(interp, "ru") == _series(compiled, "ru")
+    assert _series(interp, "dd") == _series(compiled, "dd")
+
+
+def test_historical_held_trade_extremes_match_compile_session() -> None:
+    """The session historical path matches the compile per-bar extremes."""
+    sess = Runtime(symbol="HIST").create_session(_HIST_HELD_SRC, _hist_held_bars(), mode="interpret")
+    out = sess.result()
+    assert "error" not in out, out.get("error")
+    assert _series(out, "ru") == pytest.approx([0.0, 2.0, 3.0, 4.0, 5.0])
+    assert _series(out, "dd") == pytest.approx([0.0, 2.0, 3.0, 4.0, 5.0])
+
+
+_SAME_BAR_FULL_SRC = """//@version=6
+strategy("same bar oc", commission_value=0)
+if barstate.isfirst
+    strategy.entry("L", strategy.long, qty=1, limit=95.0)
+    strategy.order("S", strategy.short, qty=1, limit=105.0)
+plot(strategy.closedtrades.max_runup(0), "cru")
+plot(strategy.closedtrades.max_drawdown(0), "cdd")
+plot(strategy.closedtrades, "ct")
+"""
+
+_SAME_BAR_PARTIAL_SRC = """//@version=6
+strategy("same bar oc partial", commission_value=0)
+if barstate.isfirst
+    strategy.entry("L", strategy.long, qty=2, limit=95.0)
+    strategy.order("S", strategy.short, qty=1, limit=105.0)
+plot(strategy.closedtrades.max_runup(0), "cru")
+plot(strategy.closedtrades.max_drawdown(0), "cdd")
+plot(strategy.closedtrades, "ct")
+"""
+
+
+def _same_bar_bars() -> list[dict[str, float | int]]:
+    # Both pre-placed orders fill on bar 1: long 95 on the low 94, short 105
+    # on the high 106. The closed long's entry-bar envelope is 11 / 1.
+    return [
+        _bar(100.0, 101.0, 99.0, 100.0, i=0),
+        _bar(100.0, 106.0, 94.0, 100.0, i=1),
+        _bar(100.0, 101.0, 99.0, 100.0, i=2),
+    ]
+
+
+def test_same_bar_open_close_keeps_entry_extremes_full() -> None:
+    """A same-bar entry+exit closed long keeps the entry bar's 11 / 1.
+
+    Position is intentionally not asserted: the pre-placed ``strategy.order``
+    reverse semantics differ between hosts (separate pre-existing card). This
+    test isolates the closed-leg MAE/MFE.
+    """
+    for mode in ("interpret", "compile"):
+        out = Runtime(symbol="SB").run(_SAME_BAR_FULL_SRC, _same_bar_bars(), mode=mode)
+        assert "error" not in out, (mode, out.get("error"))
+        assert _series(out, "ct")[-1] == pytest.approx(1.0), (mode, out["series"]["ct"])
+        assert _series(out, "cru")[-1] == pytest.approx(11.0), (mode, out["series"]["cru"])
+        assert _series(out, "cdd")[-1] == pytest.approx(1.0), (mode, out["series"]["cdd"])
+
+
+def test_same_bar_open_close_keeps_entry_extremes_partial() -> None:
+    """A same-bar partial close keeps the 2-lot leg's 22 / 2 (both hosts).
+
+    Position is intentionally not asserted (reverse-order semantics diverge;
+    separate card). This test isolates the closed-leg MAE/MFE.
+    """
+    for mode in ("interpret", "compile"):
+        out = Runtime(symbol="SB").run(_SAME_BAR_PARTIAL_SRC, _same_bar_bars(), mode=mode)
+        assert "error" not in out, (mode, out.get("error"))
+        assert _series(out, "ct")[-1] == pytest.approx(1.0), (mode, out["series"]["ct"])
+        assert _series(out, "cru")[-1] == pytest.approx(22.0), (mode, out["series"]["cru"])
+        assert _series(out, "cdd")[-1] == pytest.approx(2.0), (mode, out["series"]["cdd"])

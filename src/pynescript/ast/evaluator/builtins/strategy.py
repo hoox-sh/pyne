@@ -2278,6 +2278,10 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
             if fill_qty <= 0:
                 continue
             self._fill_order(order, fill_price, fill_qty)
+            # Match the compile broker: a leg opened by this fill sees the
+            # current bar/tick envelope immediately, so a same-bar close keeps
+            # the entry extremes (D-03). No-op when the fill only closes.
+            self.update_open_trade_extremes(h, l)
             if budget_cap > 0.0:
                 state._bar_fill_budget[order_id] = state._bar_fill_budget.get(order_id, 0.0) + fill_qty
             if order.remaining_qty <= 1e-12:

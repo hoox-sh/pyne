@@ -2493,6 +2493,12 @@ class InterpretSession:
                 barstate.isconfirmed = True
                 barstate.isrealtime = False
                 barstate.islastconfirmedhistory = is_last
+            # Historical bars: match the compile broker's begin_bar leg-extreme
+            # update (before pending fills) so a held trade accumulates bar
+            # high/low instead of keeping 0.0/0.0. Realtime ticks handle their
+            # own envelopes in the tick loop.
+            if self._need_strategy and not bar_rt:
+                ev.update_open_trade_extremes(h, low)
             if process_pending is not None and pending_orders:
                 try:
                     process_pending(open_=o, high=h, low=low, close=c)
@@ -2525,6 +2531,11 @@ class InterpretSession:
                     )
                     _stats.count("interpret.errors", dim="order_fill")
                     return
+            # Historical bars: the compile broker applies the bar's extremes
+            # again when a fill opens a leg (_update_leg_extremes at leg open),
+            # so match that for entries created by this bar-start fill.
+            if self._need_strategy and not bar_rt:
+                ev.update_open_trade_extremes(h, low)
             # Bar-open rollback state for the session's current last bar.
             # update_last_bar restores var scope + TA windows + broker to
             # these so a forming bar re-tick starts from bar-open (varip persists).
@@ -4015,6 +4026,12 @@ class Runtime:
                 if "ask" in bar:
                     self._ask = bar["ask"]
 
+            # Historical bars: match the compile broker's begin_bar leg-extreme
+            # update (before pending fills) so a held trade accumulates bar
+            # high/low instead of keeping 0.0/0.0. Realtime ticks handle their
+            # own envelopes in the tick loop.
+            if need_strategy and not bar_rt:
+                evaluator.update_open_trade_extremes(h, l)
             # Broker sim once per bar (before realtime tick re-visits)
             if process_pending is not None and pending_orders:
                 try:
@@ -4047,6 +4064,11 @@ class Runtime:
                         parse_ms=parse_ms,
                         eval_ms=eval_ms,
                     )
+            # Historical bars: the compile broker applies the bar's extremes
+            # again when a fill opens a leg (_update_leg_extremes at leg open),
+            # so match that for entries created by this bar-start fill.
+            if need_strategy and not bar_rt:
+                evaluator.update_open_trade_extremes(h, l)
 
             for tick_i in range(n_ticks):
                 tick_hl: tuple[float, float] | None = None
