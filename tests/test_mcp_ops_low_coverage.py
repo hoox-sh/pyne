@@ -52,8 +52,33 @@ def test_list_builtins_filter_and_limit() -> None:
     assert filtered["count"] == 0
 
 
-def test_list_facade_templates_removed() -> None:
-    """pine_facade was dropped; the tool must fail closed instead of ImportError."""
+def test_list_facade_templates_available(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The tool lists templates without network, with a self-contained facade."""
+    import sys
+    import types
+
+    fake = types.ModuleType("pynescript.util.pine_facade")
+    fake._meta_name = lambda meta: str(meta.get("scriptName") or "")
+    fake.list_builtin_scripts = lambda: [{"scriptName": "RSI", "scriptIdPart": "STD;RSI", "version": "52"}]
+    monkeypatch.setitem(sys.modules, "pynescript.util.pine_facade", fake)
+    r = builtins_ops.list_facade_templates()
+    assert r["ok"] is True
+    assert r["count"] == 1
+    assert r["templates"][0]["id"] == "STD;RSI"
+
+
+def test_list_facade_templates_fails_closed_without_facade(monkeypatch: pytest.MonkeyPatch) -> None:
+    """If the facade is absent, the tool fails closed with a clear error."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "pynescript.util.pine_facade":
+            raise ImportError("removed")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
     r = builtins_ops.list_facade_templates()
     assert r["ok"] is False
     assert r["kind"] == "unsupported"

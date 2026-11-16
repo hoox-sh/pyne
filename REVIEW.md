@@ -6,14 +6,14 @@ Reviewed `hoox-pyne` **0.7.0** on Python 3.12 (`main` at `b2f2012f`). Install wa
 
 ## What was exercised
 
-| Surface | Result |
-| --- | --- |
-| `pyne check examples/rsi_strategy.pine` | Parses. |
-| `pyne execute` interpret and compile, 80 synthetic bars | RSI last value matches (`80.057…`). Compile of this strategy is object mode. |
-| `pyne info` / `pyne-lsp --version` | 0.7.0, Numba present. |
-| `pyne execute` input metadata | Interpret and compile both report `inputs_count` 3 and the same three literal declarations (RSI Length, Oversold, Overbought). |
-| Differential scripts | A small interpret-vs-compile harness over arithmetic, `iff`, `math.round` / `math.log` / `math.pow`, comparisons, and `for`. Mismatches below were reproduced, then the low-risk ones were fixed and pinned in `tests/test_compile_expr_parity.py`. |
-| Tests | Evaluator, CLI, linter, LSP, Numba compiler, first-party goldens, and the new parity file: **844 passed**, 9 skipped in the main slice, then strategy/realtime/expr parity **197 passed**. Backend tests need `hoox-pyne[pro]` (Flask); they were not installed here, so that slice was not run. `tests/test_set06_pine_int_na.py` now skips when the local corpus is absent. |
+| Surface                                                 | Result                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pyne check examples/rsi_strategy.pine`                 | Parses.                                                                                                                                                                                                                                                                                                                                                                       |
+| `pyne execute` interpret and compile, 80 synthetic bars | RSI last value matches (`80.057…`). Compile of this strategy is object mode.                                                                                                                                                                                                                                                                                                  |
+| `pyne info` / `pyne-lsp --version`                      | 0.7.0, Numba present.                                                                                                                                                                                                                                                                                                                                                         |
+| `pyne execute` input metadata                           | Interpret and compile both report `inputs_count` 3 and the same three literal declarations (RSI Length, Oversold, Overbought).                                                                                                                                                                                                                                                |
+| Differential scripts                                    | A small interpret-vs-compile harness over arithmetic, `iff`, `math.round` / `math.log` / `math.pow`, comparisons, and `for`. Mismatches below were reproduced, then the low-risk ones were fixed and pinned in `tests/test_compile_expr_parity.py`.                                                                                                                           |
+| Tests                                                   | Evaluator, CLI, linter, LSP, Numba compiler, first-party goldens, and the new parity file: **844 passed**, 9 skipped in the main slice, then strategy/realtime/expr parity **197 passed**. Backend tests need `hoox-pyne[pro]` (Flask); they were not installed here, so that slice was not run. `tests/test_set06_pine_int_na.py` now skips when the local corpus is absent. |
 
 Uncached parse of `examples/rsi_strategy.pine`, after the parser module is imported, is about **7.1 ms** (mean of ten unique sources). A cache hit is about **0.12 ms**. A 2,000-bar script plotting `ta.sma`, `ta.ema`, `ta.rsi`, and `ta.atr` ran at about **61k bars/s** interpreted and about **2.2M bars/s** compiled (Numba, after warm-up). `cProfile` still puts cold parse time inside the generated ANTLR parser and interpret time inside `visit_Call`.
 
@@ -110,28 +110,28 @@ LSP `analysis.py` infers qualifier strings. The compiler infers overload tags in
 
 Measured on this machine unless noted. 2,000 bars, four `ta.*` plots.
 
-| Rank | Change | Evidence | Impact | Effort |
-| --- | --- | --- | --- | --- |
-| 1 | Keep numeric scripts on compile / `auto` | Interpret ~61k bars/s, compile ~2.2M bars/s (~36×) after JIT. Profile: `visit_Call` dominates interpret. | High for numeric studies | M — widen eligibility, don't change semantics |
-| 2 | Do not pay ANTLR on an unchanged buffer | Uncached RSI parse ~7.1 ms; cache hit ~0.12 ms. Profile is `PinescriptParser.*`. LSP still reparses the whole buffer on each debounced edit. | High for the editor | L for an incremental parser. S to avoid hashing the full source before the cache lookup in `helper.py` `parse` |
-| 3 | One series representation | `runtime/series.py` keeps a newest-first deque and a chronological list unless `PYNE_SERIES_RING` is on. TA windows then copy a reversed list. | High on long interpret histories | L — flip the default only with the TA goldens |
-| 4 | Index occurrences by line | `analysis.py` `occurrence_at` / `scope_at` scan every occurrence and every scope. | Medium on large files | S |
-| 5 | Stop scanning from byte 0 for comments | `protocol/utils.py` `in_comment_or_string` walks the prefix of the file per request. | Medium at EOF of large files | S — per-line flags |
-| 6 | Realtime snapshots | `compiler.py` copies list/dict state on unconfirmed ticks. Idle when `realtime_ticks` is 1. | High only for multi-tick realtime | M |
-| 7 | Rewrite `docs/optimization_notes.md` | The 2% suite figure and the 859-test count are stale. | Docs only | S |
+| Rank | Change                                   | Evidence                                                                                                                                       | Impact                            | Effort                                                                                                         |
+| ---- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 1    | Keep numeric scripts on compile / `auto` | Interpret ~61k bars/s, compile ~2.2M bars/s (~36×) after JIT. Profile: `visit_Call` dominates interpret.                                       | High for numeric studies          | M — widen eligibility, don't change semantics                                                                  |
+| 2    | Do not pay ANTLR on an unchanged buffer  | Uncached RSI parse ~7.1 ms; cache hit ~0.12 ms. Profile is `PinescriptParser.*`. LSP still reparses the whole buffer on each debounced edit.   | High for the editor               | L for an incremental parser. S to avoid hashing the full source before the cache lookup in `helper.py` `parse` |
+| 3    | One series representation                | `runtime/series.py` keeps a newest-first deque and a chronological list unless `PYNE_SERIES_RING` is on. TA windows then copy a reversed list. | High on long interpret histories  | L — flip the default only with the TA goldens                                                                  |
+| 4    | Index occurrences by line                | `analysis.py` `occurrence_at` / `scope_at` scan every occurrence and every scope.                                                              | Medium on large files             | S                                                                                                              |
+| 5    | Stop scanning from byte 0 for comments   | `protocol/utils.py` `in_comment_or_string` walks the prefix of the file per request.                                                           | Medium at EOF of large files      | S — per-line flags                                                                                             |
+| 6    | Realtime snapshots                       | `compiler.py` copies list/dict state on unconfirmed ticks. Idle when `realtime_ticks` is 1.                                                    | High only for multi-tick realtime | M                                                                                                              |
+| 7    | Rewrite `docs/optimization_notes.md`     | The 2% suite figure and the 859-test count are stale.                                                                                          | Docs only                         | S                                                                                                              |
 
 No hot-path rewrite landed with these fixes. The new helpers (`pine_iff`, `numba_round`, `numba_log`, `numba_pow`) are njit-overloaded so numeric scripts stay on the fast path.
 
 ## Structure proposals
 
-| Rank | Proposal | Why | Effort |
-| --- | --- | --- | --- |
-| 1 | One type story | LSP strings, compiler overload tags, and `type_system.Type` are three models. `is_compatible_with` does not implement the qualifier lattice the LSP already has. | L |
-| 2 | Split `compiler.py` | Emit, strategy, request, plot wire format, and the numeric-safety heuristic live in one visitor. A mistake in `_is_safe_numeric_expr` silently forces object mode. | L |
-| 3 | Split `numba_builtins.py` | Kernels and coercion helpers are star-imported. Names must stay public. Group TA kernels vs coercion so the import surface is explicit. | M |
-| 4 | Skip every local-only corpus test | `test_set06_pine_int_na.py` skips. Sibling `test_set06_*.py` files still crash when `tests/data/set06/` is absent. | S |
-| 5 | Delete or gate the removed facade | `download-builtins` fails closed. Unit tests that imported `pine_facade` skip. The CLI help still advertises the command. Removing the command is a public-API change; left for a deliberate cleanup. | S |
-| 6 | Dead branch in `visit_BinOp` | After `return f"pine_add(...)"` for Name+Name adds inside a function, the following string-arithmetic branch is unreachable. String `+` / `-` on the scripts tried here already match. | S |
+| Rank | Proposal                          | Why                                                                                                                                                                                                   | Effort |
+| ---- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 1    | One type story                    | LSP strings, compiler overload tags, and `type_system.Type` are three models. `is_compatible_with` does not implement the qualifier lattice the LSP already has.                                      | L      |
+| 2    | Split `compiler.py`               | Emit, strategy, request, plot wire format, and the numeric-safety heuristic live in one visitor. A mistake in `_is_safe_numeric_expr` silently forces object mode.                                    | L      |
+| 3    | Split `numba_builtins.py`         | Kernels and coercion helpers are star-imported. Names must stay public. Group TA kernels vs coercion so the import surface is explicit.                                                               | M      |
+| 4    | Skip every local-only corpus test | `test_set06_pine_int_na.py` skips. Sibling `test_set06_*.py` files still crash when `tests/data/set06/` is absent.                                                                                    | S      |
+| 5    | Delete or gate the removed facade | `download-builtins` fails closed. Unit tests that imported `pine_facade` skip. The CLI help still advertises the command. Removing the command is a public-API change; left for a deliberate cleanup. | S      |
+| 6    | Dead branch in `visit_BinOp`      | After `return f"pine_add(...)"` for Name+Name adds inside a function, the following string-arithmetic branch is unreachable. String `+` / `-` on the scripts tried here already match.                | S      |
 
 `compiler.py` and `host.py` are still where a small semantic fix is most likely to knock a script off nopython or out of the disk IR cache. Bump `_DISK_META_VERSION` when generated code changes. It is 55.
 

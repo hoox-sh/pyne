@@ -425,8 +425,40 @@ _CATALOG = [
 ]
 
 
-def test_download_builtins_removed(runner: CliRunner) -> None:
-    """The facade module was removed; the command must not raise ImportError."""
+def test_download_builtins_available(runner: CliRunner, monkeypatch: pytest.MonkeyPatch) -> None:
+    """--list runs without ImportError or network, with a self-contained facade."""
+    import sys
+    import types
+
+    fake = types.ModuleType("pynescript.util.pine_facade")
+    calls: dict[str, dict] = {}
+
+    def fake_download(*args, **kwargs):
+        calls["kwargs"] = kwargs
+        return {}
+
+    fake.DEFAULT_DEST = Path("pine-builtins")
+    fake.download_builtin_scripts = fake_download
+    monkeypatch.setitem(sys.modules, "pynescript.util.pine_facade", fake)
+    r = runner.invoke(cli, ["download-builtins", "--list", "--plain"])
+    assert r.exit_code == 0, _combined(r)
+    assert calls["kwargs"]["dry_run"] is True
+
+
+def test_download_builtins_fails_closed_without_facade(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If the facade is absent, the command still fails closed with a clear error."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "pynescript.util.pine_facade":
+            raise ImportError("removed")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
     r = runner.invoke(cli, ["download-builtins", "--list", "--plain"])
     assert r.exit_code != 0
     assert "removed" in _combined(r).lower()
