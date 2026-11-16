@@ -45,6 +45,7 @@ from pynescript.langserver.analysis import BUILTIN_VAR_TYPES
 from pynescript.langserver.analysis import Symbol
 from pynescript.langserver.analysis import SymbolIndex
 from pynescript.langserver.analysis import build_symbol_index
+from pynescript.langserver.features.hover import annotation_summary
 from pynescript.langserver.protocol.utils import get_trigger_char
 from pynescript.langserver.protocol.utils import in_comment_or_string
 from pynescript.langserver.protocol.utils import trailing_ident
@@ -329,13 +330,21 @@ def _builtin_variable_items(prefix: str) -> list[lsp.CompletionItem]:
     return items
 
 
+def _completion_brief(symbol: Symbol) -> str:
+    """Kind/signature card body. Parameter tables stay on hover."""
+    summary = annotation_summary(symbol.annotations)
+    if summary:
+        return summary
+    return f"User-defined {symbol.kind}."
+
+
 def _symbol_item(symbol: Symbol, *, snippets: bool) -> lsp.CompletionItem:
     kind = _SYMBOL_KINDS.get(symbol.kind, lsp.CompletionItemKind.Variable)
     detail = symbol.signature or symbol.type_label or symbol.kind
     documentation = format_docs_card(
         kind=symbol.kind,
         fence=detail,
-        body="\n\n".join(symbol.annotations) if symbol.annotations else f"User-defined {symbol.kind}.",
+        body=_completion_brief(symbol),
     )
     insert_text = symbol.name
     insert_format = lsp.InsertTextFormat.PlainText
@@ -425,7 +434,7 @@ def _member_items(members: list[Symbol], prefix: str, *, snippets: bool) -> list
                     value=format_docs_card(
                         kind=symbol.kind,
                         fence=symbol.signature or symbol.type_label or symbol.name,
-                        body="\n\n".join(symbol.annotations) if symbol.annotations else f"User-defined {symbol.kind}.",
+                        body=_completion_brief(symbol),
                     ),
                 ),
                 insert_text=insert_text,

@@ -176,18 +176,14 @@ def build_completion_item(
     detail = info.get("detail", "")
     brief = info.get("brief", "")
     snippet = info.get("snippet", info.get("detail", ""))
-    raw_docs = info.get("documentation", brief)
-    extra: list[str] = []
-    if raw_docs and raw_docs != brief:
-        extra.append(str(raw_docs))
-    see_also = _build_see_also(label)
-    if see_also:
-        extra.append(see_also)
+    # Suggest widgets stay short: kind, signature, one summary, docs link.
+    # The parameter table and see-also list belong on hover, not here.
+    from pynescript.langserver.features.hover import builtin_card_summary
+
     documentation = format_docs_card(
         kind="function",
         fence=detail or label,
-        body=brief or "",
-        sections=extra,
+        body=builtin_card_summary(info),
         footer=pine_v6_docs_link(label),
     )
 
@@ -489,29 +485,6 @@ def _format_category_name(category: str) -> str:
     if category == "builtin":
         return "Built-in Variables"
     return category.title().replace("_", " ").replace(".", " / ")
-
-
-def _build_see_also(name: str) -> str:
-    """Build 'See also' section for documentation."""
-    related = _get_related_functions(name)
-    if not related:
-        return ""
-    return "**See also:** " + ", ".join(f"`{r}`" for r in related)
-
-
-def _get_related_functions(name: str) -> list[str]:
-    """Get related functions for cross-referencing."""
-    related_map = {
-        "ta.sma": ["ta.ema", "ta.rma", "ta.wma", "ta.vwma"],
-        "ta.ema": ["ta.sma", "ta.rma", "ta.wma", "ta.vwma"],
-        "ta.rsi": ["ta.stoch", "ta.mfi", "ta.cci"],
-        "ta.macd": ["ta.rsi", "ta.stoch", "ta.bb"],
-        "ta.bb": ["ta.macd", "ta.kc", "ta.env"],
-        "ta.atr": ["ta.tr", "ta.rma"],
-        "strategy.entry": ["strategy.exit", "strategy.order"],
-        "strategy.long": ["strategy.short", "strategy.close"],
-    }
-    return related_map.get(name, [])
 
 
 # Frequent module members — keep these near the top of `ta.` / `strategy.` lists

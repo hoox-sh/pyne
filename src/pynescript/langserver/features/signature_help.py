@@ -40,6 +40,10 @@ from pynescript.ast.helper import parse
 from pynescript.ast.helper import walk
 from pynescript.langserver.analysis import SymbolIndex
 from pynescript.langserver.analysis import ensure_symbol_index
+from pynescript.langserver.features.hover import builtin_card_summary
+from pynescript.langserver.features.hover import builtin_param_facts
+from pynescript.langserver.features.hover import format_param_phrase
+from pynescript.langserver.features.hover import lookup_param_fact
 from pynescript.langserver.protocol.utils import offset_from_position
 from pynescript.langserver.protocol.utils import trailing_ident
 from pynescript.langserver.providers.builtin_metadata import get_builtin
@@ -379,20 +383,55 @@ def _signature_from_builtin(
 ) -> lsp.SignatureInformation:
     labels = _param_labels_from_info(info)
     labels = _arity_labels(name, labels, argc)
-    parameters = [lsp.ParameterInformation(label=label) for label in labels]
-    brief = (info.get("brief") or info.get("documentation") or "").strip()
-    documentation = None
-    if brief:
-        documentation = lsp.MarkupContent(
-            kind=lsp.MarkupKind.Markdown,
-            value=format_docs_card(kind="function", body=brief),
+    facts = builtin_param_facts(info)
+    parameters: list[lsp.ParameterInformation] = []
+    param_docs: list[str] = []
+    for raw_label in labels:
+        fact_name, fact_type, fact_desc = lookup_param_fact(str(raw_label), facts)
+        phrase = format_param_phrase(fact_name, fact_type, fact_desc)
+        # Same name and type as hover, plus at most one sentence. No parameter
+        # table and no see-also — the signature widget is one parameter wide.
+        card = format_docs_card(kind="function", body=phrase) if phrase else ""
+        param_docs.append(card)
+        parameters.append(
+            lsp.ParameterInformation(
+                label=raw_label,
+                documentation=_markdown_or_none(card),
+            )
         )
+    active_index = 0
+    if labels:
+        active_index = max(0, min(argc - 1, len(labels) - 1))
+    documentation = None
+    if labels and param_docs[active_index]:
+        documentation = _markdown_or_none(param_docs[active_index])
+    elif not labels:
+        sentence = _first_sentence(builtin_card_summary(info))
+        if sentence:
+            documentation = _markdown_or_none(format_docs_card(kind="function", body=sentence))
     label = f"{name}({', '.join(labels)})" if labels else _signature_label(name, info, labels)
     return lsp.SignatureInformation(
         label=label,
         documentation=documentation,
         parameters=parameters,
     )
+
+
+def _markdown_or_none(text: str) -> lsp.MarkupContent | None:
+    body = (text or "").strip()
+    if not body:
+        return None
+    return lsp.MarkupContent(kind=lsp.MarkupKind.Markdown, value=body if body.endswith("\n") else body + "\n")
+
+
+def _first_sentence(text: str) -> str:
+    clean = " ".join((text or "").split())
+    if not clean:
+        return ""
+    for index, ch in enumerate(clean):
+        if ch in ".!?" and (index + 1 == len(clean) or clean[index + 1].isspace()):
+            return clean[: index + 1].strip()
+    return clean
 
 
 def _arity_labels(name: str, labels: list[str], argc: int) -> list[str]:

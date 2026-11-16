@@ -134,6 +134,24 @@ class TestCompletionList:
         assert docs.startswith("`function`")
         assert "```pinescript" in docs
         assert "pine-script-reference" in docs
+        assert "**Parameters**" not in docs
+        assert "See also" not in docs
+
+    def test_completion_card_omits_parameter_table_and_host_notes(self) -> None:
+        """Suggest docs stay kind + signature + brief + docs link."""
+        info = get_builtin("strategy.entry")
+        assert info is not None
+        item = build_completion_item(info)
+        assert isinstance(item.documentation, lsp.MarkupContent)
+        docs = item.documentation.value
+        assert docs.startswith("`function`")
+        assert "```pinescript\nstrategy.entry(" in docs
+        assert "Create entry order for strategy." in docs
+        assert "pine-script-reference" in docs
+        assert "**Parameters**" not in docs
+        assert "See also" not in docs
+        assert "subtask" not in docs.lower()
+        assert "| Name |" not in docs
 
 
 class TestCompletionHandler:
@@ -301,6 +319,31 @@ x = Si
         result = handle_completion(params, source)
         enums = [i for i in result.items if i.kind == lsp.CompletionItemKind.Enum]
         assert any(i.label == "Side" for i in enums)
+
+    def test_user_function_completion_omits_param_table(self) -> None:
+        """Suggest shows the ``//@function`` sentence, not ``//@param`` rows."""
+        source = """//@version=6
+indicator("T")
+// @function Smooth a series.
+// @param src Source series.
+// @param len Lookback.
+foo(src, len) => ta.sma(src, len)
+fo
+"""
+        params = lsp.CompletionParams(
+            text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+            position=lsp.Position(line=6, character=2),
+            context=lsp.CompletionContext(trigger_kind=lsp.CompletionTriggerKind.Invoked),
+        )
+        result = handle_completion(params, source)
+        foo = next(item for item in result.items if item.label == "foo")
+        assert isinstance(foo.documentation, lsp.MarkupContent)
+        docs = foo.documentation.value
+        assert docs.startswith("`function`")
+        assert "Smooth a series." in docs
+        assert "Source series" not in docs
+        assert "**Parameters**" not in docs
+        assert "@param" not in docs
 
 
 class TestHoverHandler:
@@ -861,6 +904,85 @@ plot(bb(close))
         assert "[`ta.ema`](https://www.tradingview.com/pine-script-reference/v6/#fun_ta.ema)" in value
         assert "Averages the source over length bars." in value
         assert value.count("Simple moving average.") == 1
+
+    def test_strip_brief_drops_echo_lines_and_bare_label_calls(self) -> None:
+        """A property signature must not leave a leftover ``(args)`` fragment."""
+        from pynescript.langserver.features.hover import _strip_brief
+
+        assert (
+            _strip_brief(
+                "strategy.entry(id, direction)\n\nCreate entry order.\n\nExtra detail.",
+                "Create entry order.",
+                "strategy.entry",
+                "strategy.entry",
+            )
+            == "Extra detail."
+        )
+        echo = "``syminfo.ticker`` / ``syminfo.ticker(tickerid)``.\n\nZero-arg returns the chart ticker."
+        assert _strip_brief(echo, "", "syminfo.ticker", "syminfo.ticker") == ("Zero-arg returns the chart ticker.")
+
+    def test_syminfo_ticker_property_versus_call(self) -> None:
+        """Bare ``syminfo.ticker`` is a property; a call is a function. The brief is not repeated."""
+        source = "//@version=6\nindicator('T')\nx = syminfo.ticker\ny = syminfo.ticker(syminfo.tickerid)\n"
+        bare_line = source.splitlines()[2]
+        call_line = source.splitlines()[3]
+        bare = handle_hover(
+            lsp.HoverParams(
+                text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+                position=lsp.Position(line=2, character=bare_line.index("ticker") + 1),
+            ),
+            source,
+        )
+        called = handle_hover(
+            lsp.HoverParams(
+                text_document=lsp.TextDocumentIdentifier(uri="file:///test.pine"),
+                position=lsp.Position(line=3, character=call_line.index("ticker") + 1),
+            ),
+            source,
+        )
+        assert bare is not None and called is not None
+        assert isinstance(bare.contents, lsp.MarkupContent)
+        assert isinstance(called.contents, lsp.MarkupContent)
+        bare_text = bare.contents.value
+        call_text = called.contents.value
+        assert bare_text.startswith("`property`")
+        assert "```pinescript\nsyminfo.ticker\n```" in bare_text
+        assert "syminfo.ticker(" not in bare_text
+        assert bare_text.count("Zero-arg returns") == 1
+        assert call_text.startswith("`function`")
+        assert "syminfo.ticker(tickerid)" in call_text
+        assert call_text.count("Zero-arg returns") == 1
+        assert "- `tickerid`" in call_text
+        assert "```pinescript\nsyminfo.ticker``" not in bare_text
+        assert "```pinescript\nsyminfo.ticker``" not in call_text
+
+    def test_strategy_entry_hover_lifts_parameter_descriptions(self) -> None:
+        """``Parameters:`` blocks become the named table, not a second prose dump."""
+        from pynescript.langserver.features.hover import _build_builtin_hover
+
+        info = get_builtin("strategy.entry")
+        assert info is not None
+        hover = _build_builtin_hover(info, 0, 0, 6)
+        assert isinstance(hover.contents, lsp.MarkupContent)
+        value = hover.contents.value
+        assert "| `id` | `str` · Order identifier |" in value
+        assert "| `qty` | `float` · Order quantity |" in value
+        assert "subtask" not in value.lower()
+        assert "pine-worker" not in value
+        assert value.count("Create entry order for strategy.") == 1
+
+    def test_bullet_wall_is_omitted_instead_of_chopped(self) -> None:
+        from pynescript.langserver.features.hover import _build_builtin_hover
+
+        info = get_builtin("strategy.exit")
+        assert info is not None
+        hover = _build_builtin_hover(info, 0, 0, 6)
+        assert isinstance(hover.contents, lsp.MarkupContent)
+        value = hover.contents.value
+        assert "Place a bracket exit against the open position." in value
+        assert "process_pending_orders" not in value
+        assert "slippage" not in value
+        assert not value.rstrip().endswith("…")
 
 
 class TestDefinitionHandler:
@@ -1770,6 +1892,34 @@ class TestSignatureHelpHandler:
         assert result.active_parameter == 1
         labels = [_param_label(p) for p in (result.signatures[0].parameters or [])]
         assert len(labels) >= 2
+        signature = result.signatures[0]
+        assert signature.documentation is not None
+        active = (signature.parameters or [])[result.active_parameter or 0]
+        assert active.documentation is not None
+        assert signature.documentation.value == active.documentation.value
+        assert "**`length`**" in signature.documentation.value
+        assert signature.documentation.value.startswith("`function`")
+        assert "See also" not in signature.documentation.value
+        assert "| Name |" not in signature.documentation.value
+        assert "ta.ema" not in signature.documentation.value
+
+    def test_active_parameter_uses_hover_name_and_type(self) -> None:
+        """Signature help carries the hover parameter fact, not the whole card."""
+        source = "//@version=6\nindicator('T')\nstrategy.entry(\"L\", strategy.long, 1)\n"
+        result = handle_signature_help(_signature_params(source, 'strategy.entry("L", strategy.long,'), source)
+        assert result is not None
+        signature = result.signatures[0]
+        assert signature.documentation is not None
+        text = signature.documentation.value
+        active = (signature.parameters or [])[result.active_parameter or 0]
+        assert active.documentation is not None
+        assert text == active.documentation.value
+        assert "**`qty`**" in text
+        assert "`float`" in text
+        assert "Order quantity" in text
+        assert "See also" not in text
+        assert "**Parameters**" not in text
+        assert "strategy.exit" not in text
 
     def test_nested_parens_innermost_callee(self) -> None:
         source = "//@version=6\nindicator('T')\nplot(math.max(close, open))\n"

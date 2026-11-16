@@ -830,39 +830,12 @@ def _signature_from_info(info: dict) -> str:
 
 def _format_params(info: dict) -> str:
     """Render a Parameters section when metadata includes ``params``."""
-    params = info.get("params")
-    if params is None:
-        params = info.get("parameters")
-    if not params:
+    rows: list[tuple[str, str]] = []
+    for name, typ, desc in builtin_param_facts(info):
+        rows.append((name, _param_detail(typ, desc)))
+    if not rows:
         return ""
-    entries: list[tuple[str, str]] = []
-    if isinstance(params, dict):
-        entries = [(str(k), "" if v is None else str(v)) for k, v in params.items()]
-    elif isinstance(params, list):
-        for item in params:
-            if isinstance(item, str):
-                entries.append((item, ""))
-            elif isinstance(item, dict):
-                name = item.get("name") or item.get("label") or ""
-                if not name:
-                    continue
-                typ = item.get("type") or ""
-                desc = item.get("brief") or item.get("documentation") or item.get("detail") or ""
-                bits: list[str] = []
-                if typ:
-                    bits.append(f"`{typ}`")
-                if desc:
-                    bits.append(desc)
-                entries.append((str(name), " · ".join(bits)))
-    if not entries:
-        return ""
-    cleaned: list[tuple[str, str]] = []
-    for name, desc in entries:
-        text = desc.strip()
-        if text.startswith("—"):
-            text = text.lstrip("— ").strip()
-        cleaned.append((name, text))
-    return format_named_table("Parameters", cleaned)
+    return format_named_table("Parameters", rows)
 
 
 def _build_builtin_hover(
@@ -888,24 +861,23 @@ def _build_builtin_hover(
         LSP Hover with documentation.
     """
     label = info.get("label", "")
-    brief = info.get("brief", "")
-    documentation = info.get("documentation", "")
     signature = _signature_from_info(info)
     if called and "(" not in signature:
         signature = f"{label}(...)"
     if not called and "." in label and signature.startswith(label + "("):
         signature = label
-        if not brief:
-            brief = "Built-in property."
 
+    summary = builtin_card_summary(info, signature=signature)
+    if not summary and not called and "." in label:
+        summary = "Built-in property."
     sections: list[str] = []
     if called:
         params_block = _format_params(info)
         if params_block:
             sections.append(params_block)
-    doc_text = _strip_brief(documentation, brief, signature, label)
+    doc_text = _public_builtin_prose(info, summary, signature, label)
     if doc_text:
-        sections.append(_format_documentation(doc_text))
+        sections.append(doc_text)
     examples = _build_examples(info)
     if examples:
         sections.append(examples)
@@ -915,7 +887,7 @@ def _build_builtin_hover(
     kind = "function" if called or "(" in signature else "property"
     return _markdown_hover(
         signature,
-        brief,
+        summary,
         line,
         start,
         end,
@@ -936,7 +908,33 @@ _SECTION_HEADERS = (
     "examples:",
     "see also:",
     "fields:",
+    "args:",
 )
+
+# Sentences that describe the host, not the Pine call. Drop them from cards.
+_INTERNAL_RE = re.compile(
+    r"context\[|data_provider|data_feed|ccxt|linter|corpus|subtask|pine-worker|"
+    r"kwargs take precedence|internal color model|soft no-op|host bookkeeping|"
+    r"process_pending_orders",
+    re.IGNORECASE,
+)
+
+_LEADING_SIG_PHRASE = re.compile(
+    r"(?is)^(signature|reference pine|pine script)\s*:?\s*`+[^`]*`+\s*"
+)
+
+_ARG_HEADERS = frozenset({"parameters", "parameter", "arguments", "args"})
+_HEADER_LINE = re.compile(r"^[ \t]*([A-Za-z][A-Za-z ]{0,40}):\s*$")
+_ARG_LINE = re.compile(r"^[ \t]+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*?)\s*$")
+_TYPE_ATOM = (
+    r"(?:series|simple|const|input|int|float|bool|string|str|color|void|"
+    r"label|line|box|table|array|matrix|map|linefill|polyline|na|None)"
+)
+_TYPE_TAIL = re.compile(
+    rf"^(?P<body>.*?)\s+\((?P<typ>{_TYPE_ATOM}(?:\s+{_TYPE_ATOM})?(?:\s+or\s+{_TYPE_ATOM})?)\)\s*$",
+    re.IGNORECASE,
+)
+_SIG_LINE = re.compile(r"(?is)^(signature|reference pine)\b")
 
 
 def _strip_brief(
@@ -950,6 +948,8 @@ def _strip_brief(
     Builtin metadata often embeds a full signature plus a ``Parameters:`` block
     that the card already renders structurally. After removing the repeated
     prefixes, a leading section header means there is no extra prose to show.
+    A bare label prefix does not eat the following call — ``name(args)`` is
+    removed together so a property card does not keep a leftover ``(args)``.
     """
     doc = (documentation or "").strip()
     summary = (brief or "").strip()
@@ -957,12 +957,20 @@ def _strip_brief(
     if not doc:
         return ""
     changed = True
-    while changed:
+    while changed and doc:
         changed = False
         for prefix in (summary, sig):
-            if prefix and doc.startswith(prefix):
-                doc = doc[len(prefix) :].lstrip(" .:—–-\n")
-                changed = True
+            if not prefix or not doc.startswith(prefix):
+                continue
+            rest = doc[len(prefix) :]
+            if prefix == label:
+                nxt = rest.lstrip(" \t")
+                # ``strategy.entry creates…`` is prose. ``strategy.entry(…)``
+                # is a call and is consumed below with its argument list.
+                if nxt.startswith("(") or (nxt[:1].isalnum() or nxt[:1] == "_"):
+                    continue
+            doc = rest.lstrip(" .:—–-\n")
+            changed = True
         # Some builtin docs start with their own call signature, e.g.
         # ``strategy.entry(id, direction, …) More detail.``.
         if label and doc.startswith(label):
@@ -973,9 +981,297 @@ def _strip_brief(
                 if close_index > open_index:
                     doc = doc[close_index + 1 :].lstrip(" .:—–-\n")
                     changed = True
+        phrased = _LEADING_SIG_PHRASE.sub("", doc, count=1)
+        if phrased != doc:
+            doc = phrased.lstrip(" .:—–-\n")
+            changed = True
+        trimmed = _drop_leading_noise_line(doc, summary, sig, label)
+        if trimmed != doc:
+            doc = trimmed
+            changed = True
     if doc.lower().startswith(_SECTION_HEADERS):
         return ""
     return "" if doc in {summary, sig} else doc
+
+
+def _drop_leading_noise_line(doc: str, brief: str, signature: str, label: str) -> str:
+    """Remove one leading line that only restates the signature or brief."""
+    if not doc:
+        return ""
+    lines = doc.split("\n")
+    first = lines[0].strip()
+    if not first:
+        return "\n".join(lines[1:]).strip()
+    drop = (
+        _is_signature_echo(first, label, signature)
+        or _repeats_brief(first, brief)
+        or _SIG_LINE.match(first) is not None
+    )
+    if not drop:
+        return doc
+    rest = lines[1:]
+    while rest and (not rest[0].strip() or rest[0].startswith((" ", "\t"))):
+        # Indented wrap of a ``Signature:`` line, or the blank line under it.
+        if rest[0].strip() and not first.lower().startswith("signature"):
+            break
+        rest.pop(0)
+    return "\n".join(rest).strip()
+
+
+def _is_signature_echo(text: str, label: str, signature: str) -> bool:
+    """True when *text* is only a label, call, or ``name / name(args)`` echo."""
+    raw = (text or "").strip()
+    if not raw:
+        return True
+    if raw in {label, signature, f"{label}(...)", f"{signature}."}:
+        return True
+    cleaned = re.sub(r"`[^`]*`", " ", raw)
+    cleaned = re.sub(r"\([^)]*\)", " ", cleaned)
+    for piece in sorted({p for p in (signature, label) if p}, key=len, reverse=True):
+        cleaned = cleaned.replace(piece, " ")
+    return re.sub(r"[^A-Za-z0-9]+", "", cleaned) == ""
+
+
+def _repeats_brief(text: str, brief: str) -> bool:
+    summary = (brief or "").strip()
+    if not summary:
+        return False
+    cleaned = (text or "").replace("`", " ")
+    cleaned = cleaned.replace(summary, " ")
+    return re.sub(r"[^A-Za-z0-9]+", "", cleaned) == ""
+
+
+def _balance_backticks(text: str) -> str:
+    """Close an unclosed backtick run so later Markdown is not swallowed."""
+    if not text or "`" not in text:
+        return text
+    i = 0
+    n = len(text)
+    while i < n:
+        if text[i] != "`":
+            i += 1
+            continue
+        j = i
+        while j < n and text[j] == "`":
+            j += 1
+        run = j - i
+        k = j
+        closed = False
+        while k < n:
+            if text[k] != "`":
+                k += 1
+                continue
+            m = k
+            while m < n and text[m] == "`":
+                m += 1
+            if m - k == run:
+                i = m
+                closed = True
+                break
+            k = m
+        if not closed:
+            return text + ("`" * run)
+    return text
+
+
+def _one_sentence(text: str, limit: int = 220) -> str:
+    """First sentence, clipped on a boundary. Empty when *text* is empty."""
+    clean = " ".join((text or "").split())
+    if not clean:
+        return ""
+    for index, ch in enumerate(clean):
+        if ch in ".!?" and (index + 1 == len(clean) or clean[index + 1].isspace()):
+            sentence = clean[: index + 1].strip()
+            if len(sentence) <= limit:
+                return sentence
+            break
+    return _truncate_text(clean, limit)
+
+
+def _split_sentences(text: str) -> list[str]:
+    clean = " ".join((text or "").split())
+    if not clean:
+        return []
+    return [part for part in re.split(r"(?<=[.!?])\s+", clean) if part]
+
+
+def _drop_internal_sentences(text: str) -> str:
+    """Drop host-only sentences. Stop at the first fully internal paragraph."""
+    kept: list[str] = []
+    for para in (text or "").split("\n\n"):
+        sentences = _split_sentences(para)
+        if not sentences:
+            continue
+        good = [sentence for sentence in sentences if not _INTERNAL_RE.search(sentence)]
+        if not good:
+            break
+        kept.append(" ".join(sentence.strip() for sentence in good))
+    return "\n\n".join(kept).strip()
+
+
+def builtin_card_summary(info: dict, *, signature: str | None = None) -> str:
+    """One-paragraph summary for a builtin card.
+
+    A brief that only restates the signature is replaced by the first public
+    sentence of the documentation. Real briefs are kept as written.
+    """
+    label = (info.get("label") or "").strip()
+    sig = signature if signature is not None else _signature_from_info(info)
+    brief = _balance_backticks((info.get("brief") or "").strip())
+    if brief and not _is_signature_echo(brief, label, sig):
+        return brief
+    prose = _strip_brief(info.get("documentation") or "", "", sig, label)
+    prose = _drop_internal_sentences(prose)
+    return _balance_backticks(_format_documentation(prose))
+
+
+def _public_builtin_prose(info: dict, summary: str, signature: str, label: str) -> str:
+    """Extra prose that does not repeat the summary, signature, or host notes."""
+    raw = info.get("documentation") or ""
+    prose = _strip_brief(raw, summary, signature, label)
+    original = (info.get("brief") or "").strip()
+    if original and original != summary:
+        prose = _strip_brief(prose, original, signature, label)
+    prose = _drop_internal_sentences(prose)
+    text = _balance_backticks(_format_documentation(prose))
+    if text and text[0].islower():
+        text = text[0].upper() + text[1:]
+    if not text or text == summary or _is_signature_echo(text, label, signature):
+        return ""
+    if _repeats_brief(text, summary):
+        return ""
+    return text
+
+
+def _arg_descriptions(documentation: str) -> dict[str, str]:
+    """Map parameter name → description from ``Parameters:`` / ``Args:`` blocks."""
+    found: dict[str, str] = {}
+    lines = (documentation or "").splitlines()
+    index = 0
+    while index < len(lines):
+        header = _HEADER_LINE.match(lines[index])
+        name = header.group(1).strip().lower() if header else ""
+        if name not in _ARG_HEADERS:
+            index += 1
+            continue
+        index += 1
+        while index < len(lines):
+            if not lines[index].strip():
+                nxt = lines[index + 1] if index + 1 < len(lines) else ""
+                if not nxt.startswith((" ", "\t")):
+                    break
+                index += 1
+                continue
+            if _HEADER_LINE.match(lines[index]) and not lines[index].startswith((" ", "\t")):
+                break
+            match = _ARG_LINE.match(lines[index])
+            if not match:
+                if not lines[index].startswith((" ", "\t")):
+                    break
+                index += 1
+                continue
+            key, desc = match.group(1), match.group(2).strip()
+            index += 1
+            extra: list[str] = []
+            while index < len(lines) and lines[index].startswith((" ", "\t")) and not _ARG_LINE.match(lines[index]):
+                if lines[index].strip():
+                    extra.append(lines[index].strip())
+                index += 1
+            if extra:
+                desc = (desc + " " + " ".join(extra)).strip()
+            found[key] = desc
+    return found
+
+
+def _split_param_type(desc: str) -> tuple[str, str]:
+    """Split a trailing Pine type ``(series float)`` from a parameter description."""
+    match = _TYPE_TAIL.match((desc or "").strip())
+    if not match:
+        return "", (desc or "").strip()
+    return match.group("typ"), match.group("body").strip()
+
+
+def _param_detail(typ: str, desc: str) -> str:
+    """Hover/signature detail: ``type`` · one sentence. Either piece may be empty."""
+    sentence = _one_sentence(desc)
+    bits: list[str] = []
+    if typ:
+        bits.append(f"`{typ}`")
+    if sentence:
+        bits.append(sentence)
+    return " · ".join(bits)
+
+
+def format_param_phrase(name: str, typ: str, desc: str) -> str:
+    """Active-parameter line: name, the hover type, and at most one sentence."""
+    detail = _param_detail(typ, desc)
+    if not name:
+        return detail
+    if detail:
+        return f"**`{name}`** — {detail}"
+    return f"**`{name}`**"
+
+
+def builtin_param_facts(info: dict) -> list[tuple[str, str, str]]:
+    """``(name, type, description)`` in the same order and wording as hover."""
+    documented = _arg_descriptions(info.get("documentation") or "")
+    params = info.get("params")
+    if params is None:
+        params = info.get("parameters")
+    facts: list[tuple[str, str, str]] = []
+    if isinstance(params, dict):
+        for key, value in params.items():
+            desc = "" if value is None else str(value)
+            if not desc:
+                desc = documented.get(str(key), "")
+            typ, desc = _split_param_type(desc)
+            facts.append((str(key), typ, desc))
+    elif isinstance(params, list):
+        for item in params:
+            if isinstance(item, str):
+                typ, desc = _split_param_type(documented.get(item, ""))
+                facts.append((item, typ, desc))
+            elif isinstance(item, dict):
+                name = str(item.get("name") or item.get("label") or "")
+                if not name:
+                    continue
+                typ = str(item.get("type") or "")
+                desc = str(item.get("brief") or item.get("documentation") or item.get("detail") or "")
+                if not desc:
+                    desc = documented.get(name, "")
+                if not typ:
+                    typ, desc = _split_param_type(desc)
+                facts.append((name, typ, desc))
+    cleaned: list[tuple[str, str, str]] = []
+    for name, typ, desc in facts:
+        text = desc.strip()
+        if text.startswith("—"):
+            text = text.lstrip("— ").strip()
+        cleaned.append((name, typ.strip(), text))
+    return cleaned
+
+
+def lookup_param_fact(label: str, facts: list[tuple[str, str, str]]) -> tuple[str, str, str]:
+    """Resolve a signature label to the hover fact for that parameter."""
+    raw = (label or "").strip()
+    base = raw.split("=", 1)[0].strip()
+    parts = base.split()
+    ident = parts[-1] if parts else base
+    for name, typ, desc in facts:
+        if name in {ident, base}:
+            if not typ and len(parts) >= 2:
+                return name, " ".join(parts[:-1]), desc
+            return name, typ, desc
+    typ = " ".join(parts[:-1]) if len(parts) >= 2 else ""
+    return ident, typ, ""
+
+
+def annotation_summary(lines: list[str] | None) -> str:
+    """First sentence of a ``//@function`` / ``//@type`` description, if any."""
+    description, _params, _returns, _fields = _annotation_sections(_parse_annotation_entries(lines))
+    if not description:
+        return ""
+    return _one_sentence(description)
 
 
 def _truncate_text(text: str, limit: int = _DOC_LIMIT) -> str:
@@ -995,10 +1291,25 @@ def _truncate_text(text: str, limit: int = _DOC_LIMIT) -> str:
 
 
 def _format_documentation(doc: str) -> str:
-    """First paragraph, whitespace-collapsed, cut at a sentence boundary."""
-    paragraphs = (doc or "").split("\n\n")
-    first_para = paragraphs[0] if paragraphs else (doc or "")
+    """First paragraph, whitespace-collapsed, cut at a sentence boundary.
+
+    A bullet list longer than :data:`_DOC_LIMIT` is omitted instead of chopped
+    mid-list. Short prose still clips on a sentence boundary.
+    """
+    paragraphs = [part for part in (doc or "").split("\n\n") if part.strip()]
+    if not paragraphs:
+        return ""
+    first_para = paragraphs[0]
+    collapsed = " ".join(first_para.split())
+    if len(collapsed) > _DOC_LIMIT and _is_bullet_wall(first_para):
+        return ""
     return _truncate_text(first_para)
+
+
+def _is_bullet_wall(text: str) -> bool:
+    """True when *text* is a list, including a list already collapsed to one line."""
+    collapsed = " ".join((text or "").split())
+    return len(re.findall(r"(?:^|\s)[*•]\s", collapsed)) >= 2
 
 
 def _build_examples(info: dict) -> str:

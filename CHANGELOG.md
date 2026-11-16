@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+- **LSP cards stay short where the widget is narrow.** Hover still shows the kind chip, signature, one summary, parameters, example, and the Pine v6 link, and it drops signature echoes and host-only notes. Completion stays a short card (no parameter table, no see-also). Signature help shows the active parameter with the same name and type as the hover, plus one sentence.
+
 ## [0.7.1] — 2026-11-15
 
 ### Changed
