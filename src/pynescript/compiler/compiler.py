@@ -10850,18 +10850,26 @@ class CompilerVisitor(NodeVisitor):
         if not mapping:
             return
 
+        def rewrite_root(attr: ast.Attribute) -> None:
+            """Rewrite the root Name of an attribute chain if it is an alias."""
+            cur: Any = attr
+            while isinstance(cur, ast.Attribute):
+                cur = cur.value
+            if isinstance(cur, ast.Name) and cur.id in mapping and cur.id not in shadowed:
+                cur.id = mapping[cur.id]
+
         def walk(node, shadowed: set[str]) -> None:
             if node is None or not hasattr(node, "_fields"):
                 return
             if isinstance(node, ast.Call):
                 f = node.func
-                if (
-                    isinstance(f, ast.Attribute)
-                    and isinstance(f.value, ast.Name)
-                    and f.value.id in mapping
-                    and f.value.id not in shadowed
-                ):
-                    f.value.id = mapping[f.value.id]
+                if isinstance(f, ast.Specialize):
+                    f = f.value
+                if isinstance(f, ast.Attribute):
+                    # Nested forms like ``alias.Type.new(...)`` and
+                    # ``alias.Type.method(...)`` must rewrite the root alias,
+                    # not only one-level ``alias.fn(...)``.
+                    rewrite_root(f)
             for child in _iter_child_values(node):
                 if isinstance(child, list):
                     for item in child:
@@ -10899,7 +10907,12 @@ class CompilerVisitor(NodeVisitor):
         for stmt in getattr(fn, "body", []) or []:
             self._collect_assigned_names(stmt, locals_)
         local_names = local_names or set()
-        allowed_names = set(params) | locals_ | {"true", "false", "na", "math", "str", "color"}
+        allowed_names = (
+            set(params)
+            | locals_
+            | {"true", "false", "na", "math", "str", "color"}
+            | set(extra_namespaces or ())
+        )
         allowed_calls = {
             "abs",
             "min",

@@ -413,6 +413,81 @@ def test_library_required_before_default_both_hosts() -> None:
     assert "'b'" in message and "'k'" in message, message
 
 
+_LIB_XLIB_UDT_B = """//@version=6
+library("B")
+export type Box
+    float v
+export method bump(Box this) =>
+    this.v + 1
+"""
+
+_LIB_XLIB_UDT_A = """//@version=6
+library("A")
+import ns/B/1 as b
+export make(float x) =>
+    b.Box.new(x).v
+export make_bump(float x) =>
+    b.Box.new(x).bump()
+"""
+
+_LIB_XLIB_UDT_A_ANNOT = """//@version=6
+library("A")
+import ns/B/1 as b
+export make(float x) =>
+    b.Box box = b.Box.new(x)
+    box.v
+"""
+
+_SRC_XLIB_UDT = """//@version=6
+indicator("xlib udt")
+import ns/A/1 as a
+plot(a.make(close), "v")
+plot(a.make_bump(close), "b")
+"""
+
+
+def _xlib_udt_libraries(a_source: str) -> list[dict[str, object]]:
+    return [
+        {"namespace": "ns", "name": "B", "version": 1, "source": _LIB_XLIB_UDT_B},
+        {"namespace": "ns", "name": "A", "version": 1, "source": a_source},
+    ]
+
+
+def test_cross_library_udt_constructor_and_method_inline() -> None:
+    """A may import B's UDT, construct it, and call its method."""
+    interp = Runtime(symbol="TEST").run(
+        _SRC_XLIB_UDT,
+        _bars(),
+        mode="interpret",
+        libraries=_xlib_udt_libraries(_LIB_XLIB_UDT_A),
+    )
+    compiled = Runtime(symbol="TEST").run(
+        _SRC_XLIB_UDT,
+        _bars(),
+        mode="compile",
+        libraries=_xlib_udt_libraries(_LIB_XLIB_UDT_A),
+    )
+    assert "error" not in interp, interp.get("error")
+    assert "error" not in compiled, compiled.get("error")
+    assert compiled["series"]["v"] == [100.5, 101.5, 102.5, 103.5]
+    assert compiled["series"]["b"] == [101.5, 102.5, 103.5, 104.5]
+    assert compiled["series"] == interp["series"]
+
+
+def test_cross_library_udt_type_annotation_fails_closed() -> None:
+    """A cross-library UDT type annotation is outside this slice."""
+    out = Runtime(symbol="TEST").run(
+        _SRC_XLIB_UDT,
+        _bars(),
+        mode="compile",
+        libraries=_xlib_udt_libraries(_LIB_XLIB_UDT_A_ANNOT),
+    )
+    assert out.get("error_kind") == "compile", out
+    message = str(out.get("error") or "").lower()
+    assert "unsupported name b" in message
+    assert "interpret" in message
+
+
 _LIB_INTERNAL_UNKNOWN = """//@version=6
 library("Lib")
 export add(float a) =>
