@@ -7,7 +7,7 @@ tags: [doc, docs, missing-features]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-17T16:45:58Z
+  at: 2026-11-17T20:02:51Z
 sources:
   - id: tree
     resource: "docs/missing_features.md"
@@ -37,6 +37,7 @@ Repo path `docs/missing_features.md`.
   - Request Data
   - Auto Fib and Pivot-Heavy Scripts
   - Platform-Specific Features
+  - Pine release-notes gaps (2025–2026)
   - PyneTS
 - Corpus Performance
 - Recent Releases (0.6.10–0.6.14)
@@ -53,3 +54,5 @@ Repo path `docs/missing_features.md`.
 - [scripts](/code/scripts.md)
 - [src/pynescript](/code/src/pynescript.md)
 - [src/pynescript/ast](/code/src/pynescript/ast.md)
+- [src/pynescript/ast/evaluator/builtins](/code/src/pynescript/ast/evaluator/builtins.md)
+- [tests](/code/tests.md)

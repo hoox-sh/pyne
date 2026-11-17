@@ -104,9 +104,15 @@ flowchart TB
 
 | Value            | Use                                                     |
 | ---------------- | ------------------------------------------------------- |
-| `json` (default) | Single-process / tests; file may hold raw keys          |
+| `json` (default) | Single-process / tests; **hash-only** (see note)        |
 | `sqlite`         | Multi-worker single host (shared volume); **hash-only** |
 | `redis`          | Multi-replica; needs `REDIS_URL`; **hash-only**         |
+
+All three backends store only a PBKDF2-HMAC-SHA256 digest of the secret (`v2:`
+records). On load, a legacy JSON file whose object keys were raw `pyn_…` secrets
+is re-keyed by hash, written back hash-only, and the raw value is dropped.
+Pre-`v2` records that carry only a SHA-256 fingerprint cannot be verified and
+are skipped — re-issue those keys.
 
 ## Internals
 

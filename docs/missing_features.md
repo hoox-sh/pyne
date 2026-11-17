@@ -129,6 +129,41 @@ The following are intentionally out of scope:
 - **Tick-path broker** — the strategy engine models OHLC bar paths, not tick-level fills
 - **TV Supertrend band ratchet** — the simplified mid ± factor × ATR model is locked by goldens
 
+### Pine release-notes gaps (2025–2026)
+
+Audited against the TradingView Pine release notes for 2025-01 → 2026-10. The
+per-feature table lives in `docs/pine_v6_full_surface_inventory.md`
+(§ *Release-notes coverage audit*).
+
+**Accepted and ignored — correctness caveat.** `strategy()` reads a fixed key
+set and forwards the rest into `ScriptDeclaration.kwargs`
+(`src/pynescript/ast/evaluator/builtins/declarations.py:129-148`). Five
+execution-model parameters are therefore parsed, accepted, and never applied:
+
+- `calc_on_every_history_tick` (July 2026)
+- `calc_on_every_tick`
+- `calc_on_order_fills`
+- `process_orders_on_close`
+- `use_bar_magnifier`
+
+A script that sets them runs and produces output as if they were absent. That is
+worse than a parse error: the backtest silently differs from the one the author
+asked for. Treat any strategy that depends on them as unsupported until the
+broker reads them.
+
+**Missing surface.** `timeframe_bars_back` on `time()` / `time_close()`
+(October 2025) has no parameter and no handler. `time()` ignores its arguments
+today, so the call is accepted and ignored rather than rejected.
+
+**Unverified, not missing.** Three release-note behaviors have source paths but
+no regression test pinning them: square-bracket line wrapping at arbitrary
+indentation (September 2026), the 40,960-character string limit (August 2025),
+and the removed scope-count limit (February 2025). Ad-hoc checks pass; they stay
+unverified because nothing in CI would catch a regression. Dynamic `for`-loop
+boundary re-evaluation (April 2025) is pinned by
+`tests/test_compile_expr_parity.py::test_dynamic_for_limit_still_one_iteration`
+and is counted as implemented.
+
 ### PyneTS
 
 The TypeScript library (`@hoox-sh/pynets` 0.5.0) provides interpret and JS compile modes. Python remains the language oracle. PyneTS does not invent TradingView® behavior.

@@ -7,7 +7,7 @@ tags: [doc, docs, pine-v6-full-surface-inventory]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-17T20:02:51Z
 sources:
   - id: tree
     resource: "docs/pine_v6_full_surface_inventory.md"
@@ -30,6 +30,11 @@ Repo path `docs/pine_v6_full_surface_inventory.md`.
 - Architecture graph
 - Language & syntax surface
 - Known gaps & platform limits
+- Release-notes coverage audit (2025-01 → 2026-10)
+  - Implemented or partially implemented
+  - Not implemented
+  - Unverified — evidence exists, no regression test pins it
+  - Platform-only, out of scope
 - Full function & identifier inventory
   - ta (154)
   - strategy (66)
@@ -57,8 +62,7 @@ Repo path `docs/pine_v6_full_surface_inventory.md`.
   - barstate (7)
   - earnings (7)
   - footprint (6)
-  - dividends (5)
-  - declaration (3)
-  - log (3)
-  - plot (3)
-  - polyline (3)
+
+# Mentions
+
+- [tests](/code/tests.md)

@@ -32,4 +32,4 @@ The draft records Python and TypeScript exports, imports, the first docstring, a
 
 # What the hook does
 
-`.githooks/pre-commit` runs this pipeline from the git index and stages the generated bundle. Enable it once with `git config core.hooksPath .githooks` (also done by `bun install` via `prepare`). A new curated file is staged with it. An unstaged edit to a curated playbook stays unstaged. `OO_SKIP=okf` skips the refresh.
+`.githooks/pre-commit` runs `okn validate` against the OKF bundle. It does not regenerate or stage the bundle, and it does not check freshness — a stale bundle passes this step. Enable it once with `git config core.hooksPath .githooks` (also done by `bun install` via `prepare`). `OO_SKIP=okf` skips the validation step. Regenerate manually with `bun run okf:enrich`; `bun run okf:check` fails when the committed bundle is stale.

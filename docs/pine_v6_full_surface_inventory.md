@@ -230,6 +230,72 @@ Some absences are intentional product boundaries rather than incomplete ports: t
 | chart rendering                    | ⬜ n/a         | Out of scope                                                                                             |
 | Compile mode strategy orders       | ✅ implemented | Object-mode `CompileStrategyBroker`; events via Runtime `mode="compile"`                                 |
 
+## Release-notes coverage audit (2025-01 → 2026-10)
+
+> **Hand-maintained — not regenerated.** This section is written by hand from the
+> TradingView Pine release notes. It is not emitted by the inventory script, and
+> the generated status rows elsewhere in this file do not depend on it. If the
+> script rewrites this file, re-append this section. Edit it directly when the
+> audit changes.
+
+Source: [Pine Script release notes](https://www.tradingview.com/pine-script-docs/release-notes/).
+Audit date: 2026-11-17. "Released" is the TradingView announcement month.
+Evidence paths are relative to `src/pynescript/` unless stated otherwise.
+
+Statuses reuse the vocabulary above (`✅ implemented`, `🔄 partial`,
+`❌ missing`, `⚙️ by design`) plus `❔ unverified` for a behavior that has a
+source path but no regression test pinning it.
+
+### Implemented or partially implemented
+
+| Feature | Released | Status | Evidence |
+| --- | --- | --- | --- |
+| `once` conditional structure | Aug 2026 | ✅ implemented | `ast/grammar/antlr4/resource/PinescriptLexer.g4:54` (`ONCE`); `PinescriptParser.g4:170` (`once_structure: ONCE expression? local_block`) |
+| `array.binary_search*` with `sort_field` on UDT arrays | Aug 2026 | ✅ implemented | `ast/evaluator/builtins/arrays.py:1018` `_resolve_search_field`; `arrays.py:1065` `_binary_search_by_field` |
+| `array.sort` / `array.sort_indices` / `matrix.sort` with `sort_field` | Apr 2026 | ✅ implemented | `arrays.py:862` `_parse_sort_args`; `ast/evaluator/builtins/matrix_evaluator.py:710,723`; `compiler/numba_builtins.py:2761,2816,2943` |
+| Multiline strings `"""` / `'''` | Apr 2026 | ✅ implemented | `PinescriptLexer.g4:143-144` (`TRIPLE_DQ_STRING`, `TRIPLE_SQ_STRING`); row in *Language & syntax surface* above |
+| `request.footprint()` + `footprint` / `volume_row` | Jan 2026 | 🔄 partial | Handler `ast/evaluator/builtins/request.py:5747`; accessors `request.py:857`. Rows are synthesized (`random.random()`, "mock data gen" at `request.py:5779-5782`): **mock footprints, not exchange order flow** |
+| `syminfo.isin` | Nov 2025 | ✅ implemented | `runtime/host.py:1918` field, `:3341` population; default `ast/evaluator/base.py:53` |
+| `syminfo.current_contract` | Jul 2025 | ✅ implemented | `runtime/host.py:1921` field, `:3343` population; default `ast/evaluator/base.py:54` |
+| `plot()` `linestyle` + `plot.linestyle_*` | Sep 2025 | ✅ implemented | `ast/evaluator/builtins/plotting.py:581-583` (`solid`/`dashed`/`dotted`); `runtime/host.py:701,751` passthrough into `plot_meta` |
+| `input*()` `active` parameter | Jul 2025 | ✅ implemented | `ast/evaluator/builtins/input.py:145-152` and the sibling handlers; stored as a metadata side channel |
+| `export const` in libraries | Jun 2025 | ✅ implemented | `PinescriptParser.g4:79-80,202-203` (`EXPORT?` on variable initializers); `ast/evaluator/libraries.py:173` (`exports` map) |
+| `box.set_xloc()` | Mar 2025 | ✅ implemented | `langserver/providers/builtin_metadata.json:1310` ("Added March 2025: Full parameter support for left, right, and xloc") |
+| `ticker.*` `style="PercentageLTP"` | Apr 2025 | ✅ implemented | `ast/evaluator/builtins/ticker.py:65,215,362` |
+| `bid` / `ask` | Feb 2025 | ✅ implemented | `runtime/host.py:3307-3308` fields; `:3353-3354` `update_bid_ask` |
+| `strategy.exit()` parameter-pair evaluation | Dec 2024 | ✅ implemented | `ast/evaluator/builtins/strategy.py:1549-1576` (`profit`/`loss` tick legs, `limit`/`stop` prices, shared OCA cancel pair); inventory row `strategy.exit` |
+| Dynamic `for`-loop boundary re-evaluation | Apr 2025 | ✅ implemented | `ast/evaluator/statements.py:1498-1527` re-visits `node.end` each iteration; pinned by `tests/test_compile_expr_parity.py::test_dynamic_for_limit_still_one_iteration` (passes on interpret and compile) |
+
+### Not implemented
+
+| Feature | Released | Status | Evidence |
+| --- | --- | --- | --- |
+| `calc_on_every_history_tick` | Jul 2026 | ❌ missing | No occurrence in `src/`. The other execution-model switches — `calc_on_every_tick`, `calc_on_order_fills`, `process_orders_on_close`, `use_bar_magnifier` — are also absent. `strategy()` reads a fixed key set via `kw.get(...)` and keeps the rest in `ScriptDeclaration.kwargs` (`ast/evaluator/builtins/declarations.py:129-148`), so all five are **accepted and silently ignored** |
+| `timeframe_bars_back` on `time()` / `time_close()` | Oct 2025 | ❌ missing | No occurrence in `src/`. `time()` ignores its arguments (`ast/evaluator/builtins/utility.py:581-590`); `time(timeframe.period, timeframe_bars_back=10)` parses and runs without error |
+
+### Unverified — evidence exists, no regression test pins it
+
+| Feature | Released | Status | Evidence and gap |
+| --- | --- | --- | --- |
+| Square-bracket line wrapping at arbitrary indentation | Sep 2026 | ❔ unverified | `ast/grammar/antlr4/resource/PinescriptLexerBase.py:50,250-255` hides newlines while `_numSqBrackets > 0`; `tests/test_lexer_corpus_fixes.py::test_bracket_wrap_any_indent_parity_with_parens` round-trips 1/2/3/4/8-space indents. No evaluation-level assertion; an ad-hoc run of `close[\n   1]` matched `close[1]` on 2026-11-17 |
+| String maximum length 40,960 (up from 4,096) | Aug 2025 | ❔ unverified | No length check in `src/`; a 40,960-character literal evaluates to `str.length() == 40960`. The limit is not modeled, so behavior above 40,960 is undefined by omission |
+| Scope-count limit removal | Feb 2025 | ❔ unverified | No scope counter in `src/`; 120 nested `if` blocks evaluate without error. No test asserts that the limit is gone |
+
+Dynamic `for`-loop boundary re-evaluation started on this list and moved to
+*Implemented* once `test_dynamic_for_limit_still_one_iteration` was found to pin
+the behavior on both interpret and compile paths.
+
+### Platform-only, out of scope
+
+These are TradingView platform or editor changes with no runtime surface to
+implement:
+
+- Input alignment in the settings UI (Oct 2026)
+- Tables in the bottom panel (Sep 2026)
+- Pine Screener (Aug 2026)
+- Pine Editor changes (all months)
+- Strategy-report UI changes (Jul 2026)
+
 ## Full function & identifier inventory
 
 The tables that follow enumerate identifiers by namespace. **Status** for dispatch rows uses a lightweight heuristic (docstrings mentioning `stub` or `mock` are marked partial). Series catalog rows without a registered handler may still be supplied via evaluation context in some hosts; where neither exists, the row is marked missing. Namespace prefaces summarize intent and fidelity; the rows remain the authoritative per-symbol record.
