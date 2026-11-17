@@ -7,7 +7,7 @@ tags: [doc, docs, enduser, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-17T16:45:58Z
 sources:
   - id: tree
     resource: "docs/pyne/enduser/reference/cli-commands.mdx"
@@ -37,6 +37,7 @@ Repo path `docs/pyne/enduser/reference/cli-commands.mdx`.
   - pyne data
   - pyne corpus
   - pyne runner
+  - pyne key
   - pyne info (ls)
   - pyne execute
   - pyne symbols / parity / diagnostics / builtin
