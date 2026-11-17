@@ -51,7 +51,7 @@ This covers both:
 
 ## Failing before
 
-`.openorchestrate/plans/pyne-exported-library-default-args-2026-11-16.failing-before.txt`
+`.oo/plans/pyne-exported-library-default-args-2026-11-16.failing-before.txt`
 — 2 failed: direct `TypeError: __lib_lib_helper() missing 1 required
 positional argument: 'k'`; cross-library
 `TypeError: __lib___xlib_1_scale() missing 1 required positional argument:
@@ -81,7 +81,7 @@ workspace root with `OO_SEAT=oo-spec-2`:
 SHA-256: compiler `79890028db298b0b78c5a60067f5d0e35e2f5120d74b7ca76459b7659f86a92a`,
 tests `9f98a29cc12c426de26036227a17cd87cc351eb928da3d5db2e4308c4264d241`,
 patch `ee4e5eefea784b4a8ad3412ea89f4a1b0aac55d20ea6abc25a51f8e08b8fb050`.
-Verify transcript: `.openorchestrate/proof/verify-exported-library-defaults-2026-11-16.txt`.
+Verify transcript: `.oo/proof/verify-exported-library-defaults-2026-11-16.txt`.
 
 ## Files
 
@@ -89,7 +89,7 @@ Verify transcript: `.openorchestrate/proof/verify-exported-library-defaults-2026
   library calls.
 - `tests/test_compiler_library_inline.py` — direct and cross-library default
   regressions.
-- `.openorchestrate/plans/pyne-exported-library-default-args-2026-11-16.{md,failing-before.txt}`.
+- `.oo/plans/pyne-exported-library-default-args-2026-11-16.{md,failing-before.txt}`.
 
 ## Residual
 
