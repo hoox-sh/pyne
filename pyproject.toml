@@ -147,7 +147,9 @@ dependencies = [
     "black>=24.2.0",
     "mypy>=1.8.0",
     "pyasdl>=0.3.1",
-    "ruff>=0.2.2",
+    # Pinned for a reproducible gate: 0.16.x promotes preview rules (PLR0917,
+    # ISC004) and formats Markdown, so an unpinned ruff gives different results.
+    "ruff==0.15.20",
 ]
 [tool.hatch.envs.lint.scripts]
 gen-parser = "antlr4 {args}"

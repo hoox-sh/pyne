@@ -167,9 +167,7 @@ def main() -> None:
     partial_bars = _bars(5)
     partial_bars[-1]["low"] = 94.0
     for ticks in (1, 3):
-        partial_out = Runtime(symbol="RT").run(
-            _PARTIAL, partial_bars, mode="interpret", realtime_ticks=ticks
-        )
+        partial_out = Runtime(symbol="RT").run(_PARTIAL, partial_bars, mode="interpret", realtime_ticks=ticks)
         assert "error" not in partial_out, partial_out.get("error")
         assert partial_out["series"]["pos"][-1] == 3.0, (ticks, partial_out["series"]["pos"])
 
@@ -211,7 +209,9 @@ def main() -> None:
     assert err_out.get("error_kind") == "order", err_out
     assert "tick fill boom" in str(err_out.get("error") or "")
 
-    print("INTRABAR_FILL_OK fill=1.0 nofeed=0.0 hist=1.0 market=1.0 session=1.0 survive=1.0 partial=3.0 session_partial=3.0 tick_err=order")
+    print(
+        "INTRABAR_FILL_OK fill=1.0 nofeed=0.0 hist=1.0 market=1.0 session=1.0 survive=1.0 partial=3.0 session_partial=3.0 tick_err=order"
+    )
 
 
 if __name__ == "__main__":

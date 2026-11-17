@@ -31,9 +31,7 @@ def main() -> None:
         facade.download_builtin_scripts = original_download
 
     original_list = facade.list_builtin_scripts
-    facade.list_builtin_scripts = lambda: [
-        {"scriptName": "RSI", "scriptIdPart": "STD;RSI", "version": "52"}
-    ]
+    facade.list_builtin_scripts = lambda: [{"scriptName": "RSI", "scriptIdPart": "STD;RSI", "version": "52"}]
     try:
         listed = builtins_ops.list_facade_templates()
         assert listed["ok"] is True

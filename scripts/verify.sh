@@ -23,6 +23,11 @@ case "$MODE" in
 esac
 
 # oo:commands — detected by `oo init`; edit freely.
+# The Format/Lint steps are only meaningful with the pinned ruff: 0.16.x
+# promotes preview rules (PLR0917, ISC004) and formats Markdown, so the same
+# tree passes or fails depending on which binary is on PATH. The pin lives in
+# pyproject.toml and .github/workflows/ci.yml.
+RUFF_PIN='0.15.20'
 # Keep FORMAT_CMD aligned with `make fmt` (ruff format src/ tests/ backend/).
 FORMAT_CMD='ruff format --check src/ tests/ backend/'
 # Keep LINT_CMD aligned with `make lint` (ruff check src/ tests/ backend/).
@@ -151,12 +156,29 @@ run_step() {
   return 0
 }
 
+# Fail loudly when a different ruff is on PATH: the Format/Lint results below
+# are only comparable under the pinned version. If ruff is absent, leave it to
+# run_step (which skips unless OO_STRICT=1) so verify.sh still works without it.
+ruff_pin_check() {
+  command -v ruff >/dev/null 2>&1 || return 0
+  local actual
+  actual="$(ruff --version 2>/dev/null | awk '{print $2}')"
+  [ "$actual" = "$RUFF_PIN" ] && return 0
+  printf '%s %-10s %s\n' "${RED}${FAIL}${RESET}" "Ruff pin" \
+    "${DIM}found ${actual:-unknown}, need ${RUFF_PIN}; install it with pip install \"ruff==${RUFF_PIN}\"${RESET}"
+  return 1
+}
+
 PROJECT='pyne'
 printf '\n%s %s\n' "${CYAN}${BOLD}OpenOrchestrate${RESET}" "${DIM}· ${MODE} · ${PROJECT}${RESET}"
 printf '%s\n\n' "${DIM}${RULE}${RESET}"
 
-run_step format "Format" "$FORMAT_CMD"
-run_step lint "Lint" "$LINT_CMD"
+if ruff_pin_check; then
+  run_step format "Format" "$FORMAT_CMD"
+  run_step lint "Lint" "$LINT_CMD"
+else
+  FAILED=$((FAILED + 1))
+fi
 run_step typecheck "Typecheck" "$TYPECHECK_CMD"
 run_step okf "OKF" "$OKF_CMD"
 

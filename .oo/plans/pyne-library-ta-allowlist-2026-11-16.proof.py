@@ -50,10 +50,7 @@ def main() -> None:
     assert "missing 2 required positional arguments" in required_msg, required_msg
     assert "'b'" in required_msg and "'k'" in required_msg, required_msg
 
-    print(
-        "LIB_TA_OK sma=1 ema=1 unknown=fail_closed "
-        "missing=typeerror required_before_default=typeerror"
-    )
+    print("LIB_TA_OK sma=1 ema=1 unknown=fail_closed missing=typeerror required_before_default=typeerror")
 
 
 if __name__ == "__main__":

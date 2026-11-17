@@ -3,9 +3,11 @@
 Prints compile plot_titles and interpret/compile series keys for the two
 blocker calls and the string-title boundary.
 """
+
 import math
 from pynescript.compiler.engine import compile_script
 from pynescript.runtime import Runtime
+
 
 def bars(n=4):
     out = []
@@ -13,9 +15,18 @@ def bars(n=4):
         c = 100 + 5 * math.sin(i / 3.0)
         up = i % 2 == 0
         o = c - 0.5 if up else c + 0.5
-        out.append({"time": 1_700_000_000 + i * 86400, "open": o, "high": max(o, c) + 1,
-                    "low": min(o, c) - 1, "close": c, "volume": 10})
+        out.append(
+            {
+                "time": 1_700_000_000 + i * 86400,
+                "open": o,
+                "high": max(o, c) + 1,
+                "low": min(o, c) - 1,
+                "close": c,
+                "volume": 10,
+            }
+        )
     return out
+
 
 cases = (
     ("5th-positional-title", 'bgcolor(color.red, 0, true, 10, "mytitle")'),

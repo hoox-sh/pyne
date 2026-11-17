@@ -69,10 +69,7 @@ def main() -> None:
 
     assert compile_script(DYNAMIC, use_cache=False).object_mode is True
 
-    print(
-        "RUNTIME_ERROR_OK literal_numeric=1 reachable=runtime "
-        "noarg=runtime dynamic=object"
-    )
+    print("RUNTIME_ERROR_OK literal_numeric=1 reachable=runtime noarg=runtime dynamic=object")
 
 
 if __name__ == "__main__":

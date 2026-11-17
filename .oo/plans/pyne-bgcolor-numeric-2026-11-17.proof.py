@@ -73,10 +73,13 @@ def main() -> None:
             assert color in out["series"]["bg"], f"{name}: expected {color} in {out['series']['bg']}"
 
     # Direct constant color: every bar carries the color.
-    assert compile_script(
-        '//@version=5\nindicator("x")\nbgcolor(color.red, title="bg")\nplot(close, "c")\n',
-        use_cache=False,
-    ).object_mode is False
+    assert (
+        compile_script(
+            '//@version=5\nindicator("x")\nbgcolor(color.red, title="bg")\nplot(close, "c")\n',
+            use_cache=False,
+        ).object_mode
+        is False
+    )
 
     for name, body in OBJECT.items():
         src = f'//@version=5\nindicator("x")\n{body}\nplot(close, "c")\n'

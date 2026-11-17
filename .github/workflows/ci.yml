@@ -47,7 +47,8 @@ jobs:
           python-version: "3.13"
 
       - name: Install tools
-        run: pip install "ruff>=0.2.2" "mypy>=1.8.0" types-python-dateutil antlr4-python3-runtime
+        # ruff is pinned to match pyproject.toml so lint results are reproducible.
+        run: pip install "ruff==0.15.20" "mypy>=1.8.0" types-python-dateutil antlr4-python3-runtime
 
       - name: Ruff (correctness gate)
         # Full style set still has legacy debt across evaluator/compiler; CI gates
