@@ -85,19 +85,57 @@ pinescript = "pynescript.ext.pygments.lexers:PinescriptLexer"
 path = "src/pynescript/__about__.py"
 
 [tool.hatch.build.targets.sdist]
+# This target packages the WORKING TREE, not the git tree, so any gitignored
+# local file is shipped unless it is named here. The list must stay explicit:
+# `scripts/build/assert_sdist_clean.py` is the pre-publish guard that fails on a
+# secret-bearing member or an archive over PyPI's 100 MB per-file limit.
 exclude = [
-    "/.github",
-    "/.opencode",
+    # Credentials and local environment. `.env.example` is covered by `/.env.*`
+    # on purpose: the guard treats every `.env*` member as a leak.
+    "/.env",
+    "/.env.*",
+    "/scripts/build/.metadata.key",
     "/.private",
+    # VCS, virtualenvs, worktrees.
+    "/.git",
+    "/.venv",
+    "/.worktrees",
+    # Heavy local corpora and generated data.
+    "/cf",
+    "/node_modules",
+    "/tests/data",
+    "/data",
+    "/okf",
+    "/.papers",
+    "/.reddit",
+    "/.grok",
+    "/.tmp",
+    # Caches and coverage.
+    "/.coverage",
+    "/.coverage.*",
     "/.cache",
+    "/.pytest_cache",
+    "/.ruff_cache",
+    "/.mypy_cache",
+    "/.numba_cache",
+    "/.playwright",
+    # Build output (including this target's own artifacts, which would otherwise
+    # be packaged recursively on a rebuild).
+    "/dist",
     "/brand",
     "/docs/exports",
     "/docs/_build",
     "/logs",
     "/reports",
-    "/.host",
     "/packages/backend/dist",
     "/packages/backend/build",
+    # Agent and orchestration state.
+    "/.opencode",
+    "/.oo",
+    "/.openorchestrate",
+    # Repo hosting and host-specific config.
+    "/.github",
+    "/.host",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -274,6 +312,7 @@ required-imports = ["from __future__ import annotations"]
 
 [tool.ruff.lint.per-file-ignores]
 "scripts/bench_pipeline.py" = ["T201"]
+"scripts/build/assert_sdist_clean.py" = ["T201"]
 "scripts/build/ci_build.py" = ["T201", "S603"]
 "scripts/build/compile.py" = ["T201", "S603"]
 # CLI scripts whose job is to print to stdout.
