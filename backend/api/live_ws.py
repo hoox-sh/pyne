@@ -1380,7 +1380,18 @@ def _map_delta_plots(header: Any, payload: dict[str, Any]) -> bytes | None:
     # interval at subscribe and times are dropped from the AXB1 payload), but
     # live_push always attaches them. Accept and ignore the pair instead of
     # dropping every real script tip back to JSON.
-    allowed = {"base_index", "count", "tail_len", "closed_upto", "forming", "series", "plots", "bars", "times", "interval"}
+    allowed = {
+        "base_index",
+        "count",
+        "tail_len",
+        "closed_upto",
+        "forming",
+        "series",
+        "plots",
+        "bars",
+        "times",
+        "interval",
+    }
     if set(payload) - allowed or payload.get("unchanged") is True or "bars" in payload:
         return None
     times = payload.get("times")

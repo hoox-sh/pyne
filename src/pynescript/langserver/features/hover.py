@@ -919,9 +919,7 @@ _INTERNAL_RE = re.compile(
     re.IGNORECASE,
 )
 
-_LEADING_SIG_PHRASE = re.compile(
-    r"(?is)^(signature|reference pine|pine script)\s*:?\s*`+[^`]*`+\s*"
-)
+_LEADING_SIG_PHRASE = re.compile(r"(?is)^(signature|reference pine|pine script)\s*:?\s*`+[^`]*`+\s*")
 
 _ARG_HEADERS = frozenset({"parameters", "parameter", "arguments", "args"})
 _HEADER_LINE = re.compile(r"^[ \t]*([A-Za-z][A-Za-z ]{0,40}):\s*$")

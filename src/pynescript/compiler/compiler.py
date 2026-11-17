@@ -1255,9 +1255,7 @@ class CompilerVisitor(NodeVisitor):
             params = {arg.name for arg in getattr(target, "args", []) or [] if hasattr(arg, "name")}
             unsupported = self._library_function_unsupported(target, params, set(local_funcs), cross_namespaces)
             if unsupported:
-                self.library_inline_error = (
-                    f"library function {name} {unsupported}; use mode=interpret or auto"
-                )
+                self.library_inline_error = f"library function {name} {unsupported}; use mode=interpret or auto"
                 return ""
             self._rewrite_library_calls(target, emitted_by_name)
             target.name = emitted_name
@@ -2317,10 +2315,7 @@ class CompilerVisitor(NodeVisitor):
         finally:
             self._fold_literal_color = prev_fold
         price_expr = args[0] if args else "np.nan"
-        if not (
-            self._is_safe_numeric_expr(price_expr)
-            or self._is_numeric_or_bool_literal(price_expr)
-        ):
+        if not (self._is_safe_numeric_expr(price_expr) or self._is_numeric_or_bool_literal(price_expr)):
             self.object_mode = True
             return None
         title = "hline"
@@ -2399,10 +2394,7 @@ class CompilerVisitor(NodeVisitor):
                 return None
         finally:
             self._fold_literal_color = prev_fold
-        if not (
-            self._is_safe_numeric_expr(cond_expr)
-            or self._is_numeric_or_bool_literal(cond_expr)
-        ):
+        if not (self._is_safe_numeric_expr(cond_expr) or self._is_numeric_or_bool_literal(cond_expr)):
             return None
         title = "bgcolor"
         if "title" in kwargs:
@@ -6387,11 +6379,7 @@ class CompilerVisitor(NodeVisitor):
             # messages keep object mode + the plain-Python helper.
             # No-arg runtime.error() → empty message (interpret parity).
             msg = args[0] if args else repr("")
-            if (
-                func_name == "runtime_error"
-                and len(args) <= 1
-                and self._is_quoted_string_expr(msg)
-            ):
+            if func_name == "runtime_error" and len(args) <= 1 and self._is_quoted_string_expr(msg):
                 return f"pine_raise_njit({msg})"
             self.object_mode = True
             return f"pine_raise({msg})"
@@ -11049,6 +11037,7 @@ class CompilerVisitor(NodeVisitor):
     @staticmethod
     def _rewrite_library_calls(fn, mapping: dict[str, str]) -> None:
         """Rename local callee ``Name`` nodes to their emitted Python names."""
+
         def walk(node) -> None:
             if node is None or not hasattr(node, "_fields"):
                 return
@@ -11131,10 +11120,7 @@ class CompilerVisitor(NodeVisitor):
             self._collect_assigned_names(stmt, locals_)
         local_names = local_names or set()
         allowed_names = (
-            set(params)
-            | locals_
-            | {"true", "false", "na", "math", "str", "color"}
-            | set(extra_namespaces or ())
+            set(params) | locals_ | {"true", "false", "na", "math", "str", "color"} | set(extra_namespaces or ())
         )
         allowed_calls = {
             "abs",

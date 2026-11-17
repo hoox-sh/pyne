@@ -445,9 +445,7 @@ def test_download_builtins_available(runner: CliRunner, monkeypatch: pytest.Monk
     assert calls["kwargs"]["dry_run"] is True
 
 
-def test_download_builtins_fails_closed_without_facade(
-    runner: CliRunner, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_download_builtins_fails_closed_without_facade(runner: CliRunner, monkeypatch: pytest.MonkeyPatch) -> None:
     """If the facade is absent, the command still fails closed with a clear error."""
     import builtins
 

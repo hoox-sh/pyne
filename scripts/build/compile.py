@@ -181,7 +181,9 @@ def _package_version() -> str:
 
 def _product_version(version: str) -> str:
     """Nuitka Windows version resource requires dotted numeric product/file version."""
-    version_core = version.split("+", maxsplit=1)[0].split("a", maxsplit=1)[0].split("b", maxsplit=1)[0].split("rc", maxsplit=1)[0]
+    version_core = (
+        version.split("+", maxsplit=1)[0].split("a", maxsplit=1)[0].split("b", maxsplit=1)[0].split("rc", maxsplit=1)[0]
+    )
     parts = [p for p in version_core.split(".") if p.isdigit()]
     while len(parts) < 3:
         parts.append("0")

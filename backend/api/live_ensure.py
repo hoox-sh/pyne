@@ -61,7 +61,9 @@ def _pooled_window_moved_on(store: Any, key: Any, session: Any, history_bars: An
             return True
         if anchor <= 0 or newest <= anchor:
             return _pooled_window_has_covered_hole(store, key, session, history_bars)
-        return (newest - anchor) // step > max(1, int(history_bars)) or _pooled_window_has_covered_hole(store, key, session, history_bars)
+        return (newest - anchor) // step > max(1, int(history_bars)) or _pooled_window_has_covered_hole(
+            store, key, session, history_bars
+        )
     except Exception:
         return False
 

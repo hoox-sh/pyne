@@ -721,8 +721,12 @@ def _cross_libs(*sources: str) -> list[dict[str, object]]:
 
 
 def test_cross_library_call_inlines() -> None:
-    interp = Runtime(symbol="TEST").run(_SRC_CROSS_AB, _bars(), mode="interpret", libraries=_cross_libs(_LIB_CROSS_A, _LIB_CROSS_B))
-    compiled = Runtime(symbol="TEST").run(_SRC_CROSS_AB, _bars(), mode="compile", libraries=_cross_libs(_LIB_CROSS_A, _LIB_CROSS_B))
+    interp = Runtime(symbol="TEST").run(
+        _SRC_CROSS_AB, _bars(), mode="interpret", libraries=_cross_libs(_LIB_CROSS_A, _LIB_CROSS_B)
+    )
+    compiled = Runtime(symbol="TEST").run(
+        _SRC_CROSS_AB, _bars(), mode="compile", libraries=_cross_libs(_LIB_CROSS_A, _LIB_CROSS_B)
+    )
     assert "error" not in interp, interp.get("error")
     assert "error" not in compiled, compiled.get("error")
     assert compiled["series"]["x"] == [202.0, 204.0, 206.0, 208.0]
@@ -730,7 +734,9 @@ def test_cross_library_call_inlines() -> None:
 
 
 def test_cross_library_alias_scoping() -> None:
-    out = Runtime(symbol="TEST").run(_SRC_CROSS_BOTH, _bars(), mode="compile", libraries=_cross_libs(_LIB_CROSS_A, _LIB_CROSS_B))
+    out = Runtime(symbol="TEST").run(
+        _SRC_CROSS_BOTH, _bars(), mode="compile", libraries=_cross_libs(_LIB_CROSS_A, _LIB_CROSS_B)
+    )
     assert "error" not in out, out.get("error")
     assert out["series"]["add"] == [202.0, 204.0, 206.0, 208.0]
     assert out["series"]["twice"] == [201.0, 203.0, 205.0, 207.0]
@@ -760,9 +766,9 @@ export twice(float x) =>
 
 
 def test_cross_library_cycle_fails_closed() -> None:
-    out = Runtime(
-        symbol="TEST"
-    ).run(_SRC_CROSS_AB, _bars(), mode="compile", libraries=_cross_libs(_LIB_CROSS_A_CYCLE, _LIB_CROSS_B_CYCLE))
+    out = Runtime(symbol="TEST").run(
+        _SRC_CROSS_AB, _bars(), mode="compile", libraries=_cross_libs(_LIB_CROSS_A_CYCLE, _LIB_CROSS_B_CYCLE)
+    )
     assert out.get("error_kind") == "compile"
     message = str(out.get("error") or "").lower()
     assert "recursive library import" in message
@@ -778,7 +784,9 @@ export add(float x) =>
 
 
 def test_cross_library_unknown_export_fails_closed() -> None:
-    out = Runtime(symbol="TEST").run(_SRC_CROSS_AB, _bars(), mode="compile", libraries=_cross_libs(_LIB_CROSS_A_UNKNOWN, _LIB_CROSS_B))
+    out = Runtime(symbol="TEST").run(
+        _SRC_CROSS_AB, _bars(), mode="compile", libraries=_cross_libs(_LIB_CROSS_A_UNKNOWN, _LIB_CROSS_B)
+    )
     assert out.get("error_kind") == "compile"
     message = str(out.get("error") or "").lower()
     assert "unsupported library method" in message
@@ -1249,9 +1257,7 @@ plot(o.inner, "x")
 
 
 def test_library_udt_with_udt_field_fails_closed() -> None:
-    out = Runtime(symbol="TEST").run(
-        _SRC_LIB_UDT_NESTED, _bars(), mode="compile", libraries=_lib_udt(_LIB_UDT_NESTED)
-    )
+    out = Runtime(symbol="TEST").run(_SRC_LIB_UDT_NESTED, _bars(), mode="compile", libraries=_lib_udt(_LIB_UDT_NESTED))
     assert out.get("error_kind") == "compile"
     message = str(out.get("error") or "").lower()
     assert "outer" in message
@@ -1268,9 +1274,7 @@ plot(lib.Box.new(close).v, "v")
 
 
 def test_script_type_colliding_with_library_type_fails_closed() -> None:
-    out = Runtime(symbol="TEST").run(
-        _SRC_SCRIPT_TYPE_COLLISION, _bars(), mode="compile", libraries=_lib_udt()
-    )
+    out = Runtime(symbol="TEST").run(_SRC_SCRIPT_TYPE_COLLISION, _bars(), mode="compile", libraries=_lib_udt())
     assert out.get("error_kind") == "compile"
     message = str(out.get("error") or "").lower()
     assert "box" in message

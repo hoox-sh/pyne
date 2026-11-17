@@ -146,9 +146,7 @@ def test_partial_fill_budget_consumed_once_per_bar_with_feed() -> None:
     )
     bars = _bars(5)
     bars[-1]["low"] = 94.0
-    out = Runtime(symbol="RT").run(
-        _PARTIAL_FILL, bars, mode="interpret", realtime_ticks=3, data_feed=feed
-    )
+    out = Runtime(symbol="RT").run(_PARTIAL_FILL, bars, mode="interpret", realtime_ticks=3, data_feed=feed)
     assert "error" not in out, out.get("error")
     assert out["series"]["pos"][-1] == 3.0, out["series"]["pos"]
 
@@ -173,9 +171,7 @@ def test_tick_order_fill_error_returns_order_kind(monkeypatch) -> None:
             [ts, 104.0, 105.0, 94.0, 104.0, 30.0],
         ]
     )
-    out = Runtime(symbol="RT").run(
-        _PENDING_LIMIT, _bars(5), mode="interpret", realtime_ticks=3, data_feed=feed
-    )
+    out = Runtime(symbol="RT").run(_PENDING_LIMIT, _bars(5), mode="interpret", realtime_ticks=3, data_feed=feed)
     assert out.get("error_kind") == "order", out
     assert "tick fill boom" in str(out.get("error") or "")
 

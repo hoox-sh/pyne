@@ -482,6 +482,8 @@ def test_tick_stop_exit_keeps_exit_tick_extremes_session() -> None:
     trade = sess.evaluator._strategy_state.closed_trades[0]
     assert trade.max_runup == pytest.approx(20.0)
     assert trade.max_drawdown == pytest.approx(20.0)
+
+
 _HIST_HELD_SRC = """//@version=6
 strategy("hist held mae", commission_value=0)
 if bar_index == 0

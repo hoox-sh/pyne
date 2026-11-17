@@ -49,6 +49,7 @@ def _enable_axb1_for_contract_tests(monkeypatch):
     # stays JSON for self-hosted pyne installs.
     monkeypatch.setenv("PYNE_AXB1_ENABLED", "1")
 
+
 META = {"exchange": "binance", "market": "spot", "symbol": "btc/usdt", "interval": "1m"}
 KEY_TEXT = "binance|spot|BTC/USDT|1m"
 SUB_ID = "series:binance|spot|BTC/USDT|1m"

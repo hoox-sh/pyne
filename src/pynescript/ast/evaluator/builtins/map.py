@@ -95,8 +95,7 @@ def _restore_value(current: Any, snap: tuple[Any, ...]) -> Any:
     if kind == "list":
         if isinstance(current, list):
             restored = [
-                _restore_value(current[i] if i < len(current) else None, node)
-                for i, node in enumerate(payload)
+                _restore_value(current[i] if i < len(current) else None, node) for i, node in enumerate(payload)
             ]
             current[:] = restored
             return current
