@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import math
 
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -449,11 +450,16 @@ plot(seen, "seen")
     _assert_finite_match(interp["series"]["seen"], compiled["series"]["seen"], key="seen")
 
 
+_SEASONALITY_PINE = Path(__file__).parent / "data" / "builtin_scripts" / "seasonality.pine"
+
+
+@pytest.mark.skipif(
+    not _SEASONALITY_PINE.is_file(),
+    reason="tests/data/builtin_scripts corpus is gitignored and not part of a fresh clone",
+)
 def test_seasonality_last_bar_table_does_not_crash() -> None:
     """table.merge_cells with na coords must not TypeError (builtin seasonality)."""
-    from pathlib import Path
-
-    src = Path("tests/data/builtin_scripts/seasonality.pine").read_text(encoding="utf-8")
+    src = _SEASONALITY_PINE.read_text(encoding="utf-8")
     interp, compiled = _run_dual(src, _ohlcv(80))
     assert "error" not in interp, interp.get("error")
     if compiled is not None:

@@ -34,6 +34,10 @@ from pynescript.compiler.engine import transpile
 
 
 _SET06 = Path(__file__).parent / "data" / "set06" / "indicators"
+_needs_corpus = pytest.mark.skipif(
+    not _SET06.is_dir(),
+    reason="tests/data/set06 corpus is gitignored and not part of a fresh clone",
+)
 
 
 def _ohlcv(n: int = 20, start: float = 100.0):
@@ -112,6 +116,7 @@ def test_udf_if_expr_assign_uses_local_not_script_arr() -> None:
     assert _last(out) == 3.0
 
 
+@_needs_corpus
 def test_corpus_2137_monthclamp_if_expr_in_udf() -> None:
     src = (_SET06 / "2137_ind_x_43.pine").read_text(encoding="utf-8")
     parse(src)
@@ -123,6 +128,7 @@ def test_corpus_2137_monthclamp_if_expr_in_udf() -> None:
     assert _last(out) == 3.0
 
 
+@_needs_corpus
 def test_corpus_1831_monthclamp_if_parses() -> None:
     """1831 also has blank-line tuple wrap (parser). Skip if that still fails."""
     src = (_SET06 / "1831_ind_t_3.pine").read_text(encoding="utf-8")
@@ -153,6 +159,7 @@ def test_udf_param_keeps_script_series_arr_for_nested_callee() -> None:
     assert np.isfinite(np.asarray(out80["plot_0"], dtype=np.float64)[-1])
 
 
+@_needs_corpus
 def test_corpus_14003_t3_ma_free_series_a_arr() -> None:
     src = (_SET06 / "14003_ind_t3_ma.pine").read_text(encoding="utf-8")
     parse(src)

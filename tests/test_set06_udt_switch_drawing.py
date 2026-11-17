@@ -24,6 +24,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from pynescript.compiler.engine import compile_script
 from pynescript.compiler.engine import transpile
@@ -33,6 +34,11 @@ from pynescript.util.corpus_sanitize import sanitize_corpus_source
 
 
 _REPO = Path(__file__).resolve().parents[1]
+_SET06 = _REPO / "tests/data/set06"
+_needs_corpus = pytest.mark.skipif(
+    not _SET06.is_dir(),
+    reason="tests/data/set06 corpus is gitignored and not part of a fresh clone",
+)
 
 
 def _ohlcv(n: int = 30, start: float = 100.0):
@@ -141,22 +147,26 @@ plot(ta.cum(x))
     compile_script(src, use_cache=False).run(*_ohlcv(8))
 
 
+@_needs_corpus
 def test_corpus_5027_enum_udt() -> None:
     pine = (_REPO / "tests/data/set06/indicators/5027_ind_enum_udt_5.pine").read_text()
     compile_script(pine, use_cache=False).run(*_ohlcv(24))
 
 
+@_needs_corpus
 def test_corpus_1626_drawing_copy() -> None:
     pine = (_REPO / "tests/data/set06/indicators/1626_ind_coverage_drawing_round2.pine").read_text()
     compile_script(pine, use_cache=False).run(*_ohlcv(16))
 
 
+@_needs_corpus
 def test_corpus_0018_distance_ratio_library_compiles() -> None:
     pine = (_REPO / "tests/data/set06/libraries/0018_lib_16.pine").read_text()
     src = sanitize_corpus_source(pine)
     compile_script(src, use_cache=False).run(*_ohlcv(12))
 
 
+@_needs_corpus
 def test_corpus_13720_pivothigh_udt_length() -> None:
     pine = (_REPO / "tests/data/set06/indicators/13720_ind_channels_with_patterns.pine").read_text()
     compile_script(pine, use_cache=False).run(*_ohlcv(24))

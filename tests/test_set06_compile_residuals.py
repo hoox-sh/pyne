@@ -27,12 +27,24 @@ import signal
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from pynescript.ast.helper import parse
 from pynescript.compiler.engine import compile_script
 from pynescript.compiler.engine import transpile
 from pynescript.runtime import Runtime
 from pynescript.util.corpus_sanitize import sanitize_corpus_source
+
+
+_SET06_IND = Path(__file__).parent / "data" / "set06" / "indicators"
+_BROKEN_STRING_FIXTURES = (
+    "2162_ind_inv025_string_continuation_indent.pine",
+    "1882_ind_inv047.pine",
+)
+_needs_broken_string_fixtures = pytest.mark.skipif(
+    not all((_SET06_IND / name).is_file() for name in _BROKEN_STRING_FIXTURES),
+    reason="tests/data/set06 corpus is gitignored and not part of a fresh clone",
+)
 
 
 def _ohlcv(n: int = 30, start: float = 100.0):
@@ -219,14 +231,11 @@ plot(close)
     assert "error" not in result, result.get("error")
 
 
+@_needs_broken_string_fixtures
 def test_inv025_inv047_broken_strings_do_not_raise_unterminated() -> None:
     """Broken TV string-wrap fixtures must sanitize so compile can start."""
-    root = Path(__file__).parent / "data" / "set06" / "indicators"
-    for name in (
-        "2162_ind_inv025_string_continuation_indent.pine",
-        "1882_ind_inv047.pine",
-    ):
-        raw = (root / name).read_text(encoding="utf-8")
+    for name in _BROKEN_STRING_FIXTURES:
+        raw = (_SET06_IND / name).read_text(encoding="utf-8")
         cleaned = sanitize_corpus_source(raw)
         parse(cleaned)
         compile_script(raw, use_cache=False)

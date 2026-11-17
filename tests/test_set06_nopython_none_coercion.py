@@ -39,6 +39,11 @@ from pynescript.compiler.numba_builtins import numba_safe_mod
 pytestmark = pytest.mark.skipif(not has_numba(), reason="numba not installed")
 
 _REPO = Path(__file__).resolve().parents[1]
+_ICT_MACROS = _REPO / "tests/data/set06/indicators/13645_ind_ict_macros.pine"
+_needs_ict_macros = pytest.mark.skipif(
+    not _ICT_MACROS.is_file(),
+    reason="tests/data/set06 corpus is gitignored and not part of a fresh clone",
+)
 
 
 def _ohlcv(n: int = 30, start: float = 100.0):
@@ -109,10 +114,10 @@ plot(math.abs(b.hi), title="ab")
     assert len(out["mx"]) == 20
 
 
+@_needs_ict_macros
 def test_ict_macros_object_mode_run_no_typingerror() -> None:
     """set06 13645: already object_mode; nested numba_max must accept None."""
-    path = _REPO / "tests/data/set06/indicators/13645_ind_ict_macros.pine"
-    src = path.read_text(encoding="utf-8")
+    src = _ICT_MACROS.read_text(encoding="utf-8")
     compiled = compile_script(src, use_cache=False)
     assert compiled.object_mode is True
     out = compiled.run(*_ohlcv(24))

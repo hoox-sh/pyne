@@ -24,6 +24,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from pynescript.compiler.engine import compile_script
 from pynescript.compiler.engine import transpile
@@ -32,6 +33,10 @@ from pynescript.compiler.engine import transpile
 _SET06 = Path(__file__).parent / "data" / "set06" / "indicators"
 _2682 = _SET06 / "2682_ind_function_overloading_demo.pine"
 _2693 = _SET06 / "2693_ind_function_overloading_demo_2.pine"
+_needs_2682 = pytest.mark.skipif(
+    not _2682.is_file(),
+    reason="tests/data/set06 corpus is gitignored and not part of a fresh clone",
+)
 
 _OVERLOAD_SRC = """//@version=6
 indicator("Function overloading demo")
@@ -98,6 +103,7 @@ def test_compile_run_color_overload_plot_series() -> None:
     np.testing.assert_allclose(series, expected, rtol=0, atol=1e-9)
 
 
+@_needs_2682
 def test_corpus_2682_hex_not_float64_and_runs() -> None:
     src = _2682.read_text(encoding="utf-8")
     code = transpile(src)

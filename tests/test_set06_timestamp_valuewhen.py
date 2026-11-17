@@ -38,6 +38,11 @@ from pynescript.compiler.numba_builtins import numba_valuewhen_inc
 pytestmark = pytest.mark.skipif(not has_numba(), reason="numba not installed")
 
 _REPO = Path(__file__).resolve().parents[1]
+_SET06_IND = _REPO / "tests/data/set06/indicators"
+_needs_set06 = pytest.mark.skipif(
+    not _SET06_IND.is_dir(),
+    reason="tests/data/set06 corpus is gitignored and not part of a fresh clone",
+)
 
 
 def _ohlcv(n: int = 30, start: float = 100.0):
@@ -131,6 +136,7 @@ plot(ta.valuewhen(cond, close, 0), title="n")
     assert abs(float(out["n"][-1]) - float(c[-1])) < 1e-12
 
 
+@_needs_set06
 @pytest.mark.parametrize(
     "rel",
     [
@@ -188,6 +194,7 @@ plot(array.max(bins), title="m")
     assert abs(float(out["m"][-1]) - 3.0) < 1e-9
 
 
+@_needs_set06
 def test_corpus_1610_running_max_object_runs() -> None:
     path = _REPO / "tests/data/set06/indicators/1610_ind_deviation_trend_profile.pine"
     pine = path.read_text(encoding="utf-8")

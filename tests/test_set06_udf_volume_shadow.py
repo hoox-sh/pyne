@@ -34,6 +34,10 @@ from pynescript.compiler.engine import transpile
 
 
 _SET06 = Path(__file__).parent / "data" / "set06"
+_needs_corpus = pytest.mark.skipif(
+    not _SET06.is_dir(),
+    reason="tests/data/set06 corpus is gitignored and not part of a fresh clone",
+)
 
 
 def _ohlcv(n: int = 20, start: float = 100.0, vol: float = 1.0):
@@ -206,6 +210,7 @@ def test_udf_if_var_convert_to_account_is_valid_python() -> None:
     assert abs(_last(out) - 19.0) < 1e-9
 
 
+@_needs_corpus
 @pytest.mark.parametrize(
     "rel",
     [
@@ -236,6 +241,7 @@ def test_corpus_get_counts_arity_and_run(rel: str) -> None:
     assert plots or "__drawings" in out
 
 
+@_needs_corpus
 @pytest.mark.parametrize(
     "rel",
     [
@@ -249,6 +255,7 @@ def test_corpus_request_security_udt(rel: str) -> None:
     assert "__drawings" in out
 
 
+@_needs_corpus
 @pytest.mark.parametrize(
     "rel",
     [

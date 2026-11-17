@@ -24,6 +24,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from pynescript.compiler.engine import compile_script
 from pynescript.compiler.engine import transpile
@@ -31,6 +32,10 @@ from pynescript.compiler.engine import transpile
 
 _REPO = Path(__file__).resolve().parents[1]
 _SET06_IND = _REPO / "tests/data/set06/indicators"
+_needs_3725 = pytest.mark.skipif(
+    not (_SET06_IND / "3725_ind_extreme_trend_reversal_points.pine").is_file(),
+    reason="tests/data/set06 corpus is gitignored and not part of a fresh clone",
+)
 
 
 def _ohlcv(n: int = 20, start: float = 100.0):
@@ -103,6 +108,7 @@ plot(c)
         assert np.isnan(arr).all()
 
 
+@_needs_3725
 def test_corpus_3725_import_stub_runs() -> None:
     """Absent enhanced_ta must not ``float(None)`` on crossover / plot(ma)."""
     pine = (_SET06_IND / "3725_ind_extreme_trend_reversal_points.pine").read_text()

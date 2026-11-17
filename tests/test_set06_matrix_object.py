@@ -24,11 +24,19 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from pynescript.compiler.engine import compile_script
 from pynescript.compiler.engine import transpile
 from pynescript.compiler.numba_builtins import matrix_get
 from pynescript.compiler.numba_builtins import matrix_kron
+
+
+_SET06_IND = Path(__file__).parent / "data" / "set06" / "indicators"
+_needs_corpus = pytest.mark.skipif(
+    not _SET06_IND.is_dir(),
+    reason="tests/data/set06 corpus is gitignored and not part of a fresh clone",
+)
 
 
 def _ohlcv(n: int = 20, start: float = 100.0):
@@ -81,14 +89,16 @@ def test_matrix_kron_float64_inputs_do_not_raise() -> None:
     assert np.isnan(got)
 
 
+@_needs_corpus
 def test_corpus_2738_udf_matrix_from_input_area() -> None:
-    src = Path("tests/data/set06/indicators/2738_ind_matrix_new_type_example_3.pine").read_text()
+    src = (_SET06_IND / "2738_ind_matrix_new_type_example_3.pine").read_text()
     compiled = compile_script(src, use_cache=False)
     compiled.run(*_ohlcv(8))
 
 
+@_needs_corpus
 def test_corpus_3712_matrix_kron() -> None:
-    src = Path("tests/data/set06/indicators/3712_ind_matrix_kron.pine").read_text()
+    src = (_SET06_IND / "3712_ind_matrix_kron.pine").read_text()
     code = transpile(src)
     assert "raA_arr[__bar_idx] =" not in code
     compiled = compile_script(src, use_cache=False)

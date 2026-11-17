@@ -34,6 +34,10 @@ from pynescript.compiler.engine import transpile
 
 
 _SET06 = Path(__file__).parent / "data" / "set06"
+_needs_corpus = pytest.mark.skipif(
+    not (_SET06 / "indicators").is_dir(),
+    reason="tests/data/set06 corpus is gitignored and not part of a fresh clone",
+)
 
 
 def _ohlcv(n: int = 20, start: float = 100.0):
@@ -133,6 +137,7 @@ def test_builtin_math_round_still_one_arg() -> None:
     assert np.isfinite(_last(out, "plot_1"))
 
 
+@_needs_corpus
 def test_corpus_13716_round_arity_no_missing_args() -> None:
     src = (_SET06 / "indicators" / "13716_ind_depth_of_market_dom.pine").read_text(encoding="utf-8")
     code = transpile(src)

@@ -34,6 +34,10 @@ from pynescript.compiler.engine import transpile
 
 
 _SET06_LIB = Path(__file__).parent / "data" / "set06" / "libraries"
+_needs_0030 = pytest.mark.skipif(
+    not (_SET06_LIB / "0030_lib_3.pine").is_file(),
+    reason="tests/data/set06 corpus is gitignored and not part of a fresh clone",
+)
 
 
 def _ohlcv(n: int = 12, start: float = 100.0):
@@ -182,6 +186,7 @@ plot(s.getAvgProfit())
     assert abs(_last(out) - 5.0) < 1e-9
 
 
+@_needs_0030
 def test_corpus_0030_update_arity_typeerror_gone() -> None:
     """0030 ``seasonalTable.update(seasonalData)`` must not hit StatsData.update."""
     pine = _SET06_LIB / "0030_lib_3.pine"
