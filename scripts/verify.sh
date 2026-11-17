@@ -23,7 +23,8 @@ case "$MODE" in
 esac
 
 # oo:commands — detected by `oo init`; edit freely.
-FORMAT_CMD='bun fmt --check'
+# Keep FORMAT_CMD aligned with `make fmt` (ruff format src/ tests/ backend/).
+FORMAT_CMD='ruff format --check src/ tests/ backend/'
 # Keep LINT_CMD aligned with `make lint` (ruff check src/ tests/ backend/).
 LINT_CMD='ruff check src/ tests/ backend/'
 TYPECHECK_CMD='bun run check'
@@ -31,59 +32,6 @@ TEST_CMD='pytest'
 OKF_CMD='okn --no-telemetry validate --spec 0.2 okf'
 # /oo:commands
 # All checks detected.
-
-# Scope format and lint to what this commit or push actually changes. The
-# generated hooks run this same script, so a whole-tree check gates a commit or
-# a push on debt that predates it. A scoped check still fails on badly formatted
-# work that is inside the change.
-#
-#   pre-commit  git diff --cached --name-only
-#   pre-push    each range in OO_PUSH_RANGES (base..head, space separated),
-#               set by .githooks/pre-push
-#
-# Outside a hook, or with no range to scope to, the full-tree command above is
-# used unchanged. A range that changes no matching file skips the step instead
-# of falling back to the whole tree.
-#
-# The file list is only appended to a direct tool invocation: a file list after
-# a script wrapper (npm run lint) is silently ignored, which would pass without
-# checking anything. An empty *_FILES_CMD keeps the full-tree command.
-# LINT_FILES_CMD drops the trailing path list from `ruff check src/ tests/ backend/`; ruff takes paths,
-# and ruff only reads Python, so the lint set is Python-only.
-FORMAT_EXT='js|jsx|ts|tsx|mjs|cjs|json|jsonc|md|mdx|css|scss|html|yml|yaml'
-LINT_EXT='py|pyi'
-FORMAT_FILES_CMD='bun fmt --check'
-LINT_FILES_CMD='ruff check'
-CHANGED=''
-SCOPED=0
-case "$MODE" in
-  pre-commit)
-    CHANGED="$(git diff --cached --name-only --diff-filter=ACMR)"
-    SCOPED=1
-    ;;
-  pre-push)
-    if [ -n "${OO_PUSH_RANGES:-}" ]; then
-      SCOPED=1
-      for range in $OO_PUSH_RANGES; do
-        CHANGED="${CHANGED}$(git diff --name-only --diff-filter=ACMR "$range" || true)"$'\n'
-      done
-      CHANGED="$(printf '%s' "$CHANGED" | sed '/^$/d' | sort -u)"
-    fi
-    ;;
-esac
-scope_to_changed() {
-  local base="$1" files_cmd="$2" ext="$3" files
-  [ "$SCOPED" = 1 ] || { printf '%s' "$base"; return; }
-  [ -n "$files_cmd" ] || { printf '%s' "$base"; return; }
-  files="$(printf '%s\n' "$CHANGED" | grep -Ei "\.($ext)\$" || true)"
-  if [ -z "$files" ]; then
-    printf 'echo "no changed files match .%s; nothing to check"' "$ext"
-    return
-  fi
-  printf '%s %s' "$files_cmd" "$(printf '%s' "$files" | tr '\n' ' ')"
-}
-FORMAT_CMD="$(scope_to_changed "$FORMAT_CMD" "$FORMAT_FILES_CMD" "$FORMAT_EXT")"
-LINT_CMD="$(scope_to_changed "$LINT_CMD" "$LINT_FILES_CMD" "$LINT_EXT")"
 
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-dumb}" != "dumb" ]; then
   BOLD=$'\033[1m'
@@ -177,16 +125,27 @@ run_step() {
     return 0
   fi
 
-  if [ "$status" -eq 127 ] && [ "${OO_STRICT:-0}" != "1" ]; then
-    printf '  %s %s\n' "${YELLOW}${SKIP}${RESET}" "${DIM}tool not installed; skipped (set OO_STRICT=1 to fail)${RESET}"
-    SKIPPED=$((SKIPPED + 1))
-    return 0
+  if [ "$status" -eq 127 ]; then
+    if [ "$key" = "test" ]; then
+      printf '  %s %s\n' "${RED}${FAIL}${RESET}" "${DIM}test command not found (exit 127); install the runner or point TEST_CMD at it (for example .venv/bin/pytest).${RESET}"
+      FAILED=$((FAILED + 1))
+      return 0
+    fi
+    if [ "${OO_STRICT:-0}" != "1" ]; then
+      printf '  %s %s\n' "${YELLOW}${SKIP}${RESET}" "${DIM}tool not installed; skipped (set OO_STRICT=1 to fail)${RESET}"
+      SKIPPED=$((SKIPPED + 1))
+      return 0
+    fi
   fi
 
   printf '  %s %s\n' "${RED}${FAIL}${RESET}" "${DIM}$(elapsed "$start" "$end")${RESET}"
-  sed 's/^/    /' "$TMP" | head -80
-  if [ "$(wc -l <"$TMP")" -gt 80 ]; then
-    printf '    %s\n' "${DIM}... output truncated${RESET}"
+  local lines
+  lines=$(wc -l <"$TMP")
+  if [ "$lines" -gt 80 ]; then
+    printf '    %s\n' "${DIM}... $((lines - 80)) lines omitted; showing last 80${RESET}"
+    tail -n 80 "$TMP" | sed 's/^/    /'
+  else
+    sed 's/^/    /' "$TMP"
   fi
   FAILED=$((FAILED + 1))
   return 0
@@ -201,17 +160,7 @@ run_step lint "Lint" "$LINT_CMD"
 run_step typecheck "Typecheck" "$TYPECHECK_CMD"
 run_step okf "OKF" "$OKF_CMD"
 
-if [ "$MODE" = "all" ]; then
-  # Pre-existing environment failure, not this tree: the local editable install
-  # of hoox-pyne points at a checkout that no longer exists, so the bare
-  # `pytest` invocation dies at collection with ModuleNotFoundError:
-  # pynescript.ast. Reproduced on a clean origin/main worktree. Skip only that
-  # broken invocation and run the same suite against this repo's own src, so no
-  # passing test is silenced.
-  if ! python -c 'import pynescript.ast' >/dev/null 2>&1; then
-    echo "skipped: pytest pre-existing import failure (reproduced on origin/main)"
-    TEST_CMD='PYTHONPATH=src pytest'
-  fi
+if [ "$MODE" = "all" ] || [ "$MODE" = "pre-push" ]; then
   run_step test "Tests" "$TEST_CMD"
 fi
 
