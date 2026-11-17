@@ -44,7 +44,7 @@ description: "API key model, tiers, require_api_key / track_usage decorators, JS
 
 ## Abstract
 
-Pro routes authenticate with a **raw API key** presented as `Authorization: Bearer …`, `Authorization: ApiKey …`, or `?api_key=`. Keys are minted as `pyn_` + url-safe secret, stored with a short `key_id` and SHA-256 hash metadata, and tracked against **monthly-ish call limits** by tier. Free `/run` does not require a key.
+Pro routes authenticate with a **raw API key** presented as `Authorization: Bearer …`, `Authorization: ApiKey …`, or `?api_key=`. Keys are minted as `pyn_` + url-safe secret; the store keeps a random 12-hex-character `key_id` and a PBKDF2-HMAC-SHA256 digest of the key (never the raw secret), and tracks usage against **monthly-ish call limits** by tier. Free `/run` does not require a key.
 
 ## Conceptual model
 
@@ -151,10 +151,17 @@ Prod compose defaults to `sqlite` on `/data/api_keys.db` so gunicorn workers sha
 Key minting:
 
 ```text
-raw_key = "pyn_" + secrets.token_urlsafe(32)
-key_id  = sha256(raw_key).hexdigest()[:12]
-key_hash = sha256(raw_key).hexdigest()
+raw_key  = "pyn_" + secrets.token_urlsafe(32)
+key_id   = secrets.token_hex(6)   # random 12-hex id, independent of raw_key
+key_hash = "v2:" + pbkdf2_hmac("sha256", raw_key, static_salt, 100_000).hex()
 ```
+
+`key_id` is an opaque random identifier (12 hex characters) used for display and
+lookup — it is **not** derived from the raw key, so hashing a key never
+reproduces it. `key_hash` is the stored verifier: PBKDF2-HMAC-SHA256 with a
+static salt, 100 000 iterations, and a `v2:` prefix. The raw key is returned
+once at mint and is not persisted by the hash-only layout, so it cannot be
+recovered later.
 
 ### Schemas
 
