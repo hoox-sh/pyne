@@ -27,7 +27,7 @@ Please refer to the documentation in the `docs/` directory for detailed instruct
 5.  **Lint / format**: `make lint` / `make fmt`, or `hatch run lint:style` and `hatch run lint:typing`.
 6.  **Submit a Pull Request**.
 
-The `okf/` directory is a compiled map of this repo. `bun run okf:context <path>` prints one module and its neighbors. The pre-commit hook refreshes it when `git config core.hooksPath .githooks` is set (`bun install` does that). `OKF_SKIP=1` skips the refresh. `bun run okf:check` fails when the bundle is stale.
+The `okf/` directory is a compiled map of this repo. `bun run okf:context <path>` prints one module and its neighbors. The pre-commit hook refreshes it when `git config core.hooksPath .githooks` is set (`bun install` does that). `OO_SKIP=okf` skips the refresh. `bun run okf:check` fails when the bundle is stale.
 
 ## Code Style
 

@@ -13,7 +13,16 @@ case "$current" in
   "" | ".githooks" | "./.githooks" | "$ROOT/.githooks") ;;
   *)
     echo "core.hooksPath is already set to $current; leaving it alone." >&2
-    echo "Merge the checks from .githooks/ or run: git config core.hooksPath .githooks" >&2
+    case "$current" in
+      .husky | .husky/ | .husky/_ | */.husky | */.husky/_ | .husky/*)
+        echo "Husky detected. Compose OO verify without replacing husky:" >&2
+        echo "  oo hooks compose" >&2
+        ;;
+      *)
+        echo "Merge a call to bash scripts/verify.sh pre-commit into your hook manager." >&2
+        echo "OpenOrchestrate will not change a foreign core.hooksPath." >&2
+        ;;
+    esac
     exit 0
     ;;
 esac

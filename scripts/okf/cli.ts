@@ -74,7 +74,7 @@ function usage(): string {
         "  query <terms...>                            search titles, paths, and descriptions",
         "  context <path-or-id> [--depth N]            one concept plus neighbor blurbs",
         "",
-        "OKF_SKIP=1 skips the pre-commit refresh.",
+        "OO_SKIP=okf skips the pre-commit refresh.",
     ].join("\n");
 }
 
