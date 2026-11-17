@@ -38,6 +38,7 @@ Commands
 - ``prewarm`` — warm Numba builtins / optional script IR caches (H2)
 - ``run`` — compile + execute on synthetic OHLCV
 - ``runner`` — deploy / tick hosted scripts on the Pro API (``PYNE_RUNNER``)
+- ``key`` — mint API keys against the configured key store (needs the Pro backend)
 - ``data`` — fetch market bars (mock / Yahoo / …)
 - ``download-builtins`` — fetch TradingView builtin Pine templates
 - ``corpus`` - test Runtime against Pine corpus sets (set01-set06)
@@ -68,6 +69,7 @@ from pynescript.__about__ import __version__ as _cli_version
 from pynescript.mcp.cli import mcp_group
 from pynescript.mcp.cli import register_cli_commands
 from pynescript.util.corpus_cli import corpus_group
+from pynescript.util.key_cli import key_group
 from pynescript.util.rich_theme import ACCENT as _ACCENT
 from pynescript.util.rich_theme import console as _rich_console
 from pynescript.util.rich_theme import has_rich as _has_rich
@@ -109,6 +111,7 @@ Examples:
   pyne run script.pine --bars 100
   pyne runner deploy script.pine --id demo
   pyne runner tick --id demo --force
+  pyne key create --tier hobby
   pyne data AAPL --provider yahoo --period 6mo
   pyne download-builtins --list
   pyne download-builtins --yes
@@ -1399,6 +1402,7 @@ def download_builtins_cmd(
 cli.add_command(runner_group)
 cli.add_command(mcp_group)
 cli.add_command(corpus_group)
+cli.add_command(key_group)
 register_cli_commands(cli)
 
 
