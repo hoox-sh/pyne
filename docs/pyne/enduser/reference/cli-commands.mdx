@@ -73,6 +73,7 @@ The language server is a **separate** console script (`pyne-lsp`; alias `pynescr
 | `optimize`          |               | Search `input.*` values over N interpret Runtime runs      |
 | `data`              |               | Fetch market bars                                          |
 | `runner`            |               | Hosted scripts on the Pro API (`deploy` / `tick` / `list`) |
+| `key`               |               | Mint Pro API keys against the configured store             |
 | `info`              | `ls`          | Version + optional extras                                  |
 | `mcp`               |               | Stdio server, `config`, `tools`, in-process `call`         |
 
@@ -384,6 +385,61 @@ Full HTTP contract: [hosted runner](/pyne/docs/api/endpoints/runner).
 
 ---
 
+### `pyne key`
+
+Mint Pro API keys against the same store the HTTP API uses. The command calls
+`APIKeyStore.create_key` in `backend/middleware/auth.py` — the same path as
+[`POST /auth/create_key`](/pyne/docs/api/auth-and-keys) — so key format, hashing,
+and tier limits have one implementation.
+
+| Kind       | Name     | Default | Description                                         |
+| ---------- | -------- | ------- | --------------------------------------------------- |
+| subcommand | `create` |         | Mint one key and print the raw secret once          |
+| option     | `--tier` | `hobby` | `free` \| `hobby` \| `pro` \| `team` \| `enterprise` |
+| option     | `--json` | off     | Machine-readable `{status, api_key, key_id, tier}`  |
+
+`STORE_BACKEND` selects where the key is written:
+
+| Value            | Persistence                                          |
+| ---------------- | ---------------------------------------------------- |
+| `json` (default) | JSON file at `API_KEY_STORE`                         |
+| `sqlite`         | SQLite file at `API_KEY_STORE_SQLITE` (multi-worker) |
+| `redis`          | Redis at `REDIS_URL` (multi-replica)                 |
+
+**`ADMIN_TOKEN` is required.** The command refuses to mint when the variable is
+unset or blank, and it has no bypass flag. This mirrors the HTTP route: an unset
+`ADMIN_TOKEN` means "admin minting disabled", not "open minting". The CLI shares
+the process with the store, so there is no token to compare — the check is a
+presence gate that keeps both entry points equally hard to open.
+
+```bash
+export ADMIN_TOKEN=...
+pyne key create                     # hobby tier
+pyne key create --tier pro
+pyne key create --tier hobby --json
+```
+
+`--json` prints the same envelope the HTTP route returns:
+
+```json
+{
+  "status": "success",
+  "api_key": "pyn_…",
+  "key_id": "a1b2c3d4e5f6",
+  "tier": "hobby"
+}
+```
+
+**The raw key is shown once.** The store keeps only a hash — a PBKDF2
+(`v2:`-prefixed) digest on `sqlite` and `redis` — so the secret cannot be
+recovered later. Copy it when it is printed.
+
+Minting needs the Pro API backend (`backend/`), which ships with the source
+checkout rather than the wheel. Install its dependencies with
+`pip install "hoox-pyne[pro]"` and run the command from the checkout.
+
+---
+
 ### `pyne info` (`ls`)
 
 | Kind   | Name     | Description              |
@@ -484,6 +540,7 @@ python -m pynescript.langserver
 | compile / prewarm  | `src/pynescript/compiler/`                                           |
 | optimize           | `src/pynescript/optimize/`                                           |
 | data               | `src/pynescript/util/data.py`                                        |
+| key                | `src/pynescript/util/key_cli.py`                                     |
 
 ## Invariants
 
@@ -503,6 +560,8 @@ python -m pynescript.langserver
 | Compile without numba (full path) | Clear error; `--emit` still works        |
 | Provider failure                  | Click error with message                 |
 | Missing `ccxt` for data           | Import/provider error → install `[data]` |
+| `pyne key` without `ADMIN_TOKEN`  | Click error; nothing is minted           |
+| `pyne key` without Pro backend    | Clear error → run from a checkout        |
 
 ## See also
 

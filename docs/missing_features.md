@@ -36,7 +36,7 @@
 
 # Missing Features — Pine Script v6 Implementation
 
-**Live package:** `hoox-pyne` **0.7.1** (`src/pynescript/__about__.py`).
+**Live package:** `hoox-pyne` **0.7.2** (`src/pynescript/__about__.py`).
 
 ---
 

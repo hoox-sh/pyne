@@ -62,6 +62,7 @@ flowchart LR
   C --> M[data]
   C --> CORP[corpus]
   C --> RN[runner]
+  C --> K[key]
   C --> I[info]
 ```
 
@@ -77,6 +78,7 @@ flowchart LR
 | `data`                                                       | `pynescript.util.data.get_provider`                                                              |
 | `corpus`                                                     | `pynescript.util.corpus_runtime` (Rich UI over set01–set06)                                      |
 | `runner`                                                     | HTTP client for Flask `/scripts` + `/cron/run` (`PYNE_RUNNER`)                                   |
+| `key`                                                        | `backend.middleware.auth.APIKeyStore.create_key` (`STORE_BACKEND`, `ADMIN_TOKEN`)                |
 | `info`                                                       | version + optional extras                                                                        |
 | `execute` / `symbols` / `parity` / `diagnostics` / `builtin` | MCP ops (`Runtime.run`, outline, last-value parity)                                              |
 | `mcp`                                                        | `pynescript.mcp` stdio server, `tools`, in-process `call` ([MCP](/pyne/docs/enduser/guides/mcp)) |
@@ -106,6 +108,7 @@ pyne <command> --help
 | `optimize PATH`                                  | file + `--space` JSON  | strategy hyperparameter search                                   |
 | `data SYMBOL`                                    | symbol + provider opts | table / json / csv                                               |
 | `runner …`                                       | file / id              | hosted deploy + tick ([runner](/pyne/docs/api/endpoints/runner)) |
+| `key create`                                     | `ADMIN_TOKEN` + store  | raw key once (`--json`)                                          |
 | `info`                                           | —                      | version + extras                                                 |
 | `mcp`                                            | —                      | stdio MCP server; `config` / `tools` / `call TOOL`               |
 

@@ -1,6 +1,23 @@
 ## [Unreleased]
 
-- **LSP cards stay short where the widget is narrow.** Hover still shows the kind chip, signature, one summary, parameters, example, and the Pine v6 link, and it drops signature echoes and host-only notes. Completion stays a short card (no parameter table, no see-also). Signature help shows the active parameter with the same name and type as the hover, plus one sentence.
+## [0.7.2] — 2026-11-17
+
+### Added
+
+- **`pyne key create` mints Pro API keys from the CLI.** The command writes to the store selected by `STORE_BACKEND` (`json` / `sqlite` / `redis`) and reuses the same generator and hasher as `POST /auth/create_key`, so key format, hashing, and tier limits have one implementation. The raw key is printed once. `ADMIN_TOKEN` must be set and non-empty — the command refuses to mint otherwise and has no bypass flag, mirroring the HTTP route's fail-closed gate. `--tier` accepts `free` / `hobby` / `pro` / `team` / `enterprise` (default `hobby`), and `--json` emits `{status, api_key, key_id, tier}`. On `sqlite` / `redis` only a PBKDF2 (`v2:`) hash is stored, so the secret cannot be recovered later. Pinned by `tests/test_cli_key.py`.
+- **Numeric synthesis for constant-condition `plotshape`.** Statement-form calls with a proven-numeric condition and constant visual metadata stay on the Numba path and emit a `1.0` / `0.0` marker series with `plot_attrs` metadata; the host maps `1.0 → True` and `0.0 → None` to match interpret. Dynamic color/style/title/text/size, assigned handles, and calls inside functions still use object mode. `_DISK_META_VERSION` 61 → 62. Pinned by `tests/test_compiler_plotshape_numeric.py`.
+- **Hover cards show exact parameter and return types** — typed parameter rows and a return type such as `series float` or `→ series int` — and surface `@version` and `@strategy_alert_message` annotations from the source. Pinned by `tests/test_lsp_features.py`.
+
+### Changed
+
+- **LSP cards stay short where the widget is narrow.** Hover still shows the kind chip, signature, one summary, parameters, example, and the Pine v6 link, and it drops signature echoes and host-only notes. Completion stays a short card (no parameter table, no see-also). Signature help shows the active parameter with the same name and type as the hover, plus one sentence. Ships as `f8ad6ff0`.
+- **The verify gate checks Python formatting with `ruff format --check`** instead of `bun fmt --check`. `bun fmt` is a real formatter but cannot read Python, so the Format step was green without inspecting any product code. `FORMAT_CMD` now matches `make fmt` (`ruff format src/ tests/ backend/`).
+- **`ruff` is pinned to `0.15.20`** in `pyproject.toml`, CI, and a `scripts/verify.sh` guard, so the gate reports the same result regardless of which `ruff` is first on `PATH`.
+
+### Fixed
+
+- **Corpus-dependent tests skip when the gitignored `tests/data` corpus is absent** instead of failing 24 tests on a clean checkout. With the corpus present they still run and pass.
+- **`VERSION`, the README badge, and the live package pins in the docs no longer drift** from `src/pynescript/__about__.py`.
 
 ## [0.7.1] — 2026-11-15
 
