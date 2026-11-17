@@ -4752,6 +4752,164 @@ h = hline(50)
             compiled = compile_script(src, use_cache=False)
             assert compiled.object_mode is True, body
 
+    def test_bgcolor_numeric_condition_stays_numeric(self) -> None:
+        """Numeric-condition ternary bgcolor stays nopython and matches interpret."""
+        src = """//@version=5
+indicator("x")
+bgcolor(close > 100.5 ? color.green : na, title="up")
+plot(close, "c")
+"""
+        code = transpile(src)
+        assert "@numba.njit" in code, "ternary bgcolor must keep the njit entry point"
+        assert "__drawings" not in code, "ternary bgcolor must not emit drawing events"
+        compiled = compile_script(src, use_cache=False)
+        assert compiled.object_mode is False, "ternary bgcolor must stay numeric"
+        bars = _bars_list(6)
+        interp = Runtime(symbol="TEST").run(src, bars, mode="interpret")
+        out = Runtime(symbol="TEST").run(src, bars, mode="compile")
+        assert "error" not in interp, interp.get("error")
+        assert "error" not in out, out.get("error")
+        assert set(out["series"]) == set(interp["series"]), "compile must expose the same series keys"
+        assert list(out["series"]["up"]) == list(interp["series"]["up"]), "bgcolor series must match interpret"
+        assert out["series"]["up"][0] is None, "false branch must map to na"
+        assert out["series"]["up"][1] == "#22AB94", "true branch must map to the green hex"
+
+    def test_bgcolor_constant_color_stays_numeric(self) -> None:
+        """A constant-color bgcolor folds to a numeric code series + host color map."""
+        src = """//@version=5
+indicator("x")
+bgcolor(color.red, title="bg")
+plot(close, "c")
+"""
+        compiled = compile_script(src, use_cache=False)
+        assert compiled.object_mode is False, "constant-color bgcolor must stay numeric"
+        bars = _bars_list(4)
+        interp = Runtime(symbol="TEST").run(src, bars, mode="interpret")
+        out = Runtime(symbol="TEST").run(src, bars, mode="compile")
+        assert "error" not in interp, interp.get("error")
+        assert "error" not in out, out.get("error")
+        assert list(out["series"]["bg"]) == list(interp["series"]["bg"]), "bgcolor series must match interpret"
+        assert out["series"]["bg"] == ["#F23645"] * 4, "every bar must carry the constant red hex"
+
+    def test_bgcolor_positional_title_parity(self) -> None:
+        """Positional titles are strings only; numeric offsets never become keys.
+
+        Matches interpret: ``bgcolor(color.red, 0, true, 10, "mytitle")`` and
+        the omitted-title form both key ``bgcolor`` (the 5th Pine slot is not
+        read by interpret), while a string in the 2nd slot is the title.
+        """
+        cases = (
+            ('bgcolor(color.red, 0, true, 10, "mytitle")', "bgcolor"),
+            ("bgcolor(color.red, 0, true, 10)", "bgcolor"),
+            ("bgcolor(color.red, 5)", "bgcolor"),
+            ("bgcolor(color.red, true)", "bgcolor"),
+            ('bgcolor(color.red, "second")', "second"),
+        )
+        bars = _bars_list(4)
+        for call, expected in cases:
+            src = f'//@version=5\nindicator("x")\n{call}\nplot(close, "c")\n'
+            compiled = compile_script(src, use_cache=False)
+            assert compiled.object_mode is False, call
+            assert expected in compiled.plot_titles, (call, compiled.plot_titles)
+            assert "0" not in compiled.plot_titles, (call, compiled.plot_titles)
+            interp = Runtime(symbol="TEST").run(src, bars, mode="interpret")
+            out = Runtime(symbol="TEST").run(src, bars, mode="compile")
+            assert "error" not in interp, (call, interp.get("error"))
+            assert "error" not in out, (call, out.get("error"))
+            assert set(out["series"]) == set(interp["series"]), (
+                call,
+                sorted(out["series"]),
+                sorted(interp["series"]),
+            )
+            assert expected in out["series"], (call, sorted(out["series"]))
+
+    def test_bgcolor_constant_color_new_stays_numeric(self) -> None:
+        """A constant ``color.new`` bgcolor folds to rgba and stays numeric."""
+        src = """//@version=5
+indicator("x")
+bgcolor(color.new(color.red, 90), title="bg")
+plot(close, "c")
+"""
+        compiled = compile_script(src, use_cache=False)
+        assert compiled.object_mode is False, "constant color.new bgcolor must stay numeric"
+        code = transpile(src)
+        assert "pine_color_new(" not in code, "constant color.new must fold, not call the runtime helper"
+        bars = _bars_list(4)
+        interp = Runtime(symbol="TEST").run(src, bars, mode="interpret")
+        out = Runtime(symbol="TEST").run(src, bars, mode="compile")
+        assert "error" not in interp, interp.get("error")
+        assert "error" not in out, out.get("error")
+        assert list(out["series"]["bg"]) == list(interp["series"]["bg"]), "color.new bgcolor must match interpret"
+        assert out["series"]["bg"] == ["rgba(242, 54, 69, 0.09803921568627451)"] * 4, "folded rgba must match interpret"
+
+    def test_bgcolor_ternary_constant_color_new_stays_numeric(self) -> None:
+        """The corpus shape ``cond ? color.new(c, n) : na`` stays numeric."""
+        src = """//@version=5
+indicator("x")
+bgcolor(close > 100.5 ? color.new(color.orange, 70) : na, title="hl")
+plot(close, "c")
+"""
+        compiled = compile_script(src, use_cache=False)
+        assert compiled.object_mode is False, "ternary constant color.new bgcolor must stay numeric"
+        bars = _bars_list(6)
+        interp = Runtime(symbol="TEST").run(src, bars, mode="interpret")
+        out = Runtime(symbol="TEST").run(src, bars, mode="compile")
+        assert "error" not in interp, interp.get("error")
+        assert "error" not in out, out.get("error")
+        assert list(out["series"]["hl"]) == list(interp["series"]["hl"]), "color.new ternary must match interpret"
+        assert out["series"]["hl"][0] is None, "false branch must map to na"
+        assert out["series"]["hl"][1] == "rgba(255, 109, 0, 0.2980392156862745)", "true branch must map to orange rgba"
+
+    def test_bgcolor_hex_literal_stays_numeric(self) -> None:
+        """A direct hex color literal is a constant color and stays numeric."""
+        src = """//@version=5
+indicator("x")
+bgcolor(#ff0000, title="bg")
+plot(close, "c")
+"""
+        compiled = compile_script(src, use_cache=False)
+        assert compiled.object_mode is False, "hex-literal bgcolor must stay numeric"
+        bars = _bars_list(3)
+        interp = Runtime(symbol="TEST").run(src, bars, mode="interpret")
+        out = Runtime(symbol="TEST").run(src, bars, mode="compile")
+        assert list(out["series"]["bg"]) == list(interp["series"]["bg"]), "hex bgcolor must match interpret"
+
+    def test_bgcolor_barstate_realtime_ternary_stays_numeric(self) -> None:
+        """The dominant corpus shape ``barstate.isrealtime ? color.new(...) : na`` stays numeric."""
+        src = """//@version=5
+indicator("x")
+bgcolor(barstate.isrealtime ? color.new(color.orange, 70) : na, title="hl")
+plot(close, "c")
+"""
+        compiled = compile_script(src, use_cache=False)
+        assert compiled.object_mode is False, "barstate.isrealtime ternary bgcolor must stay numeric"
+        bars = _bars_list(6)
+        interp = Runtime(symbol="TEST").run(src, bars, mode="interpret")
+        out = Runtime(symbol="TEST").run(src, bars, mode="compile")
+        assert "error" not in interp, interp.get("error")
+        assert "error" not in out, out.get("error")
+        assert list(out["series"]["hl"]) == list(interp["series"]["hl"]), "barstate bgcolor must match interpret"
+        assert out["series"]["hl"] == [None] * 6, "historical-only run must leave the highlight unset"
+
+    def test_bgcolor_dynamic_color_stays_object(self) -> None:
+        """A per-bar dynamic color expression keeps object mode."""
+        src = """//@version=5
+indicator("x")
+bgcolor(color.from_gradient(close, 100.0, 105.0, color.red, color.green), title="bg")
+plot(close, "c")
+"""
+        assert compile_script(src, use_cache=False).object_mode is True, "dynamic gradient color must stay object"
+
+    def test_bgcolor_dynamic_color_new_stays_object(self) -> None:
+        """``color.new`` with a per-bar base or transparency keeps object mode."""
+        for body in (
+            'bgcolor(color.new(close > open ? color.red : color.green, 90), title="bg")',
+            'bgcolor(color.new(color.red, close > open ? 90 : 50), title="bg")',
+        ):
+            src = f'//@version=5\nindicator("x")\n{body}\nplot(close, "c")\n'
+            compiled = compile_script(src, use_cache=False)
+            assert compiled.object_mode is True, f"dynamic color.new must stay object: {body}"
+
     def test_numeric_udf_plot_stays_nopython(self) -> None:
         src = """//@version=5
 indicator("x")

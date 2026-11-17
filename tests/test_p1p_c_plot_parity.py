@@ -209,7 +209,9 @@ runtime.error(str.format("x {0}", syminfo.ticker))
 plot(close)
 """
     )
-    assert "pine_color_new" in code
+    # bgcolor(color.new(...)) is a constant color: it folds to an rgba literal
+    # and stays on the numeric path instead of emitting pine_color_new.
+    assert "rgba(255, 255, 255, 0.047058823529411764)" in code
     assert "pine_str_format" in code
     assert "chart_ticker()" in code
 

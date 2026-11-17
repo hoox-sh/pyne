@@ -2341,6 +2341,94 @@ class CompilerVisitor(NodeVisitor):
         self._hline_fill_events.append(("hline", list(args), draw_kwargs))
         return f"plot_{idx}[__bar_idx] = {price_expr}\n{name} = np.nan"
 
+    def _bgcolor_const_color(self, expr: str) -> str | None:
+        """Fold a generated color expression to a constant color string."""
+        val = self._fold_const(expr)
+        if isinstance(val, str) and val.strip():
+            return val.strip()
+        return None
+
+    def _bgcolor_branch_color(self, node: Any, expr: str) -> tuple[bool, str | None]:
+        """Resolve one bgcolor color branch to ``(supported, color)``.
+
+        ``na`` is a supported branch with no color. Every other branch must
+        fold to a constant color string; a dynamic color returns
+        ``(False, None)`` so the call falls through to object mode instead of
+        emitting an all-``na`` series.
+        """
+        if isinstance(node, ast.Name) and node.id == "na":
+            return True, None
+        color = self._bgcolor_const_color(expr)
+        if color is None:
+            return False, None
+        return True, color
+
+    def _emit_numeric_bgcolor(self, args: list[str], kwargs: dict[str, str], arg_nodes: list) -> str | None:
+        """Synthesize a numeric-condition bgcolor as a 0/1 code series.
+
+        Supported: direct constant color/na, or a ternary color expression with
+        a proven-numeric condition and constant/na branches. Dynamic color
+        expressions fall through to object mode.
+        """
+        node = arg_nodes[0] if arg_nodes else None
+        if node is None or self.object_mode:
+            return None
+        true_color: str | None = None
+        false_color: str | None = None
+        prev_fold = self._fold_literal_color
+        self._fold_literal_color = True
+        try:
+            if isinstance(node, ast.Conditional):
+                cond_expr = self.visit(node.test)
+                ok_true, true_color = self._bgcolor_branch_color(node.body, self.visit(node.body))
+                if not ok_true:
+                    return None
+                ok_false, false_color = self._bgcolor_branch_color(node.orelse, self.visit(node.orelse))
+                if not ok_false:
+                    return None
+            elif isinstance(node, ast.Name) and node.id == "na":
+                cond_expr = "True"
+            elif isinstance(node, (ast.Attribute, ast.Call)) or (
+                isinstance(node, ast.Constant) and getattr(node, "kind", None) == "#"
+            ):
+                ok, true_color = self._bgcolor_branch_color(node, args[0] if args else "")
+                if not ok:
+                    return None
+                cond_expr = "True"
+            else:
+                return None
+        finally:
+            self._fold_literal_color = prev_fold
+        if not (
+            self._is_safe_numeric_expr(cond_expr)
+            or self._is_numeric_or_bool_literal(cond_expr)
+        ):
+            return None
+        title = "bgcolor"
+        if "title" in kwargs:
+            title = self._literal_str(kwargs["title"], default="bgcolor") or "bgcolor"
+        elif len(args) > 1 and self._is_quoted_string_expr(args[1]):
+            # Interpret reads a 2nd-positional title only when it is a string
+            # and ignores the v5 5th positional (offset/editable/show_last
+            # precede title). A numeric offset must never become the title.
+            title = self._literal_str(args[1], default="bgcolor") or "bgcolor"
+        title = self._unique_plot_title(title)
+        attrs = self._collect_plot_attrs("bgcolor", args, kwargs)
+        attrs.update({"true_color": true_color, "false_color": false_color})
+        entry: dict[str, Any] = {
+            "expr": cond_expr,
+            "title": title,
+            "kind": "bgcolor",
+            "attrs": attrs,
+        }
+        self.plots.append(entry)
+        self._note_visual_series()
+        idx = len(self.plots) - 1
+        draw_kwargs = dict(kwargs)
+        draw_kwargs["title"] = repr(title)
+        self._hline_fill_events.append(("bgcolor", list(args), draw_kwargs))
+        return f"plot_{idx}[__bar_idx] = (1.0 if {cond_expr} else 0.0)"
+
     def visit_Assign(self, node: ast.Assign):
         # Tuple unpack: [a, b, c] = ta.macd(...) / ta.bb(...)
         if isinstance(node.target, ast.Tuple):
@@ -3412,7 +3500,14 @@ class CompilerVisitor(NodeVisitor):
             return True
         except ValueError:
             pass
-        if s in ("__bar_idx", "n_bars"):
+        if s in (
+            "__bar_idx",
+            "n_bars",
+            "__isrealtime",
+            "__isconfirmed",
+            "__ishistory",
+            "__isnew",
+        ):
             return True
         if s.startswith("float(__bar_idx") or s.startswith("float(n_bars"):
             return True
@@ -5754,10 +5849,11 @@ class CompilerVisitor(NodeVisitor):
         kwargs: dict[str, str] = {}
         arg_nodes: list = []
         prev_fold_literal_color = self._fold_literal_color
-        # Literal color metadata is foldable only in numeric plot/fill/hline
-        # argument positions. Object-only call sites (bgcolor, drawings) keep
-        # the legacy pine_color_new helper and object mode.
-        self._fold_literal_color = func_name in ("plot", "fill", "hline")
+        # Literal color metadata is foldable in numeric plot/fill/hline
+        # argument positions and in bgcolor, whose constant-color forms are
+        # synthesized as a numeric 0/1 code series. Object-only call sites
+        # (drawings) keep the legacy pine_color_new helper and object mode.
+        self._fold_literal_color = func_name in ("plot", "fill", "hline", "bgcolor")
         try:
             for arg in node.args:
                 if hasattr(arg, "value"):
@@ -6244,6 +6340,11 @@ class CompilerVisitor(NodeVisitor):
             if key:
                 return f"(safe_float({handle}.get({key!r}, np.nan)) if isinstance({handle}, dict) else np.nan)"
             return "np.nan"
+
+        if func_name == "bgcolor":
+            bg = self._emit_numeric_bgcolor(args, kwargs, arg_nodes)
+            if bg is not None:
+                return bg
 
         # Drawing surface → event list (object mode)
         if func_name in _DRAWING_FUNCS or (

@@ -602,11 +602,11 @@ class CustomEvaluator(NodeLiteralEvaluator):
             if self._pine_need_plot_ids:
                 return self._maybe_registry("_builtin_bgcolor", args, kwargs)
             return None
-        title = (
-            kwargs.get("title", args[1] if len(args) > 1 else "bgcolor")
-            if kwargs
-            else (args[1] if len(args) > 1 else "bgcolor")
-        )
+        title = kwargs.get("title") if kwargs else None
+        if title is None and len(args) > 1 and type(args[1]) is str:
+            # The 2nd positional is a title only when it is a string; a
+            # numeric offset must never become the series key.
+            title = args[1]
         if color_s is None:
             self._plot_color_pending += 1
         self._capture_plot(

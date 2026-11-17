@@ -884,10 +884,15 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
         if reused is not None:
             reused.color = _kw(args, kwargs, "color", 0)
             return reused
+        # Title is keyword-first; the 2nd positional is a title only when it is
+        # a string. Numeric offsets must not leak into the series key.
+        title_arg = _kw(args, kwargs, "title", None, None)
+        if title_arg is None and len(args) > 1 and type(args[1]) is str:
+            title_arg = args[1]
         return self._plot_upsert(
             kind="bgcolor",
             color=_kw(args, kwargs, "color", 0),
-            title=_as_str(_kw(args, kwargs, "title", 1, "bgcolor"), "bgcolor"),
+            title=_as_str(title_arg, "bgcolor"),
             offset=_as_int(_kw(args, kwargs, "offset", None, 0), 0),
             force_overlay=bool(_kw(args, kwargs, "force_overlay", None, False)),
             style="bgcolor",

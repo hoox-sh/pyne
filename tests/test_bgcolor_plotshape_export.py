@@ -191,6 +191,7 @@ def test_materialize_bgcolor_default_titles_from_drawings():
 indicator("bg")
 bgcolor(color.red)
 bgcolor(color.blue)
+label.new(bar_index, high, "x")
 plot(close, "c")
 """
     bars = _bars(12)

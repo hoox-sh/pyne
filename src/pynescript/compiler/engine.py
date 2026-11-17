@@ -179,7 +179,7 @@ _BUILTINS_WARMED = False
 # Bump when generated IR semantics change so source→IR disk index is invalidated
 # (source hash alone is stable across compiler fixes, e.g. fill() series keys).
 # v5: strategy series history + Pine na-aware ==/!=
-_DISK_META_VERSION = 57  # v57: runtime.error literal/no-arg numeric helper
+_DISK_META_VERSION = 61  # v61: bgcolor positional title is string-only (numeric offset is not a title)
 _NJIT_CACHE_FALSE = "@numba.njit(cache=False)"
 _NJIT_CACHE_TRUE = "@numba.njit(cache=True)"
 
@@ -869,11 +869,26 @@ class CompiledScript:
         if _is_plot_sequence(raw):
             packed = _pack_plot_sequence(raw, self.plot_titles)
             if not self.object_mode:
+                _apply_bgcolor_series(packed, self.plot_titles, self.plot_kinds, self.plot_attrs)
                 drawings = _synthesize_hline_fill_drawings(packed, self.plot_titles, self.plot_kinds, self.plot_attrs)
                 if drawings:
                     packed["__drawings"] = drawings
             return packed
         packed = _normalize_result(raw)
+        if "__drawings" in packed:
+            # A numeric-synthesized bgcolor also has a plot array. In a mixed
+            # script that flipped to object mode, the bgcolor drawing event is
+            # the series source; drop the duplicate plot key so the host does
+            # not uniquify it to ``title_2``.
+            drawings = packed["__drawings"]
+            for i, kind in enumerate(self.plot_kinds):
+                if kind != "bgcolor":
+                    continue
+                title = self.plot_titles[i] if i < len(self.plot_titles) else f"plot_{i}"
+                if any(
+                    isinstance(d, dict) and d.get("kind") == "bgcolor" and d.get("title") == title for d in drawings
+                ):
+                    packed.pop(title, None)
         if not self.object_mode and "__drawings" not in packed:
             drawings = _synthesize_hline_fill_drawings(packed, self.plot_titles, self.plot_kinds, self.plot_attrs)
             if drawings:
@@ -1019,6 +1034,39 @@ def _synthesize_hline_fill_drawings(
                     ev["price"] = float(val) if val == val else None
             drawings.append(ev)
     return drawings
+
+
+def _apply_bgcolor_series(
+    packed: dict[str, Any],
+    titles: list[str],
+    kinds: list[str],
+    attrs: list[dict[str, Any]] | None = None,
+) -> None:
+    """Map numeric bgcolor 0/1 code arrays to interpret-style color/None cells.
+
+    The numeric path cannot store color strings in a Numba array; the compiler
+    records the constant true/false colors in plot_attrs and writes a 0/1 code
+    series. This host-side pass restores the color strings (or None) so the
+    series key/value contract matches interpret.
+    """
+    attr_list = list(attrs or [])
+    for i, kind in enumerate(kinds):
+        if kind != "bgcolor":
+            continue
+        title = titles[i] if i < len(titles) else f"plot_{i}"
+        series = packed.get(title)
+        if not isinstance(series, np.ndarray):
+            continue
+        ev_attrs = attr_list[i] if i < len(attr_list) else {}
+        true_color = ev_attrs.get("true_color")
+        false_color = ev_attrs.get("false_color")
+        out = np.empty(series.shape, dtype=object)
+        for j, val in enumerate(series):
+            if val == val and float(val) != 0.0:
+                out[j] = true_color
+            else:
+                out[j] = false_color
+        packed[title] = out
 
 
 def _pack_plot_sequence(

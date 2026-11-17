@@ -1,0 +1,28 @@
+{
+  "scope": "tests/data/set01..set04, scripts containing 'bgcolor'",
+  "before": {
+    "total": 354,
+    "numeric": 0,
+    "object": 289,
+    "error": 65
+  },
+  "after": {
+    "total": 354,
+    "numeric": 10,
+    "object": 279,
+    "error": 65
+  },
+  "flipped_to_numeric": [
+    "set03/indicators/0890_ind_different_tick_values_example.pine",
+    "set03/indicators/0892_ind_plotting_and_coloring_compound_conditions_demo_2.pine",
+    "set04/indicators/0589_ind_manual_buffer_sizing_demo.pine",
+    "set04/indicators/0655_ind_max_bars_back_error_demo.pine",
+    "set04/indicators/0709_ind_manual_buffer_sizing_demo_2.pine",
+    "set04/indicators/0770_ind_lines_with_gaps_demo.pine",
+    "set04/indicators/0772_ind_max_bars_back_error_demo_2.pine",
+    "set04/indicators/0818_ind_recalculation_on_realtime_bars_demo.pine",
+    "set04/indicators/0865_ind_recalculation_on_realtime_bars_demo_2.pine",
+    "set04/indicators/0874_ind_history_referencing_in_functions_demo.pine"
+  ],
+  "regressed_to_object": []
+}
