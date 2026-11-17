@@ -36,6 +36,9 @@ from lsprotocol import types as lsp
 from pynescript.ast import node as ast
 from pynescript.langserver.analysis import Symbol
 from pynescript.langserver.analysis import SymbolIndex
+from pynescript.langserver.analysis import _builtin_return_type
+from pynescript.langserver.analysis import _function_return_type
+from pynescript.langserver.analysis import _type_expr_name
 from pynescript.langserver.analysis import ensure_symbol_index
 from pynescript.langserver.protocol.utils import get_identifier_segment_at_position
 from pynescript.langserver.protocol.utils import in_comment_or_string
@@ -94,6 +97,149 @@ _BUILTIN_VAR_DOCS: dict[str, tuple[str, str]] = {
     "bar_index": ("series int", "Zero-based index of the current bar."),
     "last_bar_index": ("series int", "Index of the last bar in the dataset."),
     "na": ("na", "Pine's missing-value literal."),
+    "timenow": ("series int", "Current time as a UNIX timestamp in milliseconds."),
+    "year": ("series int", "Year of the current bar's open time, in the exchange time zone."),
+    "month": ("series int", "Month of the current bar's open time (1–12)."),
+    "weekofyear": ("series int", "Week number of the current bar's open time."),
+    "dayofmonth": ("series int", "Day of the month of the current bar's open time (1–31)."),
+    "dayofweek": ("series int", "Day of the week of the current bar's open time (Sunday is 1)."),
+    "hour": ("series int", "Hour of the current bar's open time (0–23)."),
+    "minute": ("series int", "Minute of the current bar's open time (0–59)."),
+    "second": ("series int", "Second of the current bar's open time (0–59)."),
+}
+
+# Exact Pine v6 parameter types for builtins whose metadata only lists names.
+# Return types stay in ``_builtin_return_type`` so this table does not change inference.
+_PARAM_TYPES: dict[str, dict[str, str]] = {
+    "ta.sma": {"source": "series int/float", "length": "simple int"},
+    "ta.ema": {"source": "series int/float", "length": "simple int"},
+    "ta.rma": {"source": "series int/float", "length": "simple int"},
+    "ta.wma": {"source": "series int/float", "length": "simple int"},
+    "ta.vwma": {"source": "series int/float", "length": "simple int"},
+    "ta.swma": {"source": "series int/float"},
+    "ta.alma": {
+        "series": "series int/float",
+        "length": "simple int",
+        "offset": "simple float",
+        "sigma": "simple float",
+    },
+    "ta.rsi": {"source": "series int/float", "length": "simple int"},
+    "ta.stoch": {
+        "source": "series int/float",
+        "high": "series int/float",
+        "low": "series int/float",
+        "length": "simple int",
+    },
+    "ta.cci": {"source": "series int/float", "length": "simple int"},
+    "ta.mfi": {"series": "series int/float", "length": "simple int"},
+    "ta.cmo": {"source": "series int/float", "length": "simple int"},
+    "ta.cog": {"source": "series int/float", "length": "simple int"},
+    "ta.atr": {"length": "simple int"},
+    "ta.tr": {"handle_na": "simple bool"},
+    "ta.macd": {
+        "source": "series int/float",
+        "fastlen": "simple int",
+        "slowlen": "simple int",
+        "siglen": "simple int",
+    },
+    "ta.bb": {"series": "series int/float", "length": "simple int", "mult": "simple float"},
+    "ta.bbw": {"series": "series int/float", "length": "simple int", "mult": "simple float"},
+    "ta.kc": {"series": "series int/float", "length": "simple int", "mult": "simple float"},
+    "ta.kcw": {"series": "series int/float", "length": "simple int", "mult": "simple float"},
+    "ta.crossover": {"source1": "series int/float", "source2": "series int/float"},
+    "ta.crossunder": {"source1": "series int/float", "source2": "series int/float"},
+    "ta.cross": {"source1": "series int/float", "source2": "series int/float"},
+    "ta.change": {"source": "series int/float", "length": "simple int"},
+    "ta.mom": {"source": "series int/float", "length": "simple int"},
+    "ta.roc": {"source": "series int/float", "length": "simple int"},
+    "ta.highest": {"source": "series int/float", "length": "simple int"},
+    "ta.lowest": {"source": "series int/float", "length": "simple int"},
+    "ta.highestbars": {"source": "series int/float", "length": "simple int"},
+    "ta.lowestbars": {"source": "series int/float", "length": "simple int"},
+    "ta.barssince": {"condition": "series bool"},
+    "ta.valuewhen": {
+        "condition": "series bool",
+        "source": "series int/float",
+        "occurrence": "simple int",
+    },
+    "ta.cum": {"source": "series int/float"},
+    "ta.stdev": {"source": "series int/float", "length": "simple int"},
+    "ta.variance": {"source": "series int/float", "length": "simple int"},
+    "ta.correlation": {
+        "source1": "series int/float",
+        "source2": "series int/float",
+        "length": "simple int",
+    },
+    "ta.percentrank": {"source": "series int/float", "length": "simple int"},
+    "ta.rising": {"source": "series int/float", "length": "simple int"},
+    "ta.falling": {"source": "series int/float", "length": "simple int"},
+    "ta.pivothigh": {"source": "series int/float", "leftbars": "simple int", "rightbars": "simple int"},
+    "ta.pivotlow": {"source": "series int/float", "leftbars": "simple int", "rightbars": "simple int"},
+    "ta.supertrend": {"factor": "simple float", "atrPeriod": "simple int"},
+    "ta.sar": {"start": "simple float", "inc": "simple float", "max": "simple float"},
+    "ta.adx": {"diLength": "simple int", "adxSmoothing": "simple int"},
+    "ta.dmi": {"diLength": "simple int", "adxSmoothing": "simple int"},
+    "ta.linreg": {"source": "series int/float", "length": "simple int", "offset": "simple int"},
+    "ta.vwap": {"source": "series int/float"},
+    "ta.wpr": {"length": "simple int"},
+    "math.abs": {"number": "series int/float"},
+    "math.max": {"number0": "series int/float", "number1": "series int/float"},
+    "math.min": {"number0": "series int/float", "number1": "series int/float"},
+    "str.tostring": {"value": "series int/float/bool/string"},
+    "str.length": {"string": "series string"},
+    "color.new": {"color": "series color", "transp": "series int"},
+    "color.rgb": {
+        "red": "series int/float",
+        "green": "series int/float",
+        "blue": "series int/float",
+        "transp": "series int",
+    },
+    "input.int": {"defval": "const int"},
+    "input.float": {"defval": "const float"},
+    "input.bool": {"defval": "const bool"},
+    "input.string": {"defval": "const string"},
+    "input.color": {"defval": "const color"},
+    "input.source": {"defval": "series float"},
+}
+
+# Tuple results the ``ta.* → series float`` fallback would flatten.
+_RETURN_OVERRIDES: dict[str, str] = {
+    "ta.macd": "tuple[series float, series float, series float]",
+    "ta.bb": "tuple[series float, series float, series float]",
+    "ta.kc": "tuple[series float, series float, series float]",
+    "ta.dmi": "tuple[series float, series float, series float]",
+    "ta.supertrend": "tuple[series float, series float]",
+    "ta.stoch": "series float",
+    "ta.highestbars": "series int",
+    "ta.lowestbars": "series int",
+    "ta.barssince": "series int",
+    "ta.crossover": "series bool",
+    "ta.crossunder": "series bool",
+    "ta.cross": "series bool",
+    "ta.rising": "series bool",
+    "ta.falling": "series bool",
+    "math.abs": "series float",
+    "str.tostring": "series string",
+    "str.length": "series int",
+    "color.new": "series color",
+    "color.rgb": "series color",
+}
+
+_TYPE_FORMS: dict[str, str] = {
+    "int": "`const int` · `input int` · `simple int` · `series int`",
+    "float": "`const float` · `input float` · `simple float` · `series float`",
+    "bool": "`const bool` · `input bool` · `simple bool` · `series bool`",
+    "string": "`const string` · `input string` · `simple string` · `series string`",
+    "color": "`const color` · `input color` · `simple color` · `series color`",
+    "array": "`array<int>` · `array<float>` · `array<bool>` · `array<string>` · `array<color>`",
+    "matrix": "`matrix<int>` · `matrix<float>` · `matrix<bool>` · `matrix<string>`",
+    "map": "`map<string, float>` · `map<int, float>` · `map<string, string>`",
+    "line": "`series line`",
+    "linefill": "`series linefill`",
+    "label": "`series label`",
+    "box": "`series box`",
+    "table": "`series table`",
+    "polyline": "`series polyline`",
 }
 
 # Module names shown when the cursor is on the left of ``module.member``.
@@ -216,7 +362,7 @@ def handle_hover(
         member = index.member_at(position.line, position.character)
         if member is not None:
             if member.symbol is not None:
-                return _build_symbol_hover(member.symbol, source, position.line, seg_start, seg_end)
+                return _build_symbol_hover(member.symbol, source, position.line, seg_start, seg_end, index)
             if member.kind == "constructor":
                 return _build_constructor_hover(member, position.line, seg_start, seg_end)
             if member.builtin_name:
@@ -225,7 +371,7 @@ def handle_hover(
                     return builtin
         symbol = index.symbol_at(position.line, position.character)
         if symbol is not None:
-            return _build_symbol_hover(symbol, source, position.line, seg_start, seg_end)
+            return _build_symbol_hover(symbol, source, position.line, seg_start, seg_end, index)
 
     ns_hover = _hover_namespace(segment, word, line_text, position.line, seg_start, seg_end)
     if ns_hover is not None:
@@ -283,6 +429,7 @@ def _build_symbol_hover(
     line: int,
     start: int,
     end: int,
+    index: SymbolIndex | None = None,
 ) -> lsp.Hover:
     """Build a hover card for a symbol from the static analysis index."""
     if symbol.kind in {"enum", "enum_member"}:
@@ -316,6 +463,9 @@ def _build_symbol_hover(
         "kind": symbol.kind,
         "signature": signature,
         "annotations": annotations,
+        "param_types": _param_types_of(symbol),
+        "field_types": _field_types_of(symbol),
+        "return_type": _symbol_return_type(symbol, index),
     }
     hover = _build_user_decl_hover(info, line, start, end)
     extra: list[str] = []
@@ -418,7 +568,9 @@ def _hover_type_or_qualifier(
     if _followed_by_paren(line_text, end):
         return None
     if segment in _TYPE_DOCS:
-        return _markdown_hover(segment, _TYPE_DOCS[segment], line, start, end, kind="type")
+        forms = _TYPE_FORMS.get(segment)
+        sections = [f"**Forms** {forms}"] if forms else None
+        return _markdown_hover(segment, _TYPE_DOCS[segment], line, start, end, kind="type", sections=sections)
     if segment in _QUALIFIER_DOCS:
         kind = "mode" if segment in _MODE_QUALIFIERS else "qualifier"
         return _markdown_hover(segment, _QUALIFIER_DOCS[segment], line, start, end, kind=kind)
@@ -541,23 +693,120 @@ def _parse_annotation_entries(block: list[str] | None) -> list[tuple[str, str | 
 
 def _annotation_sections(
     entries: list[tuple[str, str | None, str]],
-) -> tuple[str | None, list[tuple[str, str]], str | None, list[tuple[str, str]]]:
-    """Split annotation entries into description, params, returns, and fields."""
+) -> tuple[str | None, list[tuple[str, str]], str | None, list[tuple[str, str]], list[str]]:
+    """Split annotation entries into description, params, returns, fields, and notes.
+
+    ``@function`` / ``@type`` / ``@variable`` / ``@enum`` is the card body.
+    A separate ``@description`` is kept as a note when it is not that body.
+    ``@version`` and ``@strategy_alert_message`` are notes too.
+    """
     description: str | None = None
+    extra_description: str | None = None
     returns: str | None = None
     params: list[tuple[str, str]] = []
     fields: list[tuple[str, str]] = []
+    notes: list[str] = []
     for tag, field_name, content in entries:
-        if tag in _DESCRIPTION_TAGS:
-            if content:
-                description = content
+        if tag in {"function", "type", "variable", "enum"} and content and description is None:
+            description = content
+        elif tag == "description" and content:
+            extra_description = content
         elif tag == "param" and field_name:
             params.append((field_name, content))
         elif tag == "field" and field_name:
             fields.append((field_name, content))
         elif tag == "returns" and content:
             returns = content
-    return description, params, returns, fields
+        elif tag == "version" and content:
+            notes.append(f"**Version** `{content}`")
+        elif tag == "strategy_alert_message" and content:
+            notes.append(f"**Alert message** {content}")
+    if description is None and extra_description:
+        description = extra_description
+        extra_description = None
+    if extra_description and extra_description != description:
+        notes.insert(0, extra_description)
+    return description, params, returns, fields, notes
+
+
+def _split_leading_type(content: str) -> tuple[str, str]:
+    """Split a leading ``(series float)`` annotation type from the prose."""
+    match = _LEADING_ANNOT_TYPE.match((content or "").strip())
+    if not match:
+        return "", (content or "").strip()
+    return match.group("typ").strip(), match.group("body").strip()
+
+
+def _typed_rows(
+    items: list[tuple[str, str]],
+    known: dict[str, str] | None = None,
+) -> list[tuple[str, str]]:
+    """Merge annotation prose with an exact declared type."""
+    rows: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    types = known or {}
+    for name, content in items:
+        typ, desc = _split_leading_type(content)
+        if not typ:
+            typ, desc = _split_param_type(content)
+        if not typ:
+            typ = types.get(name, "")
+        rows.append((name, _param_detail(typ, desc)))
+        seen.add(name)
+    for name, typ in types.items():
+        if name and name not in seen and typ:
+            rows.append((name, _param_detail(typ, "")))
+    return rows
+
+
+def _param_types_of(symbol: Symbol) -> dict[str, str]:
+    """Declared parameter types on a function or method."""
+    node = symbol.node
+    if not isinstance(node, ast.FunctionDef):
+        return {}
+    found: dict[str, str] = {}
+    for param in node.args or []:
+        name = getattr(param, "name", None) or ""
+        typ = _type_expr_name(getattr(param, "type", None)) or ""
+        if name and typ:
+            found[name] = typ
+    return found
+
+
+def _field_types_of(symbol: Symbol) -> dict[str, str]:
+    """Declared field types on a user-defined type."""
+    node = symbol.node
+    if not isinstance(node, ast.TypeDef):
+        return {}
+    found: dict[str, str] = {}
+    for stmt in node.body or []:
+        if not isinstance(stmt, ast.Assign):
+            continue
+        typ = _type_expr_name(stmt.type) or ""
+        target = stmt.target
+        names = target.elts if isinstance(target, ast.Tuple) else [target]
+        for item in names:
+            if isinstance(item, ast.Name) and item.id and typ:
+                found[item.id] = typ
+    return found
+
+
+def _symbol_return_type(symbol: Symbol, index: SymbolIndex | None) -> str | None:
+    """Explicit or inferred return type for a function or method."""
+    if symbol.type_label:
+        return symbol.type_label
+    if index is None or symbol.kind not in {"function", "method"}:
+        return None
+    inferred = _function_return_type(symbol, index)
+    if inferred:
+        return inferred
+    node = symbol.node
+    if not isinstance(node, ast.FunctionDef):
+        return None
+    body = node.body or []
+    if len(body) != 1 or not isinstance(body[0], ast.Expr) or not isinstance(body[0].value, ast.Name):
+        return None
+    return _param_types_of(symbol).get(body[0].value.id or "") or None
 
 
 def _format_named_list(title: str, items: list[tuple[str, str]]) -> str:
@@ -574,17 +823,31 @@ def _build_user_decl_hover(info: dict[str, Any], line: int, start: int, end: int
     sections. Without annotations it falls back to a one-line note.
     """
     kind = info.get("kind", "declaration")
-    signature = info.get("signature") or info.get("name") or kind
+    signature = str(info.get("signature") or info.get("name") or kind)
     entries = _parse_annotation_entries(info.get("annotations"))
-    description, params, returns, fields = _annotation_sections(entries)
+    description, params, returns, fields, notes = _annotation_sections(entries)
+    return_type = str(info.get("return_type") or "").strip()
+    if return_type and f"→ {return_type}" not in signature:
+        signature = f"{signature} → {return_type}"
 
     sections: list[str] = []
-    if fields:
-        sections.append(_format_named_list("Fields", fields))
-    if params:
-        sections.append(_format_named_list("Parameters", params))
+    sections.extend(notes)
+    field_rows = _typed_rows(fields, info.get("field_types"))
+    if field_rows:
+        sections.append(_format_named_list("Fields", field_rows))
+    param_rows = _typed_rows(params, info.get("param_types"))
+    if param_rows:
+        sections.append(_format_named_list("Parameters", param_rows))
     if returns:
-        sections.append(f"**Returns:** {returns}")
+        typ, desc = _split_leading_type(returns)
+        if not typ:
+            typ, desc = _split_param_type(returns)
+        if typ:
+            sections.append(f"**Returns:** `{typ}`" + (f" — {desc}" if desc else ""))
+        else:
+            sections.append(f"**Returns:** {returns}")
+    elif return_type:
+        sections.append(f"**Returns** `{return_type}`")
     body = description or (f"User-defined {kind}." if not sections else "")
     return lsp.Hover(
         contents=lsp.MarkupContent(
@@ -828,10 +1091,87 @@ def _signature_from_info(info: dict) -> str:
     return detail or label
 
 
+def _known_param_types(label: str, facts: list[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
+    """Fill empty parameter types from the Pine v6 table."""
+    known = _PARAM_TYPES.get(label, {})
+    if not known:
+        return facts
+    filled: list[tuple[str, str, str]] = []
+    for name, typ, desc in facts:
+        filled.append((name, typ or known.get(name, ""), desc))
+    return filled
+
+
+_TYPE_WORDS = frozenset(
+    {
+        "series",
+        "simple",
+        "const",
+        "input",
+        "int",
+        "float",
+        "bool",
+        "string",
+        "color",
+        "void",
+        "line",
+        "linefill",
+        "label",
+        "box",
+        "table",
+        "polyline",
+        "array",
+        "matrix",
+        "map",
+        "plot",
+        "na",
+    }
+)
+
+
+def _looks_like_type(value: str) -> bool:
+    """True when *value* is a Pine type, not a sentence captured from a doc arrow."""
+    text = (value or "").strip()
+    if not text or "(" in text or ")" in text:
+        return False
+    if text.startswith("tuple[") and text.endswith("]"):
+        return True
+    words = text.replace(",", " ").split()
+    if not words or len(words) > 4:
+        return False
+    for word in words:
+        base = word.split("<", 1)[0].split("[", 1)[0]
+        if base not in _TYPE_WORDS:
+            return False
+    return True
+
+
+def _display_return_type(label: str) -> str:
+    """Exact card return type. Does not affect the analyzer."""
+    if label in _RETURN_OVERRIDES:
+        return _RETURN_OVERRIDES[label]
+    raw = _builtin_return_type(label) or ""
+    return raw if _looks_like_type(raw) else ""
+
+
+def _typed_builtin_signature(label: str, signature: str, facts: list[tuple[str, str, str]], return_type: str) -> str:
+    """Prefer ``name(series float source, simple int length) → series float``."""
+    if not any(typ for _name, typ, _desc in facts):
+        if return_type and return_type not in signature and "→" not in signature:
+            return f"{signature} → {return_type}"
+        return signature
+    args = ", ".join(f"{typ} {name}".strip() if typ else name for name, typ, _desc in facts)
+    typed = f"{label}({args})" if label else signature
+    if return_type and "→" not in typed:
+        typed += f" → {return_type}"
+    return typed
+
+
 def _format_params(info: dict) -> str:
     """Render a Parameters section when metadata includes ``params``."""
+    label = str(info.get("label") or "")
     rows: list[tuple[str, str]] = []
-    for name, typ, desc in builtin_param_facts(info):
+    for name, typ, desc in _known_param_types(label, builtin_param_facts(info)):
         rows.append((name, _param_detail(typ, desc)))
     if not rows:
         return ""
@@ -866,8 +1206,13 @@ def _build_builtin_hover(
         signature = f"{label}(...)"
     if not called and "." in label and signature.startswith(label + "("):
         signature = label
+    plain_signature = signature
+    return_type = _display_return_type(label) if called or "(" in signature else ""
+    facts = _known_param_types(label, builtin_param_facts(info)) if called else []
+    if called:
+        signature = _typed_builtin_signature(label, signature, facts, return_type)
 
-    summary = builtin_card_summary(info, signature=signature)
+    summary = builtin_card_summary(info, signature=plain_signature)
     if not summary and not called and "." in label:
         summary = "Built-in property."
     sections: list[str] = []
@@ -875,7 +1220,7 @@ def _build_builtin_hover(
         params_block = _format_params(info)
         if params_block:
             sections.append(params_block)
-    doc_text = _public_builtin_prose(info, summary, signature, label)
+    doc_text = _public_builtin_prose(info, summary, plain_signature, label)
     if doc_text:
         sections.append(doc_text)
     examples = _build_examples(info)
@@ -931,6 +1276,16 @@ _TYPE_ATOM = (
 _TYPE_TAIL = re.compile(
     rf"^(?P<body>.*?)\s+\((?P<typ>{_TYPE_ATOM}(?:\s+{_TYPE_ATOM})?(?:\s+or\s+{_TYPE_ATOM})?)\)\s*$",
     re.IGNORECASE,
+)
+_TYPE_PHRASE = (
+    r"(?:series|simple|const|input|int|float|bool|string|str|color|void|"
+    r"label|line|box|table|array|matrix|map|linefill|polyline|na)"
+    r"(?:\s+(?:int|float|bool|string|color))?"
+    r"(?:/(?:int|float|bool|string))?"
+)
+_LEADING_ANNOT_TYPE = re.compile(
+    rf"^\((?P<typ>{_TYPE_PHRASE})\)\s*(?P<body>.*)$",
+    re.IGNORECASE | re.DOTALL,
 )
 _SIG_LINE = re.compile(r"(?is)^(signature|reference pine)\b")
 
@@ -1266,7 +1621,7 @@ def lookup_param_fact(label: str, facts: list[tuple[str, str, str]]) -> tuple[st
 
 def annotation_summary(lines: list[str] | None) -> str:
     """First sentence of a ``//@function`` / ``//@type`` description, if any."""
-    description, _params, _returns, _fields = _annotation_sections(_parse_annotation_entries(lines))
+    description, _params, _returns, _fields, _notes = _annotation_sections(_parse_annotation_entries(lines))
     if not description:
         return ""
     return _one_sentence(description)

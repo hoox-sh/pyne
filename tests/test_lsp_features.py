@@ -657,8 +657,8 @@ export type Point
         assert isinstance(result.contents, lsp.MarkupContent)
         value = result.contents.value
         assert "A point." in value
-        assert "- **`x`** — The x coordinate." in value
-        assert "- **`y`** — The y coordinate." in value
+        assert "- **`x`** — `float` · The x coordinate." in value
+        assert "- **`y`** — `float` · The y coordinate." in value
 
     def test_handle_hover_variable_annotation(self) -> None:
         """``// @variable`` renders as a variable hover card."""
@@ -698,8 +698,9 @@ plot(bb(close))
         assert isinstance(result.contents, lsp.MarkupContent)
         value = result.contents.value
         assert "Custom bands." in value
-        assert "- **`src`** — Source series." in value
+        assert "- **`src`** — `series float` · Source series." in value
         assert "**Returns:** Bands." in value
+        assert "→ series float" in value
 
     def test_build_docs_link_only_dotted_labels(self) -> None:
         """Docs links are dotted-namespace builtins only; empty / undotted stay blank."""
@@ -731,6 +732,10 @@ plot(bb(close))
         sma_text = sma.contents.value
         assert sma_text.startswith("`function`")
         assert "```pinescript" in sma_text
+        assert "series int/float source" in sma_text
+        assert "simple int length" in sma_text
+        assert "→ series float" in sma_text
+        assert "`series int/float`" in sma_text
         assert "---\n[Pine v6: ta.sma](https://www.tradingview.com/pine-script-reference/v6/#fun_ta.sma)" in sma_text
 
         ns = handle_hover(
