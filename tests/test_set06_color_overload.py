@@ -37,6 +37,10 @@ _needs_2682 = pytest.mark.skipif(
     not _2682.is_file(),
     reason="tests/data/set06 corpus is gitignored and not part of a fresh clone",
 )
+_needs_2693 = pytest.mark.skipif(
+    not _2693.is_file(),
+    reason="tests/data/set06 corpus is gitignored and not part of a fresh clone",
+)
 
 _OVERLOAD_SRC = """//@version=6
 indicator("Function overloading demo")
@@ -115,9 +119,8 @@ def test_corpus_2682_hex_not_float64_and_runs() -> None:
     assert np.isfinite(series).all()
 
 
+@_needs_2693
 def test_corpus_2693_same_class() -> None:
-    if not _2693.is_file():
-        return
     src = _2693.read_text(encoding="utf-8")
     code = transpile(src)
     _assert_hex_not_floated(code)

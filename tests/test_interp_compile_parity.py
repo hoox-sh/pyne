@@ -75,7 +75,7 @@ _OPTIONAL_CORPUS_SCRIPTS = (
     "donchian_channels.pine",
     "money_flow_index.pine",
     "moving_average_exponential.pine",
-    "moving_average_simple.pine",
+    "simple_moving_average.pine",
     "on_balance_volume.pine",
     "relative_strength_index.pine",
     "supertrend.pine",
