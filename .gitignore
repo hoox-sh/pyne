@@ -38,6 +38,9 @@ downloads/
 .eggs/
 eggs/
 .env
+# Env files and backups (never commit secrets)
+.env*
+!.env.example
 env/
 ENV/
 env.bak/
@@ -170,6 +173,4 @@ src/pynescript/ast/grammar/antlr4/generated/src/
 .tmp/
 
 # OpenOrchestrate runtime state
-.openorchestrate/state.db
-.openorchestrate/state.db-*
-.openorchestrate/logs/
+.oo/
