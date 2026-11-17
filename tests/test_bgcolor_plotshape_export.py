@@ -221,7 +221,9 @@ plotshape(true, title="mark")
 plot(close, "c")
 """
     bars = _bars(8)
-    compiled = compile_script(src, use_cache=False)
+    # Statement-form plotshape with constant metadata is numeric now; force
+    # object mode so this helper still receives a drawing event.
+    compiled = compile_script(src, use_cache=False, force_object_mode=True)
     close = np.array([b["close"] for b in bars], dtype=np.float64)
     raw = compiled.run(close, close + 1, close - 1, close, np.ones(len(bars)))
     series: dict = {}

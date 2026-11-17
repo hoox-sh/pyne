@@ -233,7 +233,9 @@ p2 = plot(open, title="b")
 fill(p1, p2, color=color.blue)
 plotshape(close > open, title="up")
 """
-        compiled = compile_script(src)
+        # Statement-form plotshape with constant metadata is numeric now; force
+        # object mode so the drawing-event contract under test still applies.
+        compiled = compile_script(src, force_object_mode=True)
         o, h, l, c, v = _ohlcv(12)
         out = compiled.run(o, h, l, c, v)
         drawings = out.get("__drawings", [])

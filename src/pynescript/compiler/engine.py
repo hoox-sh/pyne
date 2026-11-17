@@ -179,7 +179,7 @@ _BUILTINS_WARMED = False
 # Bump when generated IR semantics change so source→IR disk index is invalidated
 # (source hash alone is stable across compiler fixes, e.g. fill() series keys).
 # v5: strategy series history + Pine na-aware ==/!=
-_DISK_META_VERSION = 61  # v61: bgcolor positional title is string-only (numeric offset is not a title)
+_DISK_META_VERSION = 62  # v62: numeric plotshape synthesizes bool/None marker series
 _NJIT_CACHE_FALSE = "@numba.njit(cache=False)"
 _NJIT_CACHE_TRUE = "@numba.njit(cache=True)"
 
@@ -870,24 +870,23 @@ class CompiledScript:
             packed = _pack_plot_sequence(raw, self.plot_titles)
             if not self.object_mode:
                 _apply_bgcolor_series(packed, self.plot_titles, self.plot_kinds, self.plot_attrs)
+                _apply_plotshape_series(packed, self.plot_titles, self.plot_kinds)
                 drawings = _synthesize_hline_fill_drawings(packed, self.plot_titles, self.plot_kinds, self.plot_attrs)
                 if drawings:
                     packed["__drawings"] = drawings
             return packed
         packed = _normalize_result(raw)
         if "__drawings" in packed:
-            # A numeric-synthesized bgcolor also has a plot array. In a mixed
-            # script that flipped to object mode, the bgcolor drawing event is
+            # A numeric-synthesized bgcolor/plotshape also has a plot array. In
+            # a mixed script that flipped to object mode, the drawing event is
             # the series source; drop the duplicate plot key so the host does
             # not uniquify it to ``title_2``.
             drawings = packed["__drawings"]
             for i, kind in enumerate(self.plot_kinds):
-                if kind != "bgcolor":
+                if kind not in ("bgcolor", "plotshape"):
                     continue
                 title = self.plot_titles[i] if i < len(self.plot_titles) else f"plot_{i}"
-                if any(
-                    isinstance(d, dict) and d.get("kind") == "bgcolor" and d.get("title") == title for d in drawings
-                ):
+                if any(isinstance(d, dict) and d.get("kind") == kind and d.get("title") == title for d in drawings):
                     packed.pop(title, None)
         if not self.object_mode and "__drawings" not in packed:
             drawings = _synthesize_hline_fill_drawings(packed, self.plot_titles, self.plot_kinds, self.plot_attrs)
@@ -1066,6 +1065,32 @@ def _apply_bgcolor_series(
                 out[j] = true_color
             else:
                 out[j] = false_color
+        packed[title] = out
+
+
+def _apply_plotshape_series(
+    packed: dict[str, Any],
+    titles: list[str],
+    kinds: list[str],
+) -> None:
+    """Map numeric plotshape 1/0 marker arrays to interpret-style True/None cells.
+
+    The numeric path stores a float64 marker series (1.0 where the condition
+    fired, 0.0 otherwise). Interpret exports a bool/None series: ``True`` on a
+    fired bar and ``None`` when no marker is drawn. This host-side pass
+    restores that contract; plot_meta style/location/text/size are stamped
+    separately from the compiler's folded plot_attrs.
+    """
+    for i, kind in enumerate(kinds):
+        if kind != "plotshape":
+            continue
+        title = titles[i] if i < len(titles) else f"plot_{i}"
+        series = packed.get(title)
+        if not isinstance(series, np.ndarray):
+            continue
+        out = np.empty(series.shape, dtype=object)
+        for j, val in enumerate(series):
+            out[j] = True if (val == val and float(val) != 0.0) else None
         packed[title] = out
 
 

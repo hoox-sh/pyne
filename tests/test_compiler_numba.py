@@ -453,7 +453,7 @@ plot(sma(close, 5), title="s")
         assert abs(out["s"][-1] - expected) < 1e-6
 
     def test_plotshape_enum_string_constants(self) -> None:
-        """shape.*/size.*/location.* must emit string constants, not series names."""
+        """shape.*/size.*/location.* must fold to constants, not series names."""
         src = """//@version=5
 indicator("x")
 plotshape(true, style=shape.triangleup, size=size.small, location=location.abovebar)
@@ -462,11 +462,12 @@ plot(1.0, title="p")
         code = transpile(src)
         assert "shape_arr" not in code
         assert "size_arr" not in code
-        assert "'triangleup'" in code or '"triangleup"' in code
-        assert "'small'" in code or '"small"' in code
-        assert "'abovebar'" in code or '"abovebar"' in code
         compiled = compile_script(src)
-        assert compiled.object_mode
+        assert not compiled.object_mode
+        attrs = compiled.plot_attrs[0]
+        assert attrs["style"] == "triangleup"
+        assert attrs["size"] == 10
+        assert attrs["location"] == "abovebar"
         o, h, l, c, v = _ohlcv(10)
         out = compiled.run(o, h, l, c, v)
         assert abs(out["p"][-1] - 1.0) < 1e-9
