@@ -1,13 +1,13 @@
 ---
 type: "Code Module"
 title: "tests/okf"
-description: "tests/okf contains bundle.test.ts."
+description: "tests/okf contains bundle.test.ts, enrich_sources.test.ts."
 resource: "tests/okf"
 tags: [code, okf, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-18T19:22:26Z
 sources:
   - id: tree
     resource: "tests/okf"
@@ -19,10 +19,11 @@ okf_lock: generated
 # Files
 
 - `bundle.test.ts` — chart, main, x
+- `enrich_sources.test.ts`
 
 # Packages
 
-`bun:test`, `node:fs`, `node:os`, `node:path`
+`bun:test`, `node:child_process`, `node:fs`, `node:os`, `node:path`
 
 # Depends on
 

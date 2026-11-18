@@ -7,7 +7,7 @@ tags: [ast, code, evaluator, pynescript]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-18T19:22:26Z
 sources:
   - id: tree
     resource: "src/pynescript/ast/evaluator"
@@ -26,7 +26,7 @@ okf_lock: generated
 - `literals.py` — LiteralEvaluator
 - `names.py` — NameEvaluator, ast_qualified_name
 - `series_buffer.py` — ChronoTailView, ChronologicalSeriesBuffer, NewestFirstHistoryView, RingPineSeries, evaluator_history_length, make_series
-- `statements.py` — BreakLoop, ContinueLoop, StatementEvaluator
+- `statements.py` — BreakLoop, ContinueLoop, StatementEvaluator, has_applicable_overload
 - `types.py` — EvaluatorProtocol
 
 # Nested
