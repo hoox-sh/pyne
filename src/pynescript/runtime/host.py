@@ -4755,11 +4755,14 @@ class Runtime:
                 realtime_last_bar=realtime_last_bar,
             )
             if rt_first is not None and not compiled.object_mode:
-                compiled = compile_script(
-                    source_code,
-                    use_cache=False,
-                    force_object_mode=True,
-                )
+                # Realtime window on a numeric-compiled script: re-emit as object
+                # mode via the engine's cache-backed shared instance instead of a
+                # fresh use_cache=False transpile per call. The re-emit is a pure
+                # function of the source; per-run mutable state (module-level
+                # __alerts / __alert_fire_bars) is rebound in the
+                # execute_script_compiled prologue since v63, so sharing the
+                # cached instance across runs is safe.
+                compiled = compiled._object_mode_for_realtime()
             series_map = compiled.run(
                 opens,
                 highs,
