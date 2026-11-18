@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-18T22:59:21Z
+  at: 2026-11-18T23:16:12Z
 sources:
   - id: tree
     resource: "tests"
@@ -200,6 +200,7 @@ okf_lock: generated
 - `test_strategy_risk_intraday.py` — TestCompileBrokerParity, TestInterpretEnforcement, TestIntradayLossTypeParsing, test_fills_cap_rolls_next_day_dual_host, test_losing_strategy_blocked_dual_host, test_pending_limit_blocked_after_intraday_loss_dual_host, test_strategy_cash_identifier_dual_host
 - `test_strategy_runtime.py` — TestAvgPriceModel, TestLeverageFuturesUI, TestStrategyCashAndPyramiding, TestStrategyExtendedStats, TestStrategyGoldenMultiBar, TestStrategyInitialCapitalReassign, TestStrategySeriesVariables, TestStrategyWinLossStats
 - `test_string_bool_edges.py` — test_bare_braces_stay_literal, test_bool_edges, test_runtime_numeric_condition_stays_permissive, test_str_format_substitutes
+- `test_string_max_length.py` — test_linter_does_not_enforce_a_string_length_cap, test_literal_longer_than_4096_is_accepted, test_no_40960_cap_is_enforced, test_repeat_longer_than_4096_is_accepted
 - `test_ta_common_coverage.py` — TestBuiltinEdges, TestIncrementalBranches, TestPureHelpers, ev
 - `test_ta_core_helpers_coverage.py` — TestAsSeriesExpectHelpers, TestBarModeIncrementalSlots, TestCrossCmpRisingFalling, TestWindowTrAndMaHelpers, h
 - `test_ta_duplicate_parity.py` — test_atr_parity_with_volatility_copy, test_bb_parity_with_volatility_copy, test_kc_parity_with_volatility_copy, test_stdev_parity_with_basic_copy, test_supertrend_parity_with_basic_copy, test_tr_parity_with_volatility_copy

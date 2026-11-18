@@ -265,6 +265,7 @@ source path but no regression test pinning it.
 | `bid` / `ask` | Feb 2025 | ✅ implemented | `runtime/host.py:3307-3308` fields; `:3353-3354` `update_bid_ask` |
 | `strategy.exit()` parameter-pair evaluation | Dec 2024 | ✅ implemented | `ast/evaluator/builtins/strategy.py:1549-1576` (`profit`/`loss` tick legs, `limit`/`stop` prices, shared OCA cancel pair); inventory row `strategy.exit` |
 | Dynamic `for`-loop boundary re-evaluation | Apr 2025 | ✅ implemented | `ast/evaluator/statements.py:1498-1527` re-visits `node.end` each iteration; pinned by `tests/test_compile_expr_parity.py::test_dynamic_for_limit_still_one_iteration` (passes on interpret and compile) |
+| String maximum length 40,960 (up from 4,096) | Aug 2025 | accepted past 4,096 | No 4,096 check in the evaluator or linter. `tests/test_string_max_length.py` pins that a 4,097-character literal and `str.repeat` result evaluate. The 40,960 ceiling is not modeled: a 40,961-character literal is accepted, and no cap was added |
 
 ### Not implemented
 
@@ -278,12 +279,14 @@ source path but no regression test pinning it.
 | Feature | Released | Status | Evidence and gap |
 | --- | --- | --- | --- |
 | Square-bracket line wrapping at arbitrary indentation | Sep 2026 | ❔ unverified | `ast/grammar/antlr4/resource/PinescriptLexerBase.py:50,250-255` hides newlines while `_numSqBrackets > 0`; `tests/test_lexer_corpus_fixes.py::test_bracket_wrap_any_indent_parity_with_parens` round-trips 1/2/3/4/8-space indents. No evaluation-level assertion; an ad-hoc run of `close[\n   1]` matched `close[1]` on 2026-11-17 |
-| String maximum length 40,960 (up from 4,096) | Aug 2025 | ❔ unverified | No length check in `src/`; a 40,960-character literal evaluates to `str.length() == 40960`. The limit is not modeled, so behavior above 40,960 is undefined by omission |
 | Scope-count limit removal | Feb 2025 | ❔ unverified | No scope counter in `src/`; 120 nested `if` blocks evaluate without error. No test asserts that the limit is gone |
 
 Dynamic `for`-loop boundary re-evaluation started on this list and moved to
 *Implemented* once `test_dynamic_for_limit_still_one_iteration` was found to pin
-the behavior on both interpret and compile paths.
+the behavior on both interpret and compile paths. The August 2025 string-length
+change moved the same way: nothing enforced 4,096, and
+`tests/test_string_max_length.py` pins acceptance past that retired cap. The
+40,960 ceiling stays unenforced on purpose.
 
 ### Platform-only, out of scope
 

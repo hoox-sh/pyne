@@ -155,14 +155,17 @@ broker reads them.
 (October 2025) has no parameter and no handler. `time()` ignores its arguments
 today, so the call is accepted and ignored rather than rejected.
 
-**Unverified, not missing.** Three release-note behaviors have source paths but
+**Unverified, not missing.** Two release-note behaviors have source paths but
 no regression test pinning them: square-bracket line wrapping at arbitrary
-indentation (September 2026), the 40,960-character string limit (August 2025),
-and the removed scope-count limit (February 2025). Ad-hoc checks pass; they stay
-unverified because nothing in CI would catch a regression. Dynamic `for`-loop
-boundary re-evaluation (April 2025) is pinned by
+indentation (September 2026) and the removed scope-count limit (February 2025).
+Ad-hoc checks pass; they stay unverified because nothing in CI would catch a
+regression. Dynamic `for`-loop boundary re-evaluation (April 2025) is pinned by
 `tests/test_compile_expr_parity.py::test_dynamic_for_limit_still_one_iteration`
-and is counted as implemented.
+and is counted as implemented. The August 2025 string-length change is the same
+kind of pin: no 4,096 cap exists in the evaluator or the linter, so none was
+raised. `tests/test_string_max_length.py` accepts a 4,097-character string. The
+40,960 ceiling is not modeled, and a longer string is accepted rather than
+rejected.
 
 ### PyneTS
 

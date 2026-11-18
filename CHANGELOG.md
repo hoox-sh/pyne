@@ -6,6 +6,8 @@
 
 ### Fixed
 
+- **A string longer than 4,096 characters is accepted.** No 4,096 cap was found in the evaluator or the linter, so none was raised to 40,960. A 4,097-character literal and `str.repeat` result evaluate, and lint does not treat that length as a string-length error (a line over 120 characters is still `C002`). A 40,961-character string is also accepted because that ceiling is not modeled. Pinned by `tests/test_string_max_length.py`.
+
 - **Object-mode `runtime.error` keeps every argument.** Compile used to raise only the first argument (`"a"`). It now uses the same formatter as interpret, so `runtime.error("a", "b")` raises `a b` and `runtime.error("a={0}", 7)` raises `a=7`. A single literal still stays on the numeric path, and a call with no arguments still raises an empty message. `_DISK_META_VERSION` 63 → 64. Pinned by `tests/test_compiler_numba.py::TestLanguageSurfaceNumeric::test_runtime_error_multi_arg_object_mode_matches_interpret`.
 
 ## [0.7.2] — 2026-11-17
