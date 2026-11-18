@@ -28,10 +28,10 @@ esac
 # tree passes or fails depending on which binary is on PATH. The pin lives in
 # pyproject.toml and .github/workflows/ci.yml.
 RUFF_PIN='0.15.20'
-# Keep FORMAT_CMD aligned with `make fmt` (ruff format src/ tests/ backend/).
-FORMAT_CMD='ruff format --check src/ tests/ backend/'
-# Keep LINT_CMD aligned with `make lint` (ruff check src/ tests/ backend/).
-LINT_CMD='ruff check src/ tests/ backend/'
+# Keep FORMAT_CMD aligned with `make fmt` (ruff format src/ tests/ backend/ scripts/build/).
+FORMAT_CMD='ruff format --check src/ tests/ backend/ scripts/build/'
+# Keep LINT_CMD aligned with `make lint` (ruff check src/ tests/ backend/ scripts/build/).
+LINT_CMD='ruff check src/ tests/ backend/ scripts/build/'
 TYPECHECK_CMD='bun run check'
 TEST_CMD='pytest'
 OKF_CMD='okn --no-telemetry validate --spec 0.2 okf'

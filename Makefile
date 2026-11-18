@@ -90,10 +90,10 @@ tv-goldens-strict:
 	python scripts/compare_tv_goldens.py --strict
 
 lint:
-	ruff check src/ tests/ backend/
+	ruff check src/ tests/ backend/ scripts/build/
 
 fmt:
-	ruff format src/ tests/ backend/
+	ruff format src/ tests/ backend/ scripts/build/
 
 # sdist + wheel (main package) and the separate backend wheel.
 package:
