@@ -186,7 +186,7 @@ _BUILTINS_WARMED = False
 # Bump when generated IR semantics change so source→IR disk index is invalidated
 # (source hash alone is stable across compiler fixes, e.g. fill() series keys).
 # v5: strategy series history + Pine na-aware ==/!=
-_DISK_META_VERSION = 63  # v63: object-mode prologue resets module-level __alerts/__alert_fire_bars per run
+_DISK_META_VERSION = 64  # v64: object-mode runtime.error forwards every argument (interpret message)
 _NJIT_CACHE_FALSE = "@numba.njit(cache=False)"
 _NJIT_CACHE_TRUE = "@numba.njit(cache=True)"
 

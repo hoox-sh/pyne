@@ -2346,16 +2346,28 @@ def timeframe_change_at(time_arr, i, timeframe_str, tz=None):
     return timeframe_period_changed(curr, prev, timeframe_str, bar_index=idx, tz=zone)
 
 
-def pine_raise(msg) -> None:
+def pine_raise(*parts) -> None:
     """Expression-safe ``runtime.error`` for generated code.
 
     Pine ``runtime.error(...)`` appears in statement and expression contexts
     (ternary/switch arms, ``return runtime.error(...)``). Python ``raise`` is
     only a statement, so emitted code calls this helper instead.
 
+    One argument is stringified as-is. Extra arguments use interpret's
+    ``format_log_message`` so ``runtime.error("a", "b")`` raises ``a b``
+    (and ``"a={0}", 7`` raises ``a=7``) instead of the first argument alone.
+    A single compile-time literal stays on :func:`pine_raise_njit`.
+
     Named without a leading underscore so ``from numba_builtins import *``
     (used by compiled prologs) exports it.
     """
+    if len(parts) > 1:
+        # Same formatter as the interpreter. Lazy import: this module is
+        # star-imported by numeric njit modules that never call it.
+        from pynescript.ast.evaluator.builtins.logging import format_log_message
+
+        raise RuntimeError(format_log_message(*parts))
+    msg = parts[0] if parts else ""
     raise RuntimeError(str(msg))
 
 

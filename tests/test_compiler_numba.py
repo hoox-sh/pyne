@@ -3751,6 +3751,39 @@ plot(close, title="c")
         assert "runtime.error" not in str(compiled.get("error")).lower()
         assert compile_script(src, use_cache=False).object_mode is False
 
+    def test_runtime_error_multi_arg_object_mode_matches_interpret(self) -> None:
+        """Object-mode runtime.error joins every arg, same message as interpret.
+
+        A single quoted literal stays on pine_raise_njit. Extra args must not
+        be dropped (interpret ``format_log_message`` → ``"a b"`` / ``"a=7"``).
+        """
+        src = """//@version=5
+indicator("err")
+runtime.error("a", "b")
+plot(close, title="c")
+"""
+        bars = _bars_list(5)
+        interp = Runtime(symbol="TEST").run(src, bars, mode="interpret")
+        compiled = Runtime(symbol="TEST").run(src, bars, mode="compile")
+        assert interp.get("error_kind") == "runtime", interp
+        assert compiled.get("error_kind") == "runtime", compiled
+        assert str(interp.get("error")).endswith("RuntimeError: a b"), interp
+        assert str(compiled.get("error")).endswith("RuntimeError: a b"), compiled
+        emitted = compile_script(src, use_cache=False)
+        assert emitted.object_mode is True
+        assert "pine_raise_njit" not in emitted.generated_code
+        assert "pine_raise('a', 'b')" in emitted.generated_code or 'pine_raise("a", "b")' in emitted.generated_code
+
+        fmt = """//@version=5
+indicator("err")
+runtime.error("a={0}", 7)
+plot(close, title="c")
+"""
+        interp_fmt = Runtime(symbol="TEST").run(fmt, bars, mode="interpret")
+        compiled_fmt = Runtime(symbol="TEST").run(fmt, bars, mode="compile")
+        assert str(interp_fmt.get("error")).endswith("RuntimeError: a=7"), interp_fmt
+        assert str(compiled_fmt.get("error")).endswith("RuntimeError: a=7"), compiled_fmt
+
     def test_runtime_error_dynamic_message_stays_object(self) -> None:
         """String-heavy/dynamic runtime.error messages keep object mode."""
         src = """//@version=5

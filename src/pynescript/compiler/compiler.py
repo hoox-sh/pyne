@@ -6542,8 +6542,13 @@ class CompilerVisitor(NodeVisitor):
             # the njit-safe helper and stay numeric; dynamic/string-heavy
             # messages keep object mode + the plain-Python helper.
             # No-arg runtime.error() → empty message (interpret parity).
+            # Multi-arg must be forwarded whole: interpret's format_log_message
+            # joins them ("a b"), and pine_raise(args[0]) dropped the tail.
+            if len(args) > 1:
+                self.object_mode = True
+                return f"pine_raise({', '.join(args)})"
             msg = args[0] if args else repr("")
-            if func_name == "runtime_error" and len(args) <= 1 and self._is_quoted_string_expr(msg):
+            if func_name == "runtime_error" and self._is_quoted_string_expr(msg):
                 return f"pine_raise_njit({msg})"
             self.object_mode = True
             return f"pine_raise({msg})"
