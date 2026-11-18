@@ -1240,6 +1240,20 @@ def test_library_udt_method_named_like_builtin_dispatches() -> None:
     assert alias_out["series"]["x"] == [101.5, 102.5, 103.5, 104.5]
 
 
+def test_library_udt_method_named_like_builtin_dispatches_interpret() -> None:
+    out = Runtime(symbol="TEST").run(
+        _SRC_LIB_UDT_BUILTIN_NAME, _bars(), mode="interpret", libraries=_lib_udt(_LIB_UDT_BUILTIN_NAME)
+    )
+    assert "error" not in out, out.get("error")
+    assert out["series"]["x"] == [101.5, 102.5, 103.5, 104.5]
+
+    alias_out = Runtime(symbol="TEST").run(
+        _SRC_LIB_UDT_BUILTIN_NAME_ALIAS, _bars(), mode="interpret", libraries=_lib_udt(_LIB_UDT_BUILTIN_NAME)
+    )
+    assert "error" not in alias_out, alias_out.get("error")
+    assert alias_out["series"]["x"] == [101.5, 102.5, 103.5, 104.5]
+
+
 _LIB_UDT_NESTED = """//@version=6
 library("Lib")
 export type Inner

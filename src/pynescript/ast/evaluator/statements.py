@@ -446,6 +446,31 @@ def _pick_method_overload(overloads: list, receiver: Any, rest_args: tuple | lis
     return _generic_tostring
 
 
+def has_applicable_overload(fn: Any, args: tuple | list) -> bool:
+    """True when calling *fn* with *args* can bind a real overload.
+
+    Dual-namespace bare-name dispatch prefers user callables over builtins
+    (``test_user_function_shadows_bare_plot``). A ``__pine_method__``
+    multi-dispatch whose overloads none match the call args (e.g. a library's
+    ``export method plot(Box this)`` invoked bare as ``plot(1.5, "x")``) would
+    otherwise fall into ``_generic_tostring`` and silently swallow the call —
+    so callers use this to fall back to the builtin instead. Plain closures /
+    UDFs (no ``__pine_overloads__``) always qualify, preserving the pinned
+    shadowing behavior.
+    """
+    overloads = getattr(fn, "__pine_overloads__", None)
+    if overloads is None:
+        tags = getattr(fn, "__pine_param_types__", None)
+        if not getattr(fn, "__pine_method__", False) or not tags:
+            return True
+        overloads = [fn]
+    norm = [_normalize_na(a) for a in args]
+    for overload in overloads:
+        if _score_overload_for_args(overload, norm) >= 0:
+            return True
+    return False
+
+
 def _assign_target_names(target: Any) -> list[str]:
     """Name ids written by an assign target or a ``for`` target."""
     if isinstance(target, ast.Name):

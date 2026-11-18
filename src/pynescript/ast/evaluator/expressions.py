@@ -97,6 +97,28 @@ _PURE_CONST_FOLD_BUILTINS = frozenset(
     }
 )
 
+# Lazily-resolved ``has_applicable_overload`` (statements.py imports this module
+# lazily, so this module must not import it at load time).
+_HAS_OVERLOAD: Callable[[Any, tuple | list], bool] | None = None
+
+
+def _user_call_matches(fn: Any, args: tuple | list) -> bool:
+    """True when *fn* can bind a real overload to *args*.
+
+    Fail-open: any internal error keeps the legacy behavior (user callable
+    wins) so builtins are never "lost" because of a probe bug.
+    """
+    global _HAS_OVERLOAD
+    try:
+        if _HAS_OVERLOAD is None:
+            from pynescript.ast.evaluator.statements import has_applicable_overload
+
+            _HAS_OVERLOAD = has_applicable_overload
+        return bool(_HAS_OVERLOAD(fn, args))
+    except Exception:
+        return True
+
+
 # Shared empty kwargs / args — never mutate (hot path avoids ``{}`` / ``[]`` alloc).
 _EMPTY_KW: dict[str, Any] = {}
 _EMPTY_ARGS: list[Any] = []
@@ -908,6 +930,24 @@ class ExpressionEvaluator:
                             user = ctx_val if callable(ctx_val) else None
                         if user is not None:
                             args, kwargs = self._eval_arg_plan(plan)
+                            if not _user_call_matches(user, args):
+                                # Bare call with no applicable user overload (e.g. a
+                                # library's ``export method plot(Box this)`` called as
+                                # ``plot(x, "t")``): the builtin wins. Args are already
+                                # evaluated — do NOT re-visit them (re-eval would
+                                # double-advance ta.* state); call the builtin direct.
+                                if name in _DECL_CALL_NAMES and getattr(self, "_pine_defs_locked", False):
+                                    existing = getattr(self, "_script_declaration", None)
+                                    if existing is not None:
+                                        return existing
+                                result = self._call_builtin(name, args, kwargs=kwargs)  # type: ignore[attr-defined]
+                                if (
+                                    name in _PURE_CONST_FOLD_BUILTINS
+                                    and _arg_plan_all_literal(plan)
+                                    and (kwargs is _EMPTY_KW or not kwargs)
+                                ):
+                                    _store_call_site(node, (_SITE_CONST, result))
+                                return result
                             prev_site = getattr(self, "_pine_udf_site", None)
                             self._pine_udf_site = pine_call_site_id(node)  # type: ignore[attr-defined]
                             try:
@@ -1003,7 +1043,11 @@ class ExpressionEvaluator:
                 if not callable(user):
                     ctx_val = self.context.get(name)  # type: ignore[attr-defined]
                     user = ctx_val if callable(ctx_val) else None
-                if user is not None:
+                # Args are already evaluated; skip the user dispatch when no
+                # user overload applies (e.g. library ``method plot(Box this)``
+                # called bare as ``plot(x, "t")``) — the builtin wins, and the
+                # fall-through below uses the same evaluated args.
+                if user is not None and _user_call_matches(user, args):
                     prev_site = getattr(self, "_pine_udf_site", None)
                     self._pine_udf_site = pine_call_site_id(node)  # type: ignore[attr-defined]
                     try:
