@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-18T19:49:33Z
+  at: 2026-11-18T22:59:21Z
 sources:
   - id: tree
     resource: "tests"
@@ -164,7 +164,7 @@ okf_lock: generated
 - `test_request_foreign_na.py` — TestForeignSecurityNa, TestSameSymbolPassthrough
 - `test_request_fundamentals_honest.py` — test_currency_rate_prefers_feed_pair, test_currency_rate_short_arg_list_does_not_indexerror, test_fundamental_na_records_policy, test_fundamentals_are_na_without_provider, test_fundamentals_na_when_hook_misses, test_fundamentals_use_provider_hook_when_wired, test_request_seed_unchanged
 - `test_request_security_compile_htf.py` — TestCompileHtfBarmerge, TestCompileHtfOhlcvResample, TestCompileHtfSimpleTaResample, TestCompileProviderHtfBarmerge, TestCompileSecurityKeepLimits
-- `test_reverse_order_semantics.py` — test_preplaced_opposite_order_nets_both_hosts, test_raw_order_flat_open_blocked_by_allow_entry_in, test_raw_order_leftover_blocked_but_cover_allowed, test_raw_order_pure_cover_ungated
+- `test_reverse_order_semantics.py` — test_preplaced_opposite_order_nets_both_hosts, test_raw_order_cover_emits_close_event_both_hosts, test_raw_order_flat_open_blocked_by_allow_entry_in, test_raw_order_leftover_blocked_but_cover_allowed, test_raw_order_pure_cover_ungated
 - `test_runner_cli_coverage.py` — pine_file, runner, test_api_request_get_ok_and_empty, test_api_request_http_error_message_and_status, test_api_request_http_error_runner_disabled, test_api_request_post_json_body, test_api_request_rejects_non_http_scheme, test_api_request_url_error_and_bad_json, test_echo_json_helper, test_runner_deploy_with_exchange_and_defaults, test_runner_group_stores_url_and_token, test_runner_history_rows_and_empty
 - `test_runner_store_redis.py` — FakeRedis, TestRedisBackendEndToEnd, TestRedisStoreUnit, redis_store
 - `test_runtime_package.py` — test_backend_runtime_shim_is_host_module, test_derived_hl2_hlc3_ohlc4_time_close_still_correct, test_historical_default_isrealtime_false_var_varip_same, test_import_runtime_from_package, test_indicator_skips_strategy_snapshot_but_strategy_still_events, test_input_source_hl2_override_updates_derived, test_interpret_tiny_script, test_realtime_bars_default_zero_keeps_historical, test_realtime_from_bar_window, test_realtime_last_bar_single_tick_sets_isrealtime, test_realtime_ticks_implies_last_bar_realtime, test_ta_vwap_default_source_uses_live_hlc3

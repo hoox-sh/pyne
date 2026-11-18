@@ -2427,13 +2427,15 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
                             stop=order.stop_price,
                         )
                 else:
+                    closed_dir = self._strategy_state.position_direction
                     cover = min(
                         fill_qty,
                         self._entry_open_size(order_from_entry)
                         if order_from_entry
                         else self._strategy_state.position_size,
                     )
-                    self._close_position(fill_price, cover, bar_time, from_entry=order_from_entry)
+                    realized = self._close_position(fill_price, cover, bar_time, from_entry=order_from_entry)
+                    self._emit_cover_close_event(order, closed_dir, realized, bar_index, bar_time)
                     leftover = fill_qty - cover
                     if leftover > 1e-12:
                         if self._risk_allows_entry("long", fill_price):
@@ -2514,11 +2516,13 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
                         stop=order.stop_price,
                     )
             else:
+                closed_dir = self._strategy_state.position_direction
                 cover = min(
                     fill_qty,
                     self._entry_open_size(order_from_entry) if order_from_entry else self._strategy_state.position_size,
                 )
-                self._close_position(fill_price, cover, bar_time, from_entry=order_from_entry)
+                realized = self._close_position(fill_price, cover, bar_time, from_entry=order_from_entry)
+                self._emit_cover_close_event(order, closed_dir, realized, bar_index, bar_time)
                 leftover = fill_qty - cover
                 if leftover > 1e-12:
                     if self._risk_allows_entry("short", fill_price):
@@ -2574,6 +2578,45 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
         self._apply_oca_after_fill(order, fill_qty)
         if order.remaining_qty <= 1e-12:
             self._strategy_state.pending_orders.pop(order.order_id, None)
+
+    def _emit_cover_close_event(
+        self,
+        order: Order,
+        closed_dir: str,
+        closed_qty: float,
+        bar_index: int,
+        bar_time: int,
+    ) -> None:
+        """Record the ``close`` event for a raw/exit fill that realized a close.
+
+        Compile parity: ``CompileStrategyBroker._apply_fill`` routes opposite-side
+        non-entry covers through ``close(...)``, which emits a ``close`` event for
+        the realized qty. The interpreter's entry-reverse branch emits the same
+        event explicitly; the raw cover branch did not, diverging the event
+        stream. Mirror the compile shape here: id = order id (with any
+        ``:close`` suffix already absent on interpret ``Order``), qty = realized
+        qty, direction = the closed side, comment = the order comment.
+        """
+        if closed_qty <= 1e-12:
+            return
+        self._record_strategy_event(
+            StrategyEvent(
+                kind="close",
+                id=order.order_id,
+                direction=closed_dir if closed_dir in {"long", "short"} else None,
+                qty=float(closed_qty),
+                order_type=None,
+                limit=None,
+                stop=None,
+                oca_name=None,
+                comment=order.comment or None,
+                bar_index=bar_index,
+                bar_time=bar_time,
+                ohlc=(0.0, 0.0, 0.0, 0.0),
+                script_id="",
+                run_id="",
+            )
+        )
 
     def _apply_oca_after_fill(self, filled: Order, fill_qty: float) -> None:
         """Cancel or reduce other orders in the same OCA group."""
@@ -2761,7 +2804,7 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
         exit_time: int,
         *,
         from_entry: str | None = None,
-    ) -> None:
+    ) -> float:
         """Helper to close (or partially close) the open position and record trades.
 
         Average-price models (``strategy(..., avg_price_model=...)``):
@@ -2774,9 +2817,11 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
 
         When ``from_entry`` is set, only open trades with that ``entry_id`` are
         reduced (FIFO within that subset). Unknown ids soft-no-op.
+
+        Returns the realized (closed) quantity — ``0.0`` on any no-op.
         """
         if self._strategy_state.position_direction == "flat" or qty <= 0:
-            return
+            return 0.0
 
         fe = str(from_entry) if from_entry else None
 
@@ -2797,7 +2842,7 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
 
         if fe is not None:
             if not any(t.entry_id == fe for t in self._strategy_state.open_trades):
-                return  # soft no-op: no matching open entry
+                return 0.0  # soft no-op: no matching open entry
 
         remaining = float(qty)
         exit_bar = self._bar_index()
@@ -2815,7 +2860,7 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
         )
         total_close = min(remaining, float(sum(t.size for t in eligible)))
         if total_close <= 0:
-            return
+            return 0.0
         # One filled order per close call (legs aggregate; compile parity).
         self._strategy_state._timezone = self._risk_timezone()
         self._strategy_state.note_fill_day(exit_time)
@@ -2896,6 +2941,7 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
             self._strategy_state.entry_time = new_open[0].entry_time
             self._strategy_state.position_entry_name = new_open[0].entry_id
         self._strategy_state.equity(exit_price)  # sample equity curve after close
+        return total_close
 
     # SERIES / STATS VARIABLES
 

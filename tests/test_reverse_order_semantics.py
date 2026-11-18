@@ -139,3 +139,44 @@ def test_raw_order_pure_cover_ungated() -> None:
         assert "error" not in out, (mode, out.get("error"))
         assert _series(out, "ps")[-1] == pytest.approx(0.0), (mode, out["series"]["ps"])
         assert not _risk_blocked(out), (mode, out.get("events"))
+
+
+@pytest.mark.parametrize(
+    ("qty_l", "qty_s", "close_qty"),
+    [
+        (2, 1, 1.0),  # reduce: cover 1 of 2
+        (1, 1, 1.0),  # full close
+        (1, 2, 1.0),  # excess: cover 1, remainder opens short
+    ],
+)
+def test_raw_order_cover_emits_close_event_both_hosts(qty_l: int, qty_s: int, close_qty: float) -> None:
+    """A raw ``strategy.order`` fill that covers a position emits ``close``.
+
+    Compile routes the cover through ``CompileStrategyBroker.close(...)`` —
+    the same primitive used by ``strategy.close`` and entry reverses — so a
+    ``close`` event is recorded for the realized exit alongside the trailing
+    ``order`` fill event. The interpreter must match: entry-reversal fills
+    already emit ``close`` in ``_fill_order``; the raw cover branch must too.
+    """
+    src = _SRC.format(qty_l=qty_l, qty_s=qty_s)
+    streams: dict[str, list[dict]] = {}
+    for mode in ("interpret", "compile"):
+        out = Runtime(symbol="RO").run(src, _bars(), mode=mode)
+        assert "error" not in out, (mode, out.get("error"))
+        events = list(out.get("events") or [])
+        kinds = [e.get("kind") for e in events]
+        assert "close" in kinds, (mode, kinds)
+        closes = [e for e in events if e.get("kind") == "close"]
+        assert len(closes) == 1, (mode, [(e.get("kind"), e.get("id"), e.get("qty")) for e in events])
+        ce = closes[0]
+        assert ce.get("id") == "S"
+        assert ce.get("direction") == "long"  # the closed side
+        assert ce.get("qty") == pytest.approx(close_qty)
+        assert ce.get("bar_index") == 1
+        # The trailing order-fill event for S comes after the close
+        # (excess qty also opens a leftover short, which emits its own entry).
+        i_close = kinds.index("close")
+        assert any(e.get("kind") == "order" and e.get("id") == "S" for e in events[i_close + 1 :])
+        streams[mode] = [(e.get("kind"), e.get("id")) for e in events]
+    # Dual-host lock-step: the full (kind, id) stream must match exactly.
+    assert streams["interpret"] == streams["compile"]
