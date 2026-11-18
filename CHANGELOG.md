@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Added
+
+- **`pyne serve` and `pyne datafeed serve` start the existing servers.** `pyne serve` calls `backend.app.main` (same entry as `python -m backend.app` and `make run`; production gunicorn still loads `backend.app:app`). `pyne datafeed serve` calls `backend.datafeed_app.main`. If the backend package or the needed extra is missing, the command exits non-zero and prints `pip install 'hoox-pyne[pro]'` or `pip install 'hoox-pyne[datafeed]'` instead of a bare `ModuleNotFoundError`. `--dry-run` prints the entry and does not listen. Pinned by `tests/test_cli_serve.py`.
+
 ### Changed
 
 - **The `hoox-pyne` wheel ships the `backend` package, and `[datafeed]` installs the web packages that gateway imports.** The wheel previously packaged only `src/pynescript`, so `import backend` failed after `pip install` even though `[pro]` installed Flask. `backend.datafeed_app` and `backend.api.datafeed` are now in the wheel. The `datafeed` extra keeps `ccxt` and adds `flask` and `flask-sock` (the third-party modules that path imports). Matplotlib, numba, and redis stay on `[pro]` / `[compile]`. Pinned by `tests/test_wheel_backend.py`.

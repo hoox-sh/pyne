@@ -7,7 +7,7 @@ tags: [doc, docs, enduser, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-17T16:45:58Z
+  at: 2026-11-18T23:05:53Z
 sources:
   - id: tree
     resource: "docs/pyne/enduser/reference/cli-commands.mdx"
@@ -43,6 +43,8 @@ Repo path `docs/pyne/enduser/reference/cli-commands.mdx`.
   - pyne symbols / parity / diagnostics / builtin
   - pyne mcp
   - Related: pyne-lsp (not a subcommand)
+  - pyne serve
+  - pyne datafeed serve
 - Internals
 - Invariants
 - Failure modes

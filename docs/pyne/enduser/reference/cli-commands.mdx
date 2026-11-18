@@ -74,6 +74,8 @@ The language server is a **separate** console script (`pyne-lsp`; alias `pynescr
 | `data`              |               | Fetch market bars                                          |
 | `runner`            |               | Hosted scripts on the Pro API (`deploy` / `tick` / `list`) |
 | `key`               |               | Mint Pro API keys against the configured store             |
+| `serve`             |               | Start the Pro API (`backend.app:main`)                    |
+| `datafeed`          |               | CCXT datafeed gateway (`datafeed serve`)                  |
 | `info`              | `ls`          | Version + optional extras                                  |
 | `mcp`               |               | Stdio server, `config`, `tools`, in-process `call`         |
 
@@ -528,6 +530,63 @@ pyne-lsp
 python -m pynescript.langserver
 ```
 
+---
+
+### `pyne serve`
+
+Start the existing Pro API. The command calls `backend.app.main` — the same
+entry as `python -m backend.app` and `make run`. It does not build a second
+server. Production gunicorn still loads `backend.app:app`.
+
+| Kind   | Name       | Default | Description                                      |
+| ------ | ---------- | ------- | ------------------------------------------------ |
+| option | `--dry-run` | off     | Print `backend.app:main` and do not listen       |
+
+`HOST` (default `127.0.0.1`) and `PORT` (default `5002`) are read by that entry.
+
+```bash
+pyne serve
+pyne serve --dry-run
+```
+
+If the `backend` package or the `[pro]` extra is missing, the command exits
+non-zero and prints:
+
+```bash
+pip install 'hoox-pyne[pro]'
+```
+
+---
+
+### `pyne datafeed serve`
+
+Start the existing CCXT datafeed gateway. The command calls
+`backend.datafeed_app.main` — the same entry as `python -m backend.datafeed_app`.
+Production gunicorn loads `backend.datafeed_app:app` (`GUNICORN_APP`).
+
+| Kind       | Name        | Default | Description                                           |
+| ---------- | ----------- | ------- | ----------------------------------------------------- |
+| subcommand | `serve`     |         | Start `backend.datafeed_app:main`                     |
+| option     | `--dry-run` | off     | Print `backend.datafeed_app:main` and do not listen   |
+
+`HOST` (default all interfaces, same as `python -m backend.datafeed_app`) and
+`PORT` (default `8080`) are read by that entry. `pyne datafeed` with no
+subcommand prints this group's help.
+
+```bash
+pyne datafeed serve
+pyne datafeed serve --dry-run
+```
+
+If the `backend` package or the `[datafeed]` extra is missing, the command
+exits non-zero and prints:
+
+```bash
+pip install 'hoox-pyne[datafeed]'
+```
+
+---
+
 ## Internals
 
 | Item               | Path                                                                 |
@@ -541,6 +600,7 @@ python -m pynescript.langserver
 | optimize           | `src/pynescript/optimize/`                                           |
 | data               | `src/pynescript/util/data.py`                                        |
 | key                | `src/pynescript/util/key_cli.py`                                     |
+| serve / datafeed   | `src/pynescript/util/serve_cli.py`                                   |
 
 ## Invariants
 
@@ -562,6 +622,8 @@ python -m pynescript.langserver
 | Missing `ccxt` for data           | Import/provider error → install `[data]` |
 | `pyne key` without `ADMIN_TOKEN`  | Click error; nothing is minted           |
 | `pyne key` without Pro backend    | Clear error → run from a checkout        |
+| `pyne serve` without backend or `[pro]` | Non-zero; prints `pip install 'hoox-pyne[pro]'` |
+| `pyne datafeed serve` without backend or `[datafeed]` | Non-zero; prints `pip install 'hoox-pyne[datafeed]'` |
 
 ## See also
 

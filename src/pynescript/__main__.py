@@ -38,6 +38,8 @@ Commands
 - ``prewarm`` — warm Numba builtins / optional script IR caches (H2)
 - ``run`` — compile + execute on synthetic OHLCV
 - ``runner`` — deploy / tick hosted scripts on the Pro API (``PYNE_RUNNER``)
+- ``serve`` — start the Pro API (``backend.app:main``; extra: ``hoox-pyne[pro]``)
+- ``datafeed serve`` — start the datafeed gateway (``backend.datafeed_app:main``)
 - ``key`` — mint API keys against the configured key store (needs the Pro backend)
 - ``data`` — fetch market bars (mock / Yahoo / …)
 - ``download-builtins`` — fetch TradingView builtin Pine templates
@@ -74,6 +76,8 @@ from pynescript.util.rich_theme import ACCENT as _ACCENT
 from pynescript.util.rich_theme import console as _rich_console
 from pynescript.util.rich_theme import has_rich as _has_rich
 from pynescript.util.runner_cli import runner_group
+from pynescript.util.serve_cli import datafeed_group
+from pynescript.util.serve_cli import serve_cmd
 
 
 def _configure_stdio() -> None:
@@ -111,6 +115,8 @@ Examples:
   pyne run script.pine --bars 100
   pyne runner deploy script.pine --id demo
   pyne runner tick --id demo --force
+  pyne serve
+  pyne datafeed serve
   pyne key create --tier hobby
   pyne data AAPL --provider yahoo --period 6mo
   pyne download-builtins --list
@@ -1403,6 +1409,8 @@ cli.add_command(runner_group)
 cli.add_command(mcp_group)
 cli.add_command(corpus_group)
 cli.add_command(key_group)
+cli.add_command(serve_cmd)
+cli.add_command(datafeed_group)
 register_cli_commands(cli)
 
 
