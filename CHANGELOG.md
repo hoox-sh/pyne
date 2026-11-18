@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+
+- **The `hoox-pyne` wheel ships the `backend` package, and `[datafeed]` installs the web packages that gateway imports.** The wheel previously packaged only `src/pynescript`, so `import backend` failed after `pip install` even though `[pro]` installed Flask. `backend.datafeed_app` and `backend.api.datafeed` are now in the wheel. The `datafeed` extra keeps `ccxt` and adds `flask` and `flask-sock` (the third-party modules that path imports). Matplotlib, numba, and redis stay on `[pro]` / `[compile]`. Pinned by `tests/test_wheel_backend.py`.
+
 ## [0.7.2] — 2026-11-17
 
 ### Added

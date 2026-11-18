@@ -41,7 +41,14 @@ dependencies = [
 lsp = ["pygls>=2.0.0", "lsprotocol>=2024.0.0"]
 dev-lsp = ["pygls>=2.0.0", "lsprotocol>=2024.0.0", "pytest-lsp>=0.1.0"]
 data = ["ccxt>=4.0.0"]
-datafeed = ["ccxt>=4.0.0"]
+# Gateway (`python -m backend.datafeed_app`): ccxt plus the third-party
+# modules that file and `backend.api.datafeed` import. Not the [pro] stack —
+# matplotlib, numba, and redis are not on this import path.
+datafeed = [
+    "ccxt>=4.0.0",
+    "flask>=3.0.0",
+    "flask-sock>=0.7.0",
+]
 # Numba JIT path for Runtime.run(mode="compile"|"auto") / AXIS Execution mode
 compile = ["numpy>=1.26.0", "numba>=0.59.0"]
 # MCP server (stdio default; sse / streamable-http via PYNE_MCP_TRANSPORT).
@@ -139,7 +146,18 @@ exclude = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/pynescript"]
+# `backend/` is the Pro API and the datafeed gateway. It lives at the repo
+# root, not under src/, so it has to be named here or the wheel ships only
+# pynescript. Excludes apply inside those trees: a local env file or the
+# metadata signing key must not ride along even if one is placed under backend/.
+packages = ["src/pynescript", "backend"]
+exclude = [
+    "**/.env",
+    "**/.env.*",
+    "**/.metadata.key",
+    "**/.oo/**",
+    "**/tests/data/**",
+]
 
 [tool.hatch.envs.test]
 dependencies = [
