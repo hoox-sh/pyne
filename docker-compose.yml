@@ -32,22 +32,21 @@ services:
         PYNESCRIPT_VERSION: ${PYNESCRIPT_VERSION:-0.6.7}
         GIT_SHA: ${GIT_SHA:-dev}
     image: pynescript-api:dev
-    ports:
-      - "${API_PORT:-5002}:8080"
+    network_mode: host
     env_file:
       - path: .env
         required: false
     environment:
-      HOST: "0.0.0.0"
-      PORT: "8080"
+      HOST: "127.0.0.1"
+      PORT: "5002"
       FLASK_ENV: development
       FLASK_DEBUG: "${FLASK_DEBUG:-1}"
       API_KEY_STORE: /data/api_keys.json
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://hoox.sh,https://hoox.sh/axis,http://localhost:8081,http://127.0.0.1:8081}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-}
       # Explicit REDIS_URL wins (e.g. Memorystore, or the passworded local
-      # form redis://:PASSWORD@redis:6379/0 matching REDIS_PASSWORD above).
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      # form redis://:PASSWORD@127.0.0.1:6379/0 matching REDIS_PASSWORD above).
+      REDIS_URL: ${REDIS_URL:-redis://127.0.0.1:6379/0}
       PYTHONPATH: /app/src:/app
       # Optional hosted runner (script registry + bar-close). Off by default.
       PYNE_RUNNER: ${PYNE_RUNNER:-0}
@@ -62,15 +61,13 @@ services:
       - ./backend:/app/backend:ro
       - api_data:/data
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/"]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:5002/"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 15s
     restart: unless-stopped
-    networks:
-      - pynescript
-    # Wait for redis when it is in the project; required: false so `up api` still works.
+    # Host networking: no ports:/networks: (compose forbids both with network_mode).
     depends_on:
       redis:
         condition: service_healthy
@@ -81,7 +78,7 @@ services:
     # Default daemon (no profile): `compose up` must start redis with api.
     # No published ports: the key store must never be reachable from the
     # internet (an exposed Redis is wiped within hours — FLUSHALL + cron
-    # miner payloads). The API reaches it over the internal network.
+    # miner payloads). Host networking + --bind 127.0.0.1 keeps it loopback-only.
     # Set REDIS_PASSWORD (and the matching REDIS_URL below) for auth.
     volumes:
       - redis_data:/data
@@ -92,7 +89,10 @@ services:
         "yes",
         "--requirepass",
         "${REDIS_PASSWORD:-}",
+        "--bind",
+        "127.0.0.1",
       ]
+    network_mode: host
     healthcheck:
       # Plain ping first (no password set), then authenticated (password set).
       test:
@@ -105,8 +105,6 @@ services:
       retries: 3
       start_period: 5s
     restart: unless-stopped
-    networks:
-      - pynescript
 
   lsp:
     build:
