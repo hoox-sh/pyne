@@ -34,7 +34,9 @@ FORMAT_CMD='ruff format --check src/ tests/ backend/ scripts/build/'
 LINT_CMD='ruff check src/ tests/ backend/ scripts/build/'
 TYPECHECK_CMD='bun run check'
 TEST_CMD='pytest'
-OKF_CMD='okn --no-telemetry validate --spec 0.2 okf'
+# okn validate checks structure only; a stale bundle still passes it.
+# enrich --check (tracked files, no --walk) fails when the bundle does not match.
+OKF_CMD='okn --no-telemetry validate --spec 0.2 okf && bun scripts/okf/cli.ts enrich --check'
 # /oo:commands
 # All checks detected.
 
