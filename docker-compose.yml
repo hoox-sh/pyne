@@ -17,8 +17,11 @@
 # and the services start with the stack. `datafeed` and `mcp` are default
 # daemons (like api/redis).
 #
-# Host port defaults to 5002 (AXIS / local docs expect the API there).
-# Datafeed :5004 and MCP :5003 bind 127.0.0.1 (nginx is the public path).
+# Dev runs api + redis on the HOST network (3d7d0092): no bridge egress for
+# market-data fetches. api → 127.0.0.1:5002, redis → 127.0.0.1:6379 (loopback only).
+# Datafeed publishes 127.0.0.1:5004, MCP binds 127.0.0.1:5003 (nginx is the public path).
+# Prod (docker-compose.prod.yml) resets api/redis/mcp back to the bridge network
+# and publishes loopback-only ports so nginx keeps proxying 127.0.0.1:5002/5003.
 
 name: pynescript
 
@@ -68,6 +71,8 @@ services:
       start_period: 15s
     restart: unless-stopped
     # Host networking: no ports:/networks: (compose forbids both with network_mode).
+    # Prod overlay resets this to the bridge (!reset) and publishes
+    # 127.0.0.1:5002:8080 — nginx and the deploy smoke-check expect 5002.
     depends_on:
       redis:
         condition: service_healthy
@@ -204,7 +209,11 @@ services:
       - pynescript
 
   # PYNE MCP over streamable-http. Language tools are in-process; runner tools
-  # call the Pro API. Bind localhost — do not publish 5003 on the public NIC.
+  # call the Pro API. Dev uses the HOST network (like api): a bridge container
+  # cannot reach the host loopback — and `api` has no DNS name — so mcp would
+  # have no path to the api. Binds 127.0.0.1:5003 only, never a public NIC.
+  # Prod overlay switches mcp back to the bridge network (PYNE_API_URL=http://api:8080)
+  # and publishes 127.0.0.1:${MCP_PORT:-5003}:8080.
   mcp:
     build:
       context: .
@@ -214,16 +223,18 @@ services:
         PYNESCRIPT_VERSION: ${PYNESCRIPT_VERSION:-0.6.7}
         GIT_SHA: ${GIT_SHA:-dev}
     image: pynescript-mcp:latest
-    ports:
-      - "127.0.0.1:${MCP_PORT:-5003}:8080"
+    # Host networking: no ports:/networks: (compose forbids both with network_mode).
+    network_mode: host
     env_file:
       - path: .env
         required: false
     environment:
       PYNE_MCP_TRANSPORT: streamable-http
-      PYNE_MCP_HOST: "0.0.0.0"
-      PYNE_MCP_PORT: "8080"
-      PYNE_API_URL: "http://api:8080"
+      # Dev host-networked loopback bind; prod overlay sets 0.0.0.0:8080 in-container.
+      PYNE_MCP_HOST: "127.0.0.1"
+      PYNE_MCP_PORT: "5003"
+      # Dev: host api is on 127.0.0.1:5002. Prod overlay overrides to http://api:8080.
+      PYNE_API_URL: ${PYNE_API_URL:-http://127.0.0.1:5002}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-}
       PYTHONPATH: /app/src
     volumes:
@@ -232,7 +243,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "code=$$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/mcp); echo $$code | grep -Eq '^(200|400|405|406)$$'",
+          "code=$$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5003/mcp); echo $$code | grep -Eq '^(200|400|405|406)$$'",
         ]
       interval: 30s
       timeout: 10s
@@ -243,8 +254,6 @@ services:
       api:
         condition: service_healthy
         required: false
-    networks:
-      - pynescript
 
 volumes:
   api_data:

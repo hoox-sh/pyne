@@ -9,6 +9,14 @@
 # No service-name filter — `up -d api` is what left redis/lsp/cli down.
 # No source mounts (volumes: !override); gunicorn via target `api`; tighter limits.
 # Multi-worker key store defaults to SQLite on the shared /data volume.
+#
+# Networking: the base file runs api + redis + mcp on the HOST network (dev,
+# see 3d7d0092). Prod undoes that with `network_mode: !reset` and reattaches the
+# bridge `pynescript` network, publishing loopback-only ports:
+#   api  127.0.0.1:5002 -> 8080 (nginx + deploy_vps.sh smoke-check expect :5002)
+#   mcp  127.0.0.1:5003 -> 8080
+#   redis stays internal (reachable as `redis:6379`, never published)
+# Nothing is published beyond 127.0.0.1.
 
 services:
   api:
@@ -20,6 +28,13 @@ services:
         PYNESCRIPT_VERSION: ${PYNESCRIPT_VERSION:-0.6.7}
         GIT_SHA: ${GIT_SHA:-unknown}
     image: pynescript-api:${TAG:-latest}
+    # Undo the dev host-networking from the base file: bridge + loopback-only
+    # publish. nginx proxies 127.0.0.1:5002; the socket stays off public NICs.
+    network_mode: !reset
+    networks:
+      - pynescript
+    ports:
+      - "127.0.0.1:5002:8080"
     environment:
       HOST: "0.0.0.0"
       PORT: "8080"
@@ -90,6 +105,24 @@ services:
   redis:
     # Always on in prod (base used to hide this behind profile `redis`).
     profiles: !override []
+    # Bridge, not host networking: api reaches it as `redis:6379` over the
+    # internal network. No published ports — never reachable off-host.
+    network_mode: !reset
+    networks:
+      - pynescript
+    # The base command binds 127.0.0.1, which is correct for dev host networking
+    # but unreachable from the bridge. Default bind + protected-mode off instead:
+    # safe because the port is never published; requirepass still applies when set.
+    command: !override
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--requirepass",
+        "${REDIS_PASSWORD:-}",
+        "--protected-mode",
+        "no",
+      ]
 
   lsp:
     # Image-only: drop the dev `./src` bind so PYTHONPATH uses the baked package.
@@ -136,6 +169,23 @@ services:
 
   mcp:
     volumes: !override []
+    # Bridge again so `api` resolves; publish loopback-only like the base dev
+    # binding (127.0.0.1:5003). Container listens on 0.0.0.0:8080 internally.
+    network_mode: !reset
+    networks:
+      - pynescript
+    ports:
+      - "127.0.0.1:${MCP_PORT:-5003}:8080"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "code=$$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/mcp); echo $$code | grep -Eq '^(200|400|405|406)$$'",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
     environment:
       PYNE_MCP_TRANSPORT: streamable-http
       PYNE_MCP_HOST: "0.0.0.0"
