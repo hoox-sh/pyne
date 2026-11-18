@@ -431,7 +431,7 @@ plot(close[na], "cna")
     assert all(_is_na(v) for v in neg)
     assert all(_is_na(v) for v in cna)
     if compiled is None:
-        return
+        pytest.skip("compile half unavailable (numba missing)")
     cc5 = compiled["series"]["c5"]
     assert len(cc5) == n
     for k in range(n):
@@ -467,7 +467,7 @@ plot(cond, "cond")
     assert cond[0] == 0.0
     assert cond[-1] == 9.0
     if compiled is None:
-        return
+        pytest.skip("compile half unavailable (numba missing)")
     for key in ("acc", "acc1", "cond"):
         left = interp["series"][key]
         right = compiled["series"][key]
@@ -498,7 +498,7 @@ plot(x[1], "x1")
     for i in range(1, n):
         assert x1[i] == start, f"x[1] bar {i} should carry {start}, got {x1[i]!r}"
     if compiled is None:
-        return
+        pytest.skip("compile half unavailable (numba missing)")
     assert compiled["series"]["x"] == x
     for i in range(n):
         if _is_na(x1[i]):
