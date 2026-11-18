@@ -23,7 +23,7 @@ Used as the default persistent backend for ``APIKeyStore`` when running the
 backend with more than one gunicorn worker. Schema:
 
     CREATE TABLE api_keys (
-        key_hash TEXT PRIMARY KEY,        -- SHA-256 hex of the raw key
+        key_hash TEXT PRIMARY KEY,        -- v2: PBKDF2-HMAC-SHA256 of the raw key
         key_id TEXT NOT NULL UNIQUE,
         tier TEXT NOT NULL,
         calls_used INTEGER NOT NULL DEFAULT 0,
@@ -36,8 +36,9 @@ Thread-safety: ``sqlite3`` connections are guarded by a ``threading.Lock``.
 WAL journal mode is enabled so multiple worker processes (each with their own
 connection) can read concurrently while one writes.
 
-We do not store the raw API key — only its SHA-256 hash. A leaked DB file
-exposes identifiers, tiers, and call counts, but not the keys themselves.
+We do not store the raw API key — only a ``v2:`` PBKDF2-HMAC-SHA256 digest
+(100_000 iterations, static salt; ``APIKeyStore._hash_key``). A leaked DB
+file exposes identifiers, tiers, and call counts, but not the keys themselves.
 """
 
 from __future__ import annotations
