@@ -1540,6 +1540,15 @@ class CompilerVisitor(NodeVisitor):
                 "        vol_arr = np.array(vol_arr, dtype=np.float64, copy=True)",
                 "        time_arr = np.array(time_arr, dtype=np.float64, copy=True)",
                 "    __drawings = []",
+                # Per-run reset for module-level alert state. __alerts /
+                # __alert_fire_bars live at module scope (UDFs and __emit_alert
+                # cannot see execute_script_compiled locals), so a cached
+                # CompiledScript would otherwise accumulate alerts and carry
+                # stale once-per-bar gates across runs. Rebind fresh objects
+                # every call; mirrors _emit_once_flags for module-level once flags.
+                "    global __alerts, __alert_fire_bars",
+                "    __alerts = []",
+                "    __alert_fire_bars = {}",
             ]
         )
         if self.uses_alerts:

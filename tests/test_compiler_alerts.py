@@ -258,3 +258,78 @@ plot(close, title="c")
         assert list(result.get("alerts") or []) == []
         interp = Runtime(symbol="ALRT").run(src, bars, mode="interpret")
         assert list(interp.get("alerts") or []) == []
+
+
+class TestAlertStateAcrossRuns:
+    """Regression: object-mode module-level ``__alerts`` / ``__alert_fire_bars``
+    are shared by every run of a cached ``CompiledScript``. The emitted prologue
+    must rebind them per run, or alerts accumulate and the once-per-bar gate
+    carries stale state across runs (cross-run leak)."""
+
+    @staticmethod
+    def _run_twice(src: str, bars: list[dict[str, float | int]], times: list[int] | None = None):
+        clear_compile_cache()
+        clear_disk_compile_cache()
+        compiled = compile_script(src)
+        assert compiled.object_mode is True
+        o = [b["open"] for b in bars]
+        h = [b["high"] for b in bars]
+        lo = [b["low"] for b in bars]
+        c = [b["close"] for b in bars]
+        v = [b["volume"] for b in bars]
+        t = times if times is not None else [int(b["time"]) for b in bars]
+        r1 = compiled.run(o, h, lo, c, v, time=t)
+        r2 = compiled.run(o, h, lo, c, v, time=t)
+        return r1, r2
+
+    def test_repeated_runs_do_not_accumulate_alerts(self) -> None:
+        src = """//@version=6
+indicator("rep leak")
+alert("leak", alert.freq_all)
+plot(close)
+"""
+        bars = _bars(5)
+        r1, r2 = self._run_twice(src, bars)
+        a1 = list(r1["__alerts"])
+        a2 = list(r2["__alerts"])
+        assert len(a1) == len(bars)
+        assert len(a2) == len(bars), f"run 2 accumulated stale alerts: {len(a2)} != {len(bars)}"
+        assert [a["bar_index"] for a in a2] == list(range(len(bars)))
+
+    def test_once_per_bar_gate_does_not_leak_across_runs(self) -> None:
+        src = """//@version=6
+indicator("rep gate")
+alert("once", alert.freq_once_per_bar)
+plot(close)
+"""
+        bars = _bars(1)
+        t1 = [1_700_000_000_000]
+        t2 = [1_800_000_000_000]
+        clear_compile_cache()
+        clear_disk_compile_cache()
+        compiled = compile_script(src)
+        o = [bars[0]["open"]]
+        h = [bars[0]["high"]]
+        lo = [bars[0]["low"]]
+        c = [bars[0]["close"]]
+        v = [bars[0]["volume"]]
+        r1 = compiled.run(o, h, lo, c, v, time=t1)
+        r2 = compiled.run(o, h, lo, c, v, time=t2)
+        assert [a["time"] for a in r1["__alerts"]] == t1
+        assert [a["time"] for a in r2["__alerts"]] == t2, (
+            "stale once-per-bar gate suppressed run 2's alert or returned run 1's event"
+        )
+
+    def test_mixed_freqs_repeat_identically(self) -> None:
+        src = """//@version=6
+indicator("rep mix")
+alert("every", alert.freq_all)
+alert("once", alert.freq_once_per_bar)
+plot(close)
+"""
+        bars = _bars(4)
+        r1, r2 = self._run_twice(src, bars)
+        a1 = list(r1["__alerts"])
+        a2 = list(r2["__alerts"])
+        assert len(a2) == len(a1) == 2 * len(bars)
+        assert [a["message"] for a in a2] == [a["message"] for a in a1]

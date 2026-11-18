@@ -173,13 +173,20 @@ _COMPILE_CACHE_MAX = 128
 # Secondary: generated-code sha256 → CompiledScript (share JIT across sources)
 _IR_CACHE: OrderedDict[str, Any] = OrderedDict()
 _IR_CACHE_MAX = 64
+# Tertiary: transient realtime object-mode re-emit (source sha256 → CompiledScript).
+# ``CompiledScript._object_mode_for_realtime`` re-emits a numeric script as object
+# mode for an active realtime window. The emit is pure and identical across ticks,
+# so it is cached instead of re-transpiling per tick. Bounded like ``_IR_CACHE``
+# (reuses ``_IR_CACHE_MAX``) and separate from ``_COMPILE_CACHE`` so the numeric
+# entry stays numeric for historical runs.
+_OBJECT_MODE_RT_CACHE: OrderedDict[str, Any] = OrderedDict()
 _BUILTINS_WARMED = False
 
 # Disk index schema version (bump when metadata layout changes)
 # Bump when generated IR semantics change so source→IR disk index is invalidated
 # (source hash alone is stable across compiler fixes, e.g. fill() series keys).
 # v5: strategy series history + Pine na-aware ==/!=
-_DISK_META_VERSION = 62  # v62: numeric plotshape synthesizes bool/None marker series
+_DISK_META_VERSION = 63  # v63: object-mode prologue resets module-level __alerts/__alert_fire_bars per run
 _NJIT_CACHE_FALSE = "@numba.njit(cache=False)"
 _NJIT_CACHE_TRUE = "@numba.njit(cache=True)"
 
@@ -201,6 +208,7 @@ def clear_compile_cache() -> None:
     """
     _COMPILE_CACHE.clear()
     _IR_CACHE.clear()
+    _OBJECT_MODE_RT_CACHE.clear()
 
 
 def clear_disk_compile_cache() -> None:
@@ -424,6 +432,75 @@ def ensure_compile_cache_dir() -> Path | None:
 
 def _sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _object_mode_rt_key(source: str) -> str:
+    """Cache key for the transient realtime object-mode re-emit.
+
+    Same derivation family as ``_COMPILE_CACHE`` (sha256 of the canonical input
+    via :func:`_sha256_text`), with ``_DISK_META_VERSION`` mixed in so a
+    deliberate generated-IR semantics bump also invalidates in-process entries
+    (mirrors the disk index; a plain in-process code change cannot occur since
+    the module is imported once). The transpile inputs on this path are fixed —
+    ``force_object_mode=True`` and ``libraries=None`` — so ``source`` (already
+    sanitized once by :func:`compile_script` before being stored on
+    ``CompiledScript.source``) is the only variable input; if that ever changes,
+    extend this key.
+    """
+    return _sha256_text(f"object-mode-rt|v{_DISK_META_VERSION}|{source}")
+
+
+def _library_cache_key(source: str, libraries: list[dict[str, Any]]) -> str:
+    """Cache key for the library-compile path (in-memory caches only).
+
+    Design (mirrors :func:`_object_mode_rt_key`):
+
+    * ``_DISK_META_VERSION`` is mixed in so a deliberate generated-IR semantics
+      bump invalidates in-process entries, exactly like the disk index and the
+      realtime re-emit key.
+    * The script source and each library's ``source`` enter as sha256 digests
+      inside one canonical JSON blob (``sort_keys``, tight separators, ASCII),
+      so the key material is bounded regardless of library size.
+    * Per library, only the fields the compiler reads are mixed in:
+      ``namespace`` / ``name`` (coerced to ``str``), ``version`` (coerced with
+      the same ``int(x or 1)`` rule the import matcher uses, falling back to
+      ``str`` for non-numeric input), and the sha256 of ``source``. Extra keys
+      present on the dict are ignored — they do not influence codegen.
+    * **Declared order is significant.** Library identity is resolved by
+      (namespace, name, version) with first match winning, so the position of
+      an entry is part of the input contract for duplicate identities.
+      Sorting would change which duplicate wins for permuted lists. The cost
+      is a re-transpile (never a wrong hit) when callers permute the list;
+      steady-state callers pass a stable order.
+
+    Like the plain path, the returned key is computed on the sanitized source;
+    :func:`compile_script` additionally probes a raw-source key before
+    sanitizing so warm hits skip the sanitizer.
+    """
+    libs: list[dict[str, Any]] = []
+    for item in libraries:
+        if not isinstance(item, dict):
+            # The compiler cannot consume non-dict entries either; key them
+            # deterministically instead of raising inside key derivation.
+            libs.append({"n": "", "m": "", "v": 1, "s": _sha256_text(repr(item))})
+            continue
+        ns = str(item.get("namespace") or "")
+        name = str(item.get("name") or "")
+        raw_version = item.get("version")
+        version_in: Any = raw_version if raw_version else 1
+        try:
+            version: Any = int(version_in)
+        except Exception:
+            version = str(version_in)
+        lib_source = str(item.get("source") or "")
+        libs.append({"n": ns, "m": name, "v": version, "s": _sha256_text(lib_source)})
+    blob = json.dumps(
+        {"v": _DISK_META_VERSION, "src": _sha256_text(source), "libs": libs},
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    )
+    return _sha256_text(blob)
 
 
 def _run_common_numba_builtin_warm() -> None:
@@ -790,9 +867,23 @@ class CompiledScript:
         Numeric nopython has no tick loop; object mode owns ``var``/``varip``
         rollback and ``barstate`` flags. The recovered instance is transient so
         the numeric cache entry stays numeric for historical runs.
+
+        The re-emit is a pure function of the source, so identical inputs reuse
+        a small process-wide LRU (``_OBJECT_MODE_RT_CACHE``, bounded by
+        ``_IR_CACHE_MAX``) instead of re-transpiling on every realtime tick.
+        The cached instance is shared across ticks; per-run mutable state
+        (module-level ``__alerts`` / ``__alert_fire_bars`` and the like) is
+        re-initialized inside ``execute_script_compiled`` on every call, so
+        reusing the cached instance does not leak state between runs.
         """
+        key = _object_mode_rt_key(self.source)
+        cached = _OBJECT_MODE_RT_CACHE.get(key)
+        if cached is not None:
+            _OBJECT_MODE_RT_CACHE.move_to_end(key)
+            _dbg("object_mode_for_realtime: cache hit key=%s", key[:12])
+            return cached
         code, titles, kinds, _, attrs = _transpile_once(self.source, force_object_mode=True)
-        return _exec_generated(
+        compiled = _exec_generated(
             self.source,
             code,
             titles,
@@ -800,6 +891,8 @@ class CompiledScript:
             plot_kinds=kinds,
             plot_attrs=attrs,
         )
+        _cache_put(_OBJECT_MODE_RT_CACHE, key, compiled, _IR_CACHE_MAX)
+        return compiled
 
     def _recover_nopython_at_run(
         self,
@@ -1789,6 +1882,10 @@ def compile_script(
 
     Scraped corpus sources are sanitized on cache miss (same as parse/runtime
     interpret) so docs chrome / Expand stubs do not fail compile-only paths.
+    Calls with ``libraries=`` share the same in-memory caches under a
+    library-aware key (script + ordered library identities; see
+    :func:`_library_cache_key`); the disk source index is not consulted on
+    that path.
     """
     raw_source = source
     raw_key = _sha256_text(raw_source)
@@ -1798,15 +1895,67 @@ def compile_script(
         use_cache = False
 
     if libraries:
-        # Library inlining changes generated IR for the same source hash; do
-        # not read/write the source-keyed caches for these runs.
-        source = _sanitize_source(raw_source)
+        # Library inlining changes generated IR for the same source hash, so
+        # the plain source-keyed caches can never be reused here. Instead the
+        # library path shares ``_COMPILE_CACHE`` / ``_IR_CACHE`` under a
+        # library-aware key (see :func:`_library_cache_key`). Disk artifacts
+        # stay unwired for this path (``ir_key=None`` below, no
+        # ``_disk_write_artifacts``); that is a deliberate follow-up.
+        lib_use_cache = use_cache and not force_object_mode
+        raw_lib_key = _library_cache_key(raw_source, libraries)
+        if lib_use_cache:
+            hit = _memory_cache_get(raw_lib_key)
+            if hit is not None:
+                _dbg(
+                    "compile_script: MEMORY HIT (library) key=%s chars=%d in %.1fms",
+                    raw_lib_key[:12],
+                    len(raw_source),
+                    (time.perf_counter() - _t_compile0) * 1000.0,
+                )
+                _stats.count("compile_script.cache", dim="memory_library")
+                _stats.latency("compile_script.total", time.perf_counter() - _t_compile0)
+                return hit
+        lib_source = _sanitize_source(raw_source)
+        lib_san_key = raw_lib_key if lib_source == raw_source else _library_cache_key(lib_source, libraries)
+        lib_cache_keys = [raw_lib_key] if lib_san_key == raw_lib_key else [raw_lib_key, lib_san_key]
+        if lib_use_cache and lib_san_key != raw_lib_key:
+            hit = _memory_cache_get(lib_san_key)
+            if hit is not None:
+                # Alias raw → sanitized entry so the next warm hit skips sanitize.
+                _memory_cache_store([raw_lib_key], hit)
+                _dbg(
+                    "compile_script: MEMORY HIT (library, sanitized) key=%s chars=%d in %.1fms",
+                    lib_san_key[:12],
+                    len(raw_source),
+                    (time.perf_counter() - _t_compile0) * 1000.0,
+                )
+                _stats.count("compile_script.cache", dim="memory_library_sanitized")
+                _stats.latency("compile_script.total", time.perf_counter() - _t_compile0)
+                return hit
+        source = lib_source
         code, titles, kinds, object_mode, attrs = _transpile_once(
             source,
             force_object_mode=force_object_mode,
             libraries=libraries,
         )
         ir_key = _sha256_text(code)
+        if lib_use_cache and ir_key in _IR_CACHE:
+            # Same IR sharing rules as the plain path: reuse the warm entry
+            # only when wire metadata matches this compile's own meta.
+            shared = _share_compiled(source, _IR_CACHE[ir_key], titles=titles, kinds=kinds, attrs=attrs)
+            if shared is not None:
+                _memory_cache_store(lib_cache_keys, shared)
+                _IR_CACHE.move_to_end(ir_key)
+                _dbg(
+                    "compile_script: IR SHARE HIT (library) ir_key=%s in %.1fms",
+                    ir_key[:12],
+                    (time.perf_counter() - _t_compile0) * 1000.0,
+                )
+                _stats.count("compile_script.cache", dim="ir_share_library")
+                _stats.latency("compile_script.total", time.perf_counter() - _t_compile0)
+                return shared
+            _dbg("compile_script: IR share rejected (metadata divergence, library) ir_key=%s", ir_key[:12])
+
         compiled = _exec_generated(
             source,
             code,
@@ -1816,7 +1965,12 @@ def compile_script(
             plot_kinds=kinds,
             plot_attrs=attrs,
         )
-        compiled, _ = _warm_numeric_or_fallback(source, compiled, ir_key=ir_key, libraries=libraries)
+        compiled, ir_key = _warm_numeric_or_fallback(source, compiled, ir_key=ir_key, libraries=libraries)
+        if lib_use_cache:
+            _memory_cache_store(lib_cache_keys, compiled)
+            _cache_put(_IR_CACHE, ir_key, compiled, _IR_CACHE_MAX)
+        _stats.count("compile_script.cache", dim="miss_library")
+        _stats.latency("compile_script.total", time.perf_counter() - _t_compile0)
         return compiled
 
     if use_cache:
