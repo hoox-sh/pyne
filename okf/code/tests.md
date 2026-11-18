@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-18T23:16:12Z
+  at: 2026-11-18T23:16:37Z
 sources:
   - id: tree
     resource: "tests"
@@ -45,7 +45,7 @@ okf_lock: generated
 - `test_cli_util_coverage.py` — bad_file, get_provider_default_mock, pine_file, runner, test_alias_help, test_alphavantage_missing_dependency, test_alphavantage_stub_client, test_bad_flag, test_bind_ta_stubs, test_broker_insufficient_balance_and_sell_with_position, test_broker_market_and_limit_fills, test_broker_run_with_finite_feed
 - `test_collections.py` — TestArrayEdgeCorrectness, TestMapEvaluatorIntegration, TestMatrixEvaluatorIntegration, TestRound8SoftNaAndV6Indices
 - `test_compile_drawings_extras.py` — TestCompileBoxExtras, TestCompileLabelExtras, TestCompilePolylineExtras, TestExtrasDualHost
-- `test_compile_expr_parity.py` — test_compile_reports_literal_inputs, test_dynamic_for_limit_still_one_iteration, test_expr_interpret_matches_compile, test_for_counter_negative_preexisting, test_for_counter_shadows_preexisting_series, test_iff_na_is_na_on_compile, test_iff_numeric_stays_nopython, test_switch_na_still_matches, test_symbol_index_failure_is_a_diagnostic
+- `test_compile_expr_parity.py` — test_compile_reports_literal_inputs, test_dynamic_for_limit_still_one_iteration, test_expr_interpret_matches_compile, test_for_counter_negative_preexisting, test_for_counter_shadows_preexisting_series, test_for_end_bound_grows_and_is_visited, test_for_end_expression_rereads_each_iteration, test_for_end_follows_array_size_grown_in_body, test_iff_na_is_na_on_compile, test_iff_numeric_stays_nopython, test_switch_na_still_matches, test_symbol_index_failure_is_a_diagnostic
 - `test_compile_na_parity.py` — test_expected_values, test_integer_mod_under_njit, test_interpret_matches_compile, test_interpret_nan_is_false_and_mod_sign, test_numeric_if_stays_nopython, test_syntax_error_without_details_is_message
 - `test_compiler_alerts.py` — TestAlertStateAcrossRuns, TestCompileAlertTranspile, TestCompileAlertsDualHost, TestCompileAlertsInUDF, TestCompileAlertsNumericEligible
 - `test_compiler_color_fold.py` — TestLiteralColorNew

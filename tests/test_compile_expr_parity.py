@@ -20,8 +20,8 @@
 """Interpret / compile parity for expression bugs found in the 0.7.0 review.
 
 Covers ``iff(na)``, ``math.round`` precision, ``math.log`` base, ``math.pow``
-na propagation, operator ``na == na``, and a loop counter that shadows a
-series of the same name.
+na propagation, operator ``na == na``, a loop counter that shadows a series
+of the same name, and v6 ``for`` loops that re-read ``to`` each iteration.
 """
 
 from __future__ import annotations
@@ -175,6 +175,63 @@ plot(s, "s")
 """
     got, _ = _same(src)
     assert got["s"][0] == pytest.approx(1.0)
+
+
+def test_for_end_bound_grows_and_is_visited() -> None:
+    """v6 reads ``to`` before every iteration. A frozen end of 1 stops at 1."""
+    src = """//@version=6
+indicator("t")
+end = 1
+last = -1.0
+count = 0.0
+for i = 0 to end
+    last := i
+    count := count + 1
+    end := 4
+plot(last, "last")
+plot(count, "count")
+"""
+    got, _ = _same(src, n=2)
+    # Inclusive 0..4. Frozen v5 would plot last=1, count=2.
+    assert got["last"] == pytest.approx([4.0, 4.0])
+    assert got["count"] == pytest.approx([5.0, 5.0])
+
+
+def test_for_end_expression_rereads_each_iteration() -> None:
+    """``to`` is an expression, not a captured number. Growing ``extra`` extends it."""
+    src = """//@version=6
+indicator("t")
+extra = 0
+last = -1.0
+for i = 0 to 1 + extra
+    last := i
+    extra := 3
+plot(last, "last")
+"""
+    got, _ = _same(src, n=2)
+    # First check is 1+0. Later checks are 1+3, so the counter reaches 4.
+    assert got["last"] == pytest.approx([4.0, 4.0])
+
+
+def test_for_end_follows_array_size_grown_in_body() -> None:
+    """``array.size`` in ``to`` is re-evaluated, so a push inside the body is reachable."""
+    src = """//@version=6
+indicator("t")
+arr = array.new_float()
+array.push(arr, 1.0)
+last = -1.0
+for i = 0 to array.size(arr) - 1
+    last := i
+    if i == 0
+        array.push(arr, 2.0)
+        array.push(arr, 3.0)
+plot(last, "last")
+plot(array.size(arr), "sz")
+"""
+    got, _ = _same(src, n=2)
+    # Size starts at 1 (to=0). The i==0 body grows it to 3, so i reaches 2.
+    assert got["last"] == pytest.approx([2.0, 2.0])
+    assert got["sz"] == pytest.approx([3.0, 3.0])
 
 
 def test_compile_reports_literal_inputs() -> None:
