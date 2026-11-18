@@ -158,20 +158,39 @@ function trackedPaths(root: string): string[] {
     return nulSplit(git(root, ["ls-files", "-z", "--", ...pathspecs]));
 }
 
-export function collectInputs(root: string, fromIndex: boolean): InputFile[] {
-    const paths = fromIndex ? trackedPaths(root) : [];
-    if (!fromIndex) {
-        for (const codeRoot of CODE_ROOTS)
-            walk(join(root, codeRoot), root, paths);
-        walk(join(root, "docs"), root, paths);
-        for (const doc of STANDALONE_DOCS) {
-            try {
-                if (statSync(join(root, doc)).isFile()) paths.push(doc);
-            } catch {
-                // optional companion doc
-            }
+/** Old enrich discovery. Includes untracked and gitignored files under the roots. */
+function filesystemPaths(root: string): string[] {
+    const paths: string[] = [];
+    for (const codeRoot of CODE_ROOTS) walk(join(root, codeRoot), root, paths);
+    walk(join(root, "docs"), root, paths);
+    for (const doc of STANDALONE_DOCS) {
+        try {
+            if (statSync(join(root, doc)).isFile()) paths.push(doc);
+        } catch {
+            // optional companion doc
         }
     }
+    return paths;
+}
+
+type CollectOptions = {
+    /** Unstaged tracked bytes come from the git index. Path set stays tracked. */
+    fromIndex?: boolean;
+    /** Discover inputs by walking the tree instead of `git ls-files`. */
+    walk?: boolean;
+};
+
+/**
+ * Default is tracked files (`git ls-files`), the same path set as `fromIndex`.
+ * `walk: true` restores the filesystem walk.
+ */
+export function collectInputs(
+    root: string,
+    options: CollectOptions = {},
+): InputFile[] {
+    const fromIndex = options.fromIndex === true;
+    const paths =
+        options.walk === true ? filesystemPaths(root) : trackedPaths(root);
     const unstaged = fromIndex
         ? new Set(nulSplit(git(root, ["diff", "-z", "--name-only"])))
         : new Set<string>();

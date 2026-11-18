@@ -6,7 +6,7 @@
 /**
  * OKF bundle pipeline.
  *
- *   bun scripts/okf/cli.ts enrich [--check] [--stage] [--from-index]
+ *   bun scripts/okf/cli.ts enrich [--check] [--stage] [--from-index] [--walk]
  *   bun scripts/okf/cli.ts lint [--strict] [--format text|json]
  *   bun scripts/okf/cli.ts query <terms...>
  *   bun scripts/okf/cli.ts context <path-or-id> [--depth 1]
@@ -33,6 +33,7 @@ type Flags = {
     check: boolean;
     stage: boolean;
     fromIndex: boolean;
+    walk: boolean;
     strict: boolean;
     format: string;
     depth: number;
@@ -45,6 +46,7 @@ function parseArgs(argv: string[]): Flags {
         check: false,
         stage: false,
         fromIndex: false,
+        walk: false,
         strict: false,
         format: "text",
         depth: 1,
@@ -56,6 +58,7 @@ function parseArgs(argv: string[]): Flags {
         if (arg === "--check") flags.check = true;
         else if (arg === "--stage") flags.stage = true;
         else if (arg === "--from-index") flags.fromIndex = true;
+        else if (arg === "--walk") flags.walk = true;
         else if (arg === "--strict") flags.strict = true;
         else if (arg === "--help" || arg === "-h") flags.help = true;
         else if (arg === "--format") flags.format = argv[++i] ?? "text";
@@ -69,7 +72,11 @@ function usage(): string {
     return [
         "usage: bun scripts/okf/cli.ts <enrich|lint|query|context> [options]",
         "",
-        "  enrich [--check] [--stage] [--from-index]   draft, link, and lint the bundle",
+        "  enrich [--check] [--stage] [--from-index] [--walk]",
+        "                                        draft, link, and lint the bundle",
+        "                                        default: tracked files only",
+        "                                        --from-index reads dirty tracked bytes from the index",
+        "                                        --walk scans the tree, including gitignored files",
         "  lint [--strict] [--format text|json]        conformance plus producer warnings",
         "  query <terms...>                            search titles, paths, and descriptions",
         "  context <path-or-id> [--depth N]            one concept plus neighbor blurbs",
@@ -112,7 +119,15 @@ function reportLint(
 }
 
 function enrich(flags: Flags): number {
-    const inputs = collectInputs(ROOT, flags.fromIndex);
+    if (flags.walk && flags.fromIndex) {
+        console.error("okf: pass only one of --walk or --from-index");
+        return 1;
+    }
+    // Default compiles tracked files. --walk is the old filesystem walk.
+    const inputs = collectInputs(ROOT, {
+        fromIndex: flags.fromIndex,
+        walk: flags.walk,
+    });
     const existing = flags.fromIndex
         ? readBundleFromIndex(ROOT)
         : readBundleFiles(BUNDLE);
