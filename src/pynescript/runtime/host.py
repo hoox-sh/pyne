@@ -1338,19 +1338,54 @@ def _copy_list_dict_level(value: Any) -> Any:
     return value
 
 
+def _snapshot_nested_child(child: Any) -> Any:
+    """Snapshot one nested value. Lists keep their object.
+
+    Map/Matrix/UDT rollback writes into the existing object. A nested list
+    used to be replaced with a copy, so a handle taken before the tick still
+    saw the unconfirmed mutation. The element copy is detached so a reused
+    bar-open snapshot stays pristine; deeper than this one level stays shared.
+    """
+    try:
+        if isinstance(child, list):
+            return ("list", child, child[:])
+        if isinstance(child, dict):
+            return ("dict", _copy_list_dict_level(child))
+    except Exception:
+        return ("value", child)
+    return ("value", child)
+
+
+def _restore_nested_child(node: Any) -> Any:
+    """Write one nested snapshot node back. List nodes update the original list."""
+    if not isinstance(node, tuple) or not node:
+        return node
+    kind = node[0]
+    if kind == "list" and len(node) == 3 and isinstance(node[1], list) and isinstance(node[2], list):
+        original, elements = node[1], node[2]
+        # Copy again so a reused bar-open snapshot stays pristine.
+        original[:] = _copy_list_dict_level(elements)
+        return original
+    if kind == "dict" and len(node) == 2 and isinstance(node[1], dict):
+        return _copy_list_dict_level(node[1])
+    if kind == "value" and len(node) == 2:
+        return node[1]
+    return node
+
+
 def _copy_container_contents(value: Any) -> Any | None:
     """Contents snapshot of a mutable container, or ``None``.
 
-    Lists/dicts are copied plus one extra inner list/dict level. Matrix/Map
-    use ``copy_contents`` when present. UDT instances snapshot ``.fields``.
-    Unknown objects return ``None`` so identity restore is enough. Never
-    raises.
+    Lists/dicts copy one extra inner level. Nested lists keep their object
+    (see :func:`_snapshot_nested_child`). Matrix/Map use ``copy_contents``
+    when present. UDT instances snapshot ``.fields``. Unknown objects return
+    ``None`` so identity restore is enough. Never raises.
     """
     try:
         if isinstance(value, list):
-            return ("list", _copy_list_dict_level(value))
+            return ("list", [_snapshot_nested_child(item) for item in value])
         if isinstance(value, dict):
-            return ("dict", _copy_list_dict_level(value))
+            return ("dict", {key: _snapshot_nested_child(item) for key, item in value.items()})
         copy_fn = getattr(value, "copy_contents", None)
         if callable(copy_fn):
             return ("typed", copy_fn())
@@ -1377,13 +1412,13 @@ def _restore_container_contents(target: Any, snap: Any) -> None:
     try:
         if kind == "list":
             if isinstance(target, list) and isinstance(payload, list):
-                # Copy again so a reused bar-open snapshot stays pristine.
-                target[:] = _copy_list_dict_level(payload)
+                target[:] = [_restore_nested_child(item) for item in payload]
             return
         if kind == "dict":
             if isinstance(target, dict) and isinstance(payload, dict):
+                restored = {key: _restore_nested_child(item) for key, item in payload.items()}
                 target.clear()
-                target.update(_copy_list_dict_level(payload))
+                target.update(restored)
             return
         if kind == "typed":
             restore_fn = getattr(target, "restore_contents", None)
@@ -1464,9 +1499,10 @@ def _snapshot_realtime_scope(evaluator: Any) -> dict[str, Any] | None:
     the ``var`` declaration set — everything
     :func:`_restore_realtime_scope` needs to undo one tick. ``varip`` names
     are recorded (not snapshotted) so they persist across ticks.
-    Restore writes contents back into the same outer objects so aliases keep
-    identity. Nested containers beyond one extra list/dict level plus
-    Matrix/Map internals are not deep-copied.
+    Restore writes contents back into the same objects, including nested
+    lists, so a caller holding the list does not keep a stale handle.
+    Nested containers beyond one extra list/dict level plus Matrix/Map
+    internals are not deep-copied.
     """
     ctx = getattr(evaluator, "context", None)
     if not isinstance(ctx, dict):
@@ -1513,7 +1549,8 @@ def _restore_realtime_scope(evaluator: Any, snap: dict[str, Any] | None) -> None
 
     Restores ``var`` bindings, container contents, and series ``.current``
     values in place — the context dict itself is never replaced, and
-    list/Matrix/Map/UDT mutations write back into the same objects.
+    list/Matrix/Map/UDT mutations write back into the same objects,
+    including a nested list the tick removed or replaced.
     ``varip`` names keep their post-tick values (reference persistence).
     History pushes and the series-assign map are intentionally left alone:
     the start-of-visit commit already ran for this bar, and re-running it

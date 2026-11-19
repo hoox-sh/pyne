@@ -47,8 +47,8 @@ def _snapshot_value(value: Any, seen: set[int] | None = None) -> tuple[Any, ...]
     Nested lists/dicts, Map/Matrix containers and UDT fields are snapshotted
     recursively. Cycles raise :class:`RealtimeSnapshotError` instead of
     recursing forever; the host re-raises it so an unconfirmed tick cannot
-    silently commit. Typed/UDT nodes carry the original object so a removed or
-    replaced value is restored with its original type.
+    silently commit. List, typed, and UDT nodes carry the original object so a
+    removed or replaced value is restored into that object, not a new one.
     """
     if seen is None:
         seen = set()
@@ -58,7 +58,7 @@ def _snapshot_value(value: Any, seen: set[int] | None = None) -> tuple[Any, ...]
     if isinstance(value, list):
         seen.add(oid)
         try:
-            return ("list", [_snapshot_value(item, seen) for item in value])
+            return ("list", [_snapshot_value(item, seen) for item in value], value)
         finally:
             seen.discard(oid)
     if isinstance(value, dict):
@@ -93,12 +93,13 @@ def _restore_value(current: Any, snap: tuple[Any, ...]) -> Any:
     kind, payload = snap[0], snap[1]
     original = snap[2] if len(snap) == 3 else None
     if kind == "list":
-        if isinstance(current, list):
-            restored = [
-                _restore_value(current[i] if i < len(current) else None, node) for i, node in enumerate(payload)
-            ]
-            current[:] = restored
-            return current
+        # Same as typed/UDT: a removed or replaced list comes back as the
+        # object the caller still holds, with snapshotted contents.
+        target = original if isinstance(original, list) else current
+        if isinstance(target, list):
+            restored = [_restore_value(target[i] if i < len(target) else None, node) for i, node in enumerate(payload)]
+            target[:] = restored
+            return target
         return [_restore_value(None, node) for node in payload]
     if kind == "dict":
         if isinstance(current, dict):

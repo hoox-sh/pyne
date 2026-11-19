@@ -286,6 +286,53 @@ def test_var_map_nested_list_value_rolls_back_unconfirmed_ticks() -> None:
     assert [float(v) for v in compiled["series"]["n"]] == [1.0, 1.0, 1.0, 1.0, 2.0]
 
 
+# Two handles, one list. Unconfirmed ticks drop the list from its parent and
+# mutate the caller's handle. Rollback must put that same object back; the
+# confirmed tick's push is then visible through the parent. A fresh list in
+# the parent would stay at size 1.
+_ALIAS_LIST_SRC = """//@version=6
+indicator("rt list alias")
+var held = array.from(0.0)
+var outer = array.new<array<float>>()
+if barstate.isfirst
+    array.push(outer, held)
+if barstate.isrealtime and not barstate.isconfirmed
+    array.pop(outer)
+    array.push(held, 1.0)
+if barstate.isrealtime and barstate.isconfirmed
+    array.push(held, 2.0)
+plot(array.size(array.get(outer, 0)), "n")
+"""
+
+_ALIAS_MAP_LIST_SRC = """//@version=6
+indicator("rt map list alias")
+var held = array.from(0.0)
+var m = map.new<string, array<float>>()
+if barstate.isfirst
+    map.put(m, "k", held)
+if barstate.isrealtime and not barstate.isconfirmed
+    map.remove(m, "k")
+    array.push(held, 1.0)
+if barstate.isrealtime and barstate.isconfirmed
+    array.push(held, 2.0)
+plot(array.size(map.get(m, "k")), "n")
+"""
+
+
+def test_nested_list_identity_survives_unconfirmed_tick_rollback() -> None:
+    """A held nested list stays the object its parent had before the tick.
+
+    Map, Matrix, and UDT values already restore into the same object. A list
+    restored as a copy leaves the caller's handle stale: the confirmed push
+    lands on ``held`` and the parent still shows the pre-tick size.
+    """
+    expected = [1.0, 1.0, 1.0, 1.0, 2.0]
+    for src in (_ALIAS_LIST_SRC, _ALIAS_MAP_LIST_SRC):
+        out = Runtime(symbol="RT").run(src, _bars(), mode="interpret", realtime_ticks=3)
+        assert "error" not in out, out.get("error")
+        assert [float(v) for v in out["series"]["n"]] == expected
+
+
 def test_var_udt_field_rolls_back_unconfirmed_ticks() -> None:
     """UDT field writes on a ``var`` instance roll back with the object."""
     src = """//@version=6
@@ -393,7 +440,8 @@ class TestScopeHelpers:
         inner.append(2.0)
         _restore_realtime_scope(ev, snap)
         assert ev.context["a"] is outer
-        assert outer[0] == []
+        assert outer[0] is inner
+        assert inner == []
 
     def test_nested_list_restore_keeps_snapshot_pristine(self) -> None:
         """Bar-open snapshots are reused (update_last_bar); inner copies stay frozen."""
@@ -414,7 +462,7 @@ class TestScopeHelpers:
         assert outer[0] == []
 
     def test_dict_of_lists_inner_append_rolls_back(self) -> None:
-        """One extra dict level: list values are copied so inner appends roll back."""
+        """One extra dict level: list values roll back into the same list object."""
         inner: list[float] = []
         data = {"k": inner}
         ev = SimpleNamespace(
@@ -428,8 +476,32 @@ class TestScopeHelpers:
         data["n"] = [1.0]
         _restore_realtime_scope(ev, snap)
         assert ev.context["m"] is data
+        assert data["k"] is inner
         assert data == {"k": []}
-        assert data["k"] == []
+        assert inner == []
+
+    def test_removed_nested_list_keeps_identity(self) -> None:
+        """Clearing a var array on a tick must not replace the nested list."""
+        inner = [0.0]
+        outer = [inner]
+        ev = SimpleNamespace(
+            context={"a": outer, "held": inner},
+            _var_declarations={"a", "held"},
+            _varip_declarations=set(),
+        )
+        snap = _snapshot_realtime_scope(ev)
+        assert snap is not None
+        outer.clear()
+        inner.append(1.0)
+        _restore_realtime_scope(ev, snap)
+        assert outer[0] is inner
+        assert ev.context["held"] is inner
+        assert inner == [0.0]
+        outer.clear()
+        inner.append(2.0)
+        _restore_realtime_scope(ev, snap)
+        assert outer[0] is inner
+        assert inner == [0.0]
 
     def test_varip_list_contents_persist(self) -> None:
         items = [1.0]
@@ -573,3 +645,26 @@ def test_map_snapshot_restores_replaced_nested_map() -> None:
     restored = outer.data["k"]
     assert isinstance(restored, Map)
     assert restored.data == {"n": 7.0}
+
+
+def test_map_snapshot_restores_removed_nested_list_identity() -> None:
+    """A list removed from a map comes back as the same object, like a nested map."""
+    inner = [0.0]
+    outer = Map()
+    outer.put("k", inner)
+    snap = outer.copy_contents()
+    outer.remove("k")
+    inner.append(1.0)
+    outer.restore_contents(snap)
+    assert outer.get("k") is inner
+    assert inner == [0.0]
+    outer.put("k", [9.0])
+    inner.append(2.0)
+    outer.restore_contents(snap)
+    assert outer.get("k") is inner
+    assert inner == [0.0]
+    outer.remove("k")
+    inner.append(3.0)
+    outer.restore_contents(snap)
+    assert outer.get("k") is inner
+    assert inner == [0.0]
