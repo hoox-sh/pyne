@@ -11155,9 +11155,10 @@ class CompilerVisitor(NodeVisitor):
     def _library_type_unsupported(self, td) -> str | None:
         """Return why an exported library type is outside this inline slice.
 
-        Only scalar fields with literal defaults are inlined. A UDT/array/map
-        field needs nested type registration, so those types stay fail-closed
-        (the constructor call reports this reason).
+        Only scalar fields with literal or pure-arithmetic defaults are
+        inlined. A UDT/array/map field needs nested type registration, so
+        those types stay fail-closed (the constructor call reports this
+        reason).
         """
         scalar = {"float", "int", "bool", "color", "string"}
         for stmt in getattr(td, "body", []) or []:
@@ -11173,11 +11174,20 @@ class CompilerVisitor(NodeVisitor):
 
     @staticmethod
     def _library_default_literal(node) -> bool:
-        """True for ``1.0`` / ``-1`` / ``na`` / ``true`` / ``false`` defaults."""
+        """True for literal defaults and pure literal arithmetic (``1 + 1``).
+
+        Constants, ``na`` / ``true`` / ``false``, unary ``+``/``-``, and binary
+        combinations of those splice into the constructor as a value. Names
+        and calls stay fail-closed so series state is not inlined here.
+        """
         if isinstance(node, ast.Constant):
             return isinstance(node.value, (int, float, bool, str)) or node.value is None
         if isinstance(node, ast.UnaryOp) and isinstance(getattr(node, "op", None), (ast.USub, ast.UAdd)):
-            return isinstance(getattr(node, "operand", None), ast.Constant)
+            return CompilerVisitor._library_default_literal(getattr(node, "operand", None))
+        if isinstance(node, ast.BinOp):
+            return CompilerVisitor._library_default_literal(
+                getattr(node, "left", None)
+            ) and CompilerVisitor._library_default_literal(getattr(node, "right", None))
         return isinstance(node, ast.Name) and node.id in ("na", "true", "false")
 
     @staticmethod

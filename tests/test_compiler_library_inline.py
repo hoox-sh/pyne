@@ -1136,6 +1136,32 @@ def test_library_udt_type_constructor_and_method_inline() -> None:
     assert compiled["series"] == interp["series"]
 
 
+_LIB_UDT_ARITH_DEFAULT = """//@version=6
+library("Lib")
+export type Box
+    float v
+    float pad = 1 + 1
+"""
+
+_SRC_LIB_UDT_ARITH_DEFAULT = """//@version=6
+indicator("udt arith default")
+import ns/Lib/1 as lib
+b = lib.Box.new(close)
+plot(b.pad, "pad")
+"""
+
+
+def test_library_udt_arithmetic_field_default_matches_interpret() -> None:
+    """Pure literal arithmetic (``1 + 1``) binds as the omitted field."""
+    libraries = _lib_udt(_LIB_UDT_ARITH_DEFAULT)
+    interp = Runtime(symbol="TEST").run(_SRC_LIB_UDT_ARITH_DEFAULT, _bars(), mode="interpret", libraries=libraries)
+    compiled = Runtime(symbol="TEST").run(_SRC_LIB_UDT_ARITH_DEFAULT, _bars(), mode="compile", libraries=libraries)
+    assert "error" not in interp, interp.get("error")
+    assert "error" not in compiled, compiled.get("error")
+    assert compiled["series"]["pad"] == [2.0, 2.0, 2.0, 2.0]
+    assert compiled["series"] == interp["series"]
+
+
 def test_library_udt_method_alias_form_inlines() -> None:
     out = Runtime(symbol="TEST").run(_SRC_LIB_UDT_ALIAS_CALL, _bars(), mode="compile", libraries=_lib_udt())
     assert "error" not in out, out.get("error")
