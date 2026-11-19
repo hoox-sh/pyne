@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.7.3] — 2026-11-19
+
 ### Added
 
 - **`pyne serve` and `pyne datafeed serve` start the existing servers.** `pyne serve` calls `backend.app.main` (same entry as `python -m backend.app` and `make run`; production gunicorn still loads `backend.app:app`). `pyne datafeed serve` calls `backend.datafeed_app.main`. If the backend package or the needed extra is missing, the command exits non-zero and prints `pip install 'hoox-pyne[pro]'` or `pip install 'hoox-pyne[datafeed]'` instead of a bare `ModuleNotFoundError`. `--dry-run` prints the entry and does not listen. Pinned by `tests/test_cli_serve.py`.
@@ -7,6 +9,8 @@
 ### Changed
 
 - **The `hoox-pyne` wheel ships the `backend` package, and `[datafeed]` installs the web packages that gateway imports.** The wheel previously packaged only `src/pynescript`, so `import backend` failed after `pip install` even though `[pro]` installed Flask. `backend.datafeed_app` and `backend.api.datafeed` are now in the wheel. The `datafeed` extra keeps `ccxt` and adds `flask` and `flask-sock` (the third-party modules that path imports). Matplotlib, numba, and redis stay on `[pro]` / `[compile]`. Pinned by `tests/test_wheel_backend.py`.
+
+- **numeric varip tick loop: won't-do, documented.** `docs/known_divergences.md` records with file:line evidence why numeric nopython cannot host a varip tick loop (hardcoded barstate flags, degenerate re-init predicate, object-mode-only poll/rollback); varip stays on object mode by design.
 
 ### Fixed
 
@@ -25,6 +29,18 @@
 - **A string longer than 4,096 characters is accepted.** No 4,096 cap was found in the evaluator or the linter, so none was raised to 40,960. A 4,097-character literal and `str.repeat` result evaluate, and lint does not treat that length as a string-length error (a line over 120 characters is still `C002`). A 40,961-character string is also accepted because that ceiling is not modeled. Pinned by `tests/test_string_max_length.py`.
 
 - **Object-mode `runtime.error` keeps every argument.** Compile used to raise only the first argument (`"a"`). It now uses the same formatter as interpret, so `runtime.error("a", "b")` raises `a b` and `runtime.error("a={0}", 7)` raises `a=7`. A single literal still stays on the numeric path, and a call with no arguments still raises an empty message. `_DISK_META_VERSION` 63 → 64. Pinned by `tests/test_compiler_numba.py::TestLanguageSurfaceNumeric::test_runtime_error_multi_arg_object_mode_matches_interpret`.
+
+- **Intra-tick order inside one OHLC tick is now pinned.** Trail ratchets apply the favorable extreme first, then the adverse extreme against the stop, on both hosts (interpret + compile), including the short side; pinned by tests/test_intratick_order.py. Pine does not model intra-print order — this is a documented convention, not reference truth.
+
+- **`InterpretSession.update_last_bar` and the `append_bars` confirmation path apply forming-bar MAE/MFE in two phases** (after broker restore / after fills), matching the interpret feed tick path. Compile stays bar-granular. Interpret leftover legs after a partial close now carry their accumulated max_drawdown/max_runup onto the surviving leg. Pinned by tests/test_intratick_order.py.
+
+- **Compile-path realtime rollback is O(1) per tick** — the strategy broker records list lengths for the append-only events and closed-trade records and truncates on restore instead of deep-copying every unconfirmed tick (~1.6x on the strategy realtime path, ~4.6x on the rollback component). Pinned by tests/test_realtime_broker_rollback.py.
+
+- **`close[1]` and friends inside a UDF returned string characters** (e.g. 'close'[1] => 'l'). Series_locals are now limited to names actually assigned in the function body, and subscripting a raw string yields na (Pine has no string subscript). Pinned by tests/test_udfs_ohlcv_subscript.py.
+
+- **A subscripted library parameter (`src[1]`) came through the library boundary as a scalar and read `na`.** `_history_names` now unions names subscripted in library bodies (in-place; over-approximates by design, safe direction), so the parameter is tracked as a series. Same test file.
+
+- **Host-derived series referenced only from within a library** (e.g. `hl2[1]` inside the library body) were never detected, so the host never built them; detection now scans consumer+library source for hl2/hlc3/ohlc4/tr/time_close/input.source in both the session and one-shot paths. Strategy/alert/cross gating stays consumer-only.
 
 ## [0.7.2] — 2026-11-17
 
