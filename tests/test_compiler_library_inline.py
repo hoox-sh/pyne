@@ -274,17 +274,97 @@ export ind(float src) =>
     ta.ema(src, 3)
 """
 
-_LIB_TA_RSI = """//@version=6
-library("Lib")
-export ind(float src) =>
-    ta.rsi(src, 3)
-"""
-
 _SRC_TA_LIB = """//@version=6
 indicator("lib ta")
 import ns/Lib/1 as lib
 plot(lib.ind(close), "x")
 """
+
+_SRC_TA_LIB_TWO = """//@version=6
+indicator("lib ta two")
+import ns/Lib/1 as lib
+plot(lib.ind(close), "x")
+plot(lib.ind(open), "y")
+"""
+
+# Bodies that matched interpret at both call sites. sma stays on its
+# single-call test; its two-call loop-args collapse is unchanged.
+_ADMITTED_TA: tuple[tuple[str, str], ...] = (
+    ("alma", "ta.alma(src, 4)"),
+    ("atr", "ta.atr(3)"),
+    ("bbw", "ta.bbw(src, 4, 2.0)"),
+    ("change", "ta.change(src, 2)"),
+    ("cmo", "ta.cmo(src, 3)"),
+    ("cum", "ta.cum(src)"),
+    ("dev", "ta.dev(src, 3)"),
+    ("ema", "ta.ema(src, 3)"),
+    ("falling", "ta.falling(src, 2)"),
+    ("highest", "ta.highest(src, 3)"),
+    ("highestbars", "ta.highestbars(src, 3)"),
+    ("kama", "ta.kama(src, 3)"),
+    ("linreg", "ta.linreg(src, 4)"),
+    ("lowest", "ta.lowest(src, 3)"),
+    ("lowestbars", "ta.lowestbars(src, 3)"),
+    ("median", "ta.median(src, 3)"),
+    ("mfi", "ta.mfi(src, 3)"),
+    ("mom", "ta.mom(src, 2)"),
+    ("obv", "ta.obv()"),
+    ("percentrank", "ta.percentrank(src, 4)"),
+    ("rising", "ta.rising(src, 2)"),
+    ("rma", "ta.rma(src, 3)"),
+    ("roc", "ta.roc(src, 2)"),
+    ("rsi", "ta.rsi(src, 3)"),
+    ("stdev", "ta.stdev(src, 3)"),
+    ("sum", "ta.sum(src, 3)"),
+    ("tr", "ta.tr()"),
+    ("variance", "ta.variance(src, 3)"),
+    ("vwma", "ta.vwma(src, 3)"),
+    ("wma", "ta.wma(src, 3)"),
+)
+
+# Probed and refused, plus tuple/chart kernels that were not proved.
+_REFUSED_TA: tuple[tuple[str, str], ...] = (
+    ("hma", "ta.hma(src, 4)"),
+    ("dema", "ta.dema(src, 3)"),
+    ("tema", "ta.tema(src, 3)"),
+    ("swma", "ta.swma(src)"),
+    ("wpr", "ta.wpr(3)"),
+    ("crossover", "ta.crossover(src, 101.0)"),
+    ("bb", "ta.bb(src, 5, 2.0)"),
+    ("macd", "ta.macd(src, 3, 5, 3)"),
+    ("kc", "ta.kc(src, 5, 1.5)"),
+    ("dmi", "ta.dmi(3, 3)"),
+    ("supertrend", "ta.supertrend(3.0, 3)"),
+    ("sar", "ta.sar(0.02, 0.02, 0.2)"),
+    ("stoch", "ta.stoch(src, src, src, 3)"),
+    ("cci", "ta.cci(src, 3)"),
+    ("vwap", "ta.vwap(src)"),
+    ("correlation", "ta.correlation(src, src, 3)"),
+)
+
+
+def _lib_ta(body: str) -> str:
+    return f"""//@version=6
+library("Lib")
+export ind(float src) =>
+    {body}
+"""
+
+
+def _osc_bars() -> list[dict[str, float | int]]:
+    """Rise then fall so direction kernels are not an all-zero series."""
+    closes = (10, 12, 14, 13, 11, 9, 10, 12, 15, 14, 12, 11, 13, 16, 15, 13)
+    return [
+        {
+            "open": float(c) - 0.3,
+            "high": float(c) + 1.0,
+            "low": float(c) - 1.0,
+            "close": float(c),
+            "volume": 1000.0 + (i % 4) * 250.0,
+            "time": 1_700_000_000_000 + i * 60_000,
+        }
+        for i, c in enumerate(closes)
+    ]
 
 
 def _ta_libraries(source: str) -> list[dict[str, object]]:
@@ -338,16 +418,37 @@ def test_library_ta_ema_inline_matches_interpret() -> None:
     _assert_ta_series(compiled["series"]["x"], interp["series"]["x"])
 
 
-def test_library_unknown_ta_fails_closed() -> None:
+@pytest.mark.parametrize(("name", "body"), _ADMITTED_TA)
+def test_library_ta_kernel_inline_matches_interpret(name: str, body: str) -> None:
+    """An admitted ta.* kernel in a library body matches interpret at two call sites."""
+    libraries = _ta_libraries(_lib_ta(body))
+    data = _osc_bars()
+    interp = Runtime(symbol="TEST").run(_SRC_TA_LIB_TWO, data, mode="interpret", libraries=libraries)
+    compiled = Runtime(symbol="TEST").run(_SRC_TA_LIB_TWO, data, mode="compile", libraries=libraries)
+    assert "error" not in interp, interp.get("error")
+    assert "error" not in compiled, compiled.get("error")
+    for key in ("x", "y"):
+        _assert_ta_series(compiled["series"][key], interp["series"][key])
+    if name in ("rising", "falling"):
+        nums = [float(v) for v in interp["series"]["x"] if not _is_na(v)]
+        assert 0.0 in nums and 1.0 in nums
+
+
+def _is_na(value: object) -> bool:
+    return value is None or (isinstance(value, float) and value != value)
+
+
+@pytest.mark.parametrize(("name", "body"), _REFUSED_TA)
+def test_library_unknown_ta_fails_closed(name: str, body: str) -> None:
     """A ta.* outside the audited allowlist stays fail-closed."""
     out = Runtime(symbol="TEST").run(
         _SRC_TA_LIB,
         _bars(8),
         mode="compile",
-        libraries=_ta_libraries(_LIB_TA_RSI),
+        libraries=_ta_libraries(_lib_ta(body)),
     )
     assert out.get("error_kind") == "compile", out
-    assert "unsupported ta function ta.rsi" in str(out.get("error") or "").lower()
+    assert f"unsupported ta function ta.{name}" in str(out.get("error") or "").lower()
 
 
 _LIB_MISSING_REQUIRED = """//@version=6

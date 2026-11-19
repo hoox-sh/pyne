@@ -11291,8 +11291,9 @@ class CompilerVisitor(NodeVisitor):
         """Return why an exported library function is outside this inline slice.
 
         Allowed: parameters, locals, literals, ``math.*``/``str.*``,
-        ``ta.sma``/``ta.ema``, a small set of pure bare builtins, and calls to
-        same-library functions in *local_names*. Library constants (free names) and calls to functions
+        the audited ``ta.*`` slice in ``allowed_ta``, a small set of pure bare
+        builtins, and calls to same-library functions in *local_names*.
+        Library constants (free names) and calls to functions
         outside the library must fail closed instead of becoming runtime
         NameErrors or silent na.
         """
@@ -11316,10 +11317,43 @@ class CompilerVisitor(NodeVisitor):
             "fixnan",
         } | local_names
         allowed_namespaces = {"math", "str"} | (extra_namespaces or set())
-        # Small, audited ta.* slice for inlined library bodies. Stateful ta
-        # kernels are supported through the same UDF series/state plumbing as
-        # script-level calls; everything else stays fail-closed.
-        allowed_ta = {"sma", "ema"}
+        # Numeric kernels proved inline-safe: two library call sites (close
+        # and open) match interpret on a short series. Shared intermediate
+        # arrays (hma/dema/tema), swma's close fallback, wpr warmup, crossover
+        # history, and tuple returns stay fail-closed — not the whole ta.*.
+        allowed_ta = {
+            "alma",
+            "atr",
+            "bbw",
+            "change",
+            "cmo",
+            "cum",
+            "dev",
+            "ema",
+            "falling",
+            "highest",
+            "highestbars",
+            "kama",
+            "linreg",
+            "lowest",
+            "lowestbars",
+            "median",
+            "mfi",
+            "mom",
+            "obv",
+            "percentrank",
+            "rising",
+            "rma",
+            "roc",
+            "rsi",
+            "sma",
+            "stdev",
+            "sum",
+            "tr",
+            "variance",
+            "vwma",
+            "wma",
+        }
 
         def walk(node: Any) -> str | None:
             if node is None or not hasattr(node, "_fields"):
