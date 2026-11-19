@@ -1362,3 +1362,30 @@ def test_scalar_and_udt_method_overload_fails_closed() -> None:
     message = str(out.get("error") or "").lower()
     assert "overloaded library method" in message
     assert "scale" in message
+
+
+_LIB_KW = """//@version=6
+library("Lib")
+export mix(float a, float k = 2.0, float m = 10.0) =>
+    a * k + m
+"""
+
+_SRC_LIB_KW = """//@version=6
+indicator("lib kw")
+import ns/Lib/1 as lib
+plot(lib.mix(close, m=1.0), "skip")
+plot(lib.mix(a=close, k=4.0), "named")
+"""
+
+
+def test_library_call_keyword_arg_matches_interpret() -> None:
+    """Inlined ``lib.mix`` keyword args bind by name and keep other defaults."""
+    libraries = [{"namespace": "ns", "name": "Lib", "version": 1, "source": _LIB_KW}]
+    interp = Runtime(symbol="TEST").run(_SRC_LIB_KW, _bars(), mode="interpret", libraries=libraries)
+    compiled = Runtime(symbol="TEST").run(_SRC_LIB_KW, _bars(), mode="compile", libraries=libraries)
+    assert "error" not in interp, interp.get("error")
+    assert "error" not in compiled, compiled.get("error")
+    # close * k + m. ``m=1.0`` leaves k at 2.0; ``k=4.0`` leaves m at 10.0.
+    assert compiled["series"]["skip"] == [202.0, 204.0, 206.0, 208.0]
+    assert compiled["series"]["named"] == [412.0, 416.0, 420.0, 424.0]
+    assert compiled["series"] == interp["series"]

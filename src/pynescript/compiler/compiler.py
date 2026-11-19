@@ -6061,8 +6061,10 @@ class CompilerVisitor(NodeVisitor):
                 # ta/series state, and chart-context plumbing.
                 return self._emit_user_func_call(mapped, args, {}, arg_nodes=arg_nodes)
             if mapped:
-                self.library_inline_error = f"keyword arguments for inlined library method {lib_alias}.{func_name} are not supported; use mode=interpret or auto"
-                return "np.nan"
+                # Keyword args bind by parameter name inside the UDF emitter
+                # (same as interpret). A positional call that omits a required
+                # arg stays on the short-call path above.
+                return self._emit_user_func_call(mapped, args, kwargs, arg_nodes=arg_nodes)
             self.library_inline_error = (
                 f"unsupported library method {lib_alias}.{func_name}; use mode=interpret or auto"
             )
