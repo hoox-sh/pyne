@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-19T04:23:02Z
+  at: 2026-11-19T04:31:54Z
 sources:
   - id: tree
     resource: "tests"
@@ -173,6 +173,7 @@ okf_lock: generated
 - `test_runtime_parity_host_r8.py` — TestAutoDoesNotPaperOverValues, TestCompileSeriesEnvelope, TestInterpretCompileHostPackingParity, TestSharedOhlcvPacking
 - `test_runtime_session.py` — test_session_append_equals_full_replay_sma, test_session_append_var_counter, test_session_barstate_historical_defaults_on_append, test_session_confirm_keeps_update_last_bar_fill, test_session_empty_init_then_append, test_session_full_partial_fill_survives_second_update_last_bar, test_session_once_restored_on_update_last_bar, test_session_partial_append_tick_then_two_update_last_bar, test_session_partial_update_last_bar_then_confirm, test_session_partial_update_last_bar_then_next_crossing_bar, test_session_partial_update_last_bar_twice_keeps_budget, test_session_realtime_window_matches_full_run
 - `test_schemas_coverage.py` — TestDataSchemas, TestPreviewBacktestAuthOptimize, TestRunAndBatchSchemas, TestSessionSchemas, TestValidateCore, ctx
+- `test_scope_count_limit.py` — test_linter_does_not_enforce_a_scope_cap, test_more_than_550_successive_local_scopes_run_on_both_hosts
 - `test_series_buffer_coverage.py` — TestChronoTailView, TestChronologicalSeriesBuffer, TestMakeSeriesAndEvaluatorHistory, TestNewestFirstHistoryView, TestRingPineSeriesExtra
 - `test_series_cap.py` — restore_series_env, test_apply_bar_sample_writes_wrapper_and_optional_list, test_estimate_series_bytes_structural, test_parse_max_bars_back_from_source, test_pineseries_history_length_floor, test_pineseries_oob_is_na_not_zero, test_pineseries_set_history_length_keeps_newest, test_resolve_series_cap_max_bars_back_and_env, test_runtime_cap_off_allows_full_length_growth, test_runtime_cap_on_bounds_current_series, test_runtime_combo_periods_within_cap, test_runtime_ema_rsi_last_n_matches_uncapped
 - `test_series_ring_buffer.py` — test_apply_bar_sample_ring_no_dual_list, test_as_series_accepts_ring_pineseries, test_as_series_after_ring_wrap_keeps_newest_window, test_buffer_chronological_materialize, test_buffer_empty_lookback_is_na, test_buffer_float_offset_truncates_nan_is_na, test_buffer_index_0_1_n_and_oob_na, test_buffer_invalid_maxlen_raises, test_buffer_maxlen_one, test_buffer_maxlen_ring_drops_oldest, test_buffer_negative_offset_is_na, test_chrono_tail_view_grows_until_keep
