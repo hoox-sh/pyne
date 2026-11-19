@@ -1112,6 +1112,10 @@ plot(last_bar_index, title="lbi")
         assert "time(" not in code or "float(__bar_idx)" in code
         compiled = compile_script(src)
         o, h, l, c, v = _ohlcv(20)
+        # Chart flags are process-global. A prior weekly run would make "1D" finer.
+        from pynescript.compiler.numba_builtins import set_chart_timeframe
+
+        set_chart_timeframe("D")
         out = compiled.run(o, h, l, c, v)
         assert abs(out["lbi"][-1] - 19) < 1e-9
 

@@ -202,8 +202,8 @@ class TestCallExprHistorySubscript:
     def test_time_session_prev_bar(self) -> None:
         src = """//@version=6
 indicator("t")
-wasInSession = not na(time(timeframe.period, "0930-1600", "America/New_York")[1])
-nowInSession = not na(time(timeframe.period, "0930-1600", "America/New_York"))
+wasInSession = not na(time(timeframe.period)[1])
+nowInSession = not na(time(timeframe.period))
 sessionStart = nowInSession and not wasInSession
 plot(wasInSession ? 1 : 0, "was")
 plot(sessionStart ? 1 : 0, "ss")

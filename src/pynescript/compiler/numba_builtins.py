@@ -2346,6 +2346,38 @@ def timeframe_change_at(time_arr, i, timeframe_str, tz=None):
     return timeframe_period_changed(curr, prev, timeframe_str, bar_index=idx, tz=zone)
 
 
+def pine_time_call(
+    bar_open,
+    timeframe,
+    tf_supplied,
+    session,
+    timezone,
+    bars_back,
+    close,
+    chart_close,
+    extra=None,
+):
+    """Object-mode ``time()`` / ``time_close()`` — same resolver as interpret."""
+    from pynescript.ast.evaluator.builtins.timeframe import _eval_time_call
+
+    func = "time_close" if close else "time"
+    if not _CHART_TF_FLAGS:
+        set_chart_timeframe()
+    return _eval_time_call(
+        func=func,
+        bar_open=bar_open,
+        timeframe=timeframe,
+        timeframe_supplied=bool(tf_supplied),
+        session=session,
+        timezone=timezone,
+        bars_back=bars_back,
+        close=bool(close),
+        chart_close=chart_close,
+        chart_period=str(chart_timeframe("period")),
+        extra=None if extra is None else str(extra),
+    )
+
+
 def pine_raise(*parts) -> None:
     """Expression-safe ``runtime.error`` for generated code.
 

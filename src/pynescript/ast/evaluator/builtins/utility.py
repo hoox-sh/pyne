@@ -578,16 +578,68 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         except (ValueError, OSError, OverflowError, TypeError):
             return None
 
-    def _builtin_time(self, args: list[Any]) -> int:
-        """Get timestamp for bar start time.
+    def _eval_time_builtin(
+        self,
+        func: str,
+        args: list[Any],
+        kwargs: dict[str, Any] | None,
+        *,
+        close: bool,
+    ) -> int:
+        """Shared ``time`` / ``time_close`` body. Chart stamps stay unscaled."""
+        from .timeframe import _chart_period
+        from .timeframe import _eval_time_call
 
-        Bare ``time`` / ``time()`` return the current bar open time from context.
-        Extra session/timezone args are accepted and currently ignored (chart time).
+        kw = kwargs or {}
+        known = {"timeframe", "session", "timezone", "timeframe_bars_back", "bars_back"}
+        unknown = [key for key in kw if key not in known]
+        supplied = bool(args) or "timeframe" in kw
+        tf = args[0] if args else kw.get("timeframe")
+        session = args[1] if len(args) > 1 else kw.get("session")
+        tz = args[2] if len(args) > 2 else kw.get("timezone")
+        if len(args) > 3:
+            bars = args[3]
+        elif "timeframe_bars_back" in kw:
+            bars = kw["timeframe_bars_back"]
+        elif "bars_back" in kw:
+            bars = kw["bars_back"]
+        else:
+            bars = None
+        if len(args) > 4:
+            extra: str | None = "extra arguments"
+        elif unknown:
+            extra = unknown[0]
+        else:
+            extra = None
+        ctx = getattr(self, "context", {}) or {}
+        bar_open = self._coerce_ctx_number("time", 0)
+        if "time_close" in ctx:
+            chart_close = self._coerce_ctx_number("time_close", 0)
+        else:
+            chart_close = bar_open
+        return _eval_time_call(
+            func=func,
+            bar_open=bar_open,
+            timeframe=tf,
+            timeframe_supplied=supplied,
+            session=session,
+            timezone=tz,
+            bars_back=bars,
+            close=close,
+            chart_close=chart_close,
+            chart_period=_chart_period(self),
+            extra=extra,
+        )
 
-        Returns Unix timestamp in milliseconds.
+    def _builtin_time(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> int:
+        """Bar open time, or the bucket start of a coarser timeframe.
+
+        No args, an empty timeframe, or the chart timeframe return the chart
+        bar open in the host timestamp unit. A coarser timeframe returns the
+        UTC fixed-width bucket start. A finer or unknown timeframe, and
+        session, timezone, or timeframe_bars_back, raise RuntimeError.
         """
-        # Prefer host-injected bar time over wall clock.
-        return int(self._bar_time_ms("time"))
+        return self._eval_time_builtin("time", args, kwargs, close=False)
 
     def _builtin_year(self, args: list[Any]) -> int | None:
         """Extract year from timestamp (bare form uses chart time)."""
@@ -634,13 +686,16 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         dt = self._dt_from_ts(ts, tz)
         return None if dt is None else dt.second
 
-    def _builtin_time_close(self, args: list[Any]) -> int:
-        """Get close time of current bar.
+    def _builtin_time_close(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> int:
+        """Bar close time, or the bucket end of a coarser timeframe.
 
-        Bare ``time_close`` / ``time_close()`` use host ``time_close`` when set,
-        otherwise fall back to bar open ``time``.
+        No args, an empty timeframe, or the chart timeframe return the host
+        ``time_close`` (next bar open; last bar open plus one day). A coarser
+        timeframe returns the bucket start plus its width. A finer or unknown
+        timeframe, and session, timezone, or timeframe_bars_back, raise
+        RuntimeError.
         """
-        return int(self._bar_time_ms("time_close"))
+        return self._eval_time_builtin("time_close", args, kwargs, close=True)
 
     def _builtin_time_tradingday(self, args: list[Any]) -> int:
         """Get trading day timestamp (midnight UTC of current trading day)."""

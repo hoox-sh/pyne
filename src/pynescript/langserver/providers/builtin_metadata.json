@@ -9062,8 +9062,8 @@
     "label": "time",
     "kind": "function",
     "detail": "time()",
-    "brief": "Get timestamp for bar start time.",
-    "documentation": "Get timestamp for bar start time.\n\nBare ``time`` / ``time()`` return the current bar open time from context.\nExtra session/timezone args are accepted and currently ignored (chart time).\n\nReturns Unix timestamp in milliseconds.",
+    "brief": "Bar open time, or the bucket start of a coarser timeframe.",
+    "documentation": "Bar open time, or the bucket start of a coarser timeframe.\n\nNo args, an empty timeframe, or the chart timeframe return the chart\nbar open in the host timestamp unit. A coarser timeframe returns the\nUTC fixed-width bucket start. A finer or unknown timeframe, and\nsession, timezone, or timeframe_bars_back, raise RuntimeError.",
     "snippet": "time",
     "params": [],
     "category": "builtin"
@@ -9072,8 +9072,8 @@
     "label": "time_close",
     "kind": "function",
     "detail": "time_close()",
-    "brief": "Get close time of current bar.",
-    "documentation": "Get close time of current bar.\n\nBare ``time_close`` / ``time_close()`` use host ``time_close`` when set,\notherwise fall back to bar open ``time``.",
+    "brief": "Bar close time, or the bucket end of a coarser timeframe.",
+    "documentation": "Bar close time, or the bucket end of a coarser timeframe.\n\nNo args, an empty timeframe, or the chart timeframe return the host\n``time_close`` (next bar open; last bar open plus one day). A coarser\ntimeframe returns the bucket start plus its width. A finer or unknown\ntimeframe, and session, timezone, or timeframe_bars_back, raise\nRuntimeError.",
     "snippet": "time_close",
     "params": [],
     "category": "builtin"

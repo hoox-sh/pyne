@@ -6609,11 +6609,8 @@ class CompilerVisitor(NodeVisitor):
                 return base
             return f"pine_color_new({base}, {transp})"
 
-        if func_name == "time":
-            # time(timeframe) / time() — chart open when no session args
-            return "time_arr[__bar_idx]"
-        if func_name in ("time_close",):
-            return self._use_time_close()
+        if func_name in ("time", "time_close"):
+            return self._emit_time_or_close(func_name, args, kwargs)
         if func_name == "timeframe_from_seconds":
             self.object_mode = True
             seconds = args[0] if args else kwargs.get("seconds", "np.nan")
@@ -9468,6 +9465,51 @@ class CompilerVisitor(NodeVisitor):
         self.needs_time_close = True
         self.arrays.add("time_close_arr")
         return "time_close_arr[__bar_idx]"
+
+    def _emit_time_or_close(self, func_name: str, args: list[str], kwargs: dict[str, str]) -> str:
+        """Lower ``time`` / ``time_close``. No-arg chart path stays numeric.
+
+        A timeframe, session, timezone, or bars-back argument calls
+        ``pine_time_call`` so both hosts share one bucket-or-error result.
+        """
+        close = func_name == "time_close"
+        chart = self._use_time_close() if close else "time_arr[__bar_idx]"
+        known = {"timeframe", "session", "timezone", "timeframe_bars_back", "bars_back"}
+        unknown = [key for key in kwargs if key not in known]
+        supplied = bool(args) or "timeframe" in kwargs
+        tf = args[0] if args else kwargs.get("timeframe")
+        session = args[1] if len(args) > 1 else kwargs.get("session")
+        tz = args[2] if len(args) > 2 else kwargs.get("timezone")
+        if len(args) > 3:
+            bars = args[3]
+        elif "timeframe_bars_back" in kwargs:
+            bars = kwargs["timeframe_bars_back"]
+        elif "bars_back" in kwargs:
+            bars = kwargs["bars_back"]
+        else:
+            bars = None
+        if len(args) > 4:
+            extra: str | None = "extra arguments"
+        elif unknown:
+            extra = unknown[0]
+        else:
+            extra = None
+        if not supplied and session is None and tz is None and bars is None and extra is None:
+            return chart
+        self.object_mode = True
+
+        def slot(expr: str | None) -> str:
+            return "None" if expr is None else expr
+
+        flag = "True" if close else "False"
+        supplied_flag = "True" if supplied else "False"
+        extra_expr = "None" if extra is None else repr(extra)
+        close_expr = chart if close else "None"
+        return (
+            "pine_time_call("
+            f"time_arr[__bar_idx], {slot(tf)}, {supplied_flag}, {slot(session)}, {slot(tz)}, "
+            f"{slot(bars)}, {flag}, {close_expr}, {extra_expr})"
+        )
 
     def _emit_time_close_init(self, lines: list[str], indent: str = "    ") -> None:
         """Fill ``time_close_arr`` to match interpret Runtime packaging.

@@ -354,6 +354,144 @@ def timeframes_equivalent(a: str | None, b: str | None) -> bool:
         return sa.upper() == sb.upper()
 
 
+def _time_feed_error(func: str, detail: str):
+    """Shared runtime error for ``time()`` / ``time_close()`` on both hosts."""
+    raise RuntimeError(f"{func}() cannot use {detail} on this bar feed")
+
+
+def _coerce_scalar(value: object) -> object:
+    """Unwrap a series wrapper or list sample to its current scalar."""
+    current = getattr(value, "current", None)
+    if current is not None and not isinstance(value, (str, bytes, int, float, bool)):
+        return _coerce_scalar(current)
+    if isinstance(value, (list, tuple)) and not isinstance(value, (str, bytes)):
+        if not value:
+            return None
+        return _coerce_scalar(value[-1])
+    return value
+
+
+def _is_nan_number(value: object) -> bool:
+    if isinstance(value, bool) or isinstance(value, (str, bytes)):
+        return False
+    if type(value).__name__ == "_NaValue":
+        return False
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return False
+    return number != number
+
+
+def _arg_absent(value: object) -> bool:
+    """Missing, na, or blank — not a session / timezone / bars-back request."""
+    raw = _coerce_scalar(value)
+    if raw is None or type(raw).__name__ == "_NaValue" or _is_nan_number(raw):
+        return True
+    if isinstance(raw, str) and raw.strip() == "":
+        return True
+    return False
+
+
+def _is_na_timeframe(value: object) -> bool:
+    raw = _coerce_scalar(value)
+    if type(raw).__name__ == "_NaValue":
+        return True
+    return _is_nan_number(raw)
+
+
+def _timeframe_text(value: object) -> str | None:
+    """Timeframe string, or None when the argument is empty (chart timeframe)."""
+    raw = _coerce_scalar(value)
+    if raw is None or _is_na_timeframe(raw):
+        return None
+    if isinstance(raw, str):
+        text = raw.strip()
+        return text or None
+    if isinstance(raw, bool):
+        return "true" if raw else "false"
+    if isinstance(raw, int):
+        return str(raw)
+    try:
+        number = float(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        text = str(raw).strip()
+        return text or None
+    if number == int(number):
+        return str(int(number))
+    return str(number)
+
+
+def _as_epoch_int(value: object, func: str) -> int:
+    raw = _coerce_scalar(value)
+    if raw is None or type(raw).__name__ == "_NaValue" or _is_nan_number(raw):
+        _time_feed_error(func, "bar time")
+    try:
+        return int(float(raw))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        _time_feed_error(func, "bar time")
+    return 0
+
+
+def _bucket_width_units(ts: int, bucket_ms: float) -> int:
+    """Bucket width in the same unit as *ts* (seconds when the stamp is seconds)."""
+    width = float(bucket_ms) / 1000.0 if abs(ts) < 1.0e11 else float(bucket_ms)
+    return int(width)
+
+
+def _eval_time_call(
+    *,
+    func: str,
+    bar_open: object,
+    timeframe: object,
+    timeframe_supplied: bool,
+    session: object = None,
+    timezone: object = None,
+    bars_back: object = None,
+    close: bool = False,
+    chart_close: object = None,
+    chart_period: str | None = None,
+    extra: str | None = None,
+) -> int:
+    """Chart open/close, or the fixed bucket of a coarser timeframe.
+
+    Empty or chart-equivalent *timeframe* returns the chart bar open, or the
+    chart bar close when *close* is set. A coarser timeframe returns the
+    UTC fixed-width bucket start (``timeframe_bucket_ms``), or that start
+    plus the bucket width for ``time_close``. A finer or unknown timeframe
+    raises :class:`RuntimeError` instead of returning the chart open.
+    Session, timezone, and ``timeframe_bars_back`` are the same error.
+    """
+    if extra:
+        _time_feed_error(func, str(extra))
+    if not _arg_absent(session):
+        _time_feed_error(func, "session")
+    if not _arg_absent(timezone):
+        _time_feed_error(func, "timezone")
+    if not _arg_absent(bars_back):
+        _time_feed_error(func, "timeframe_bars_back")
+    if timeframe_supplied and (_coerce_scalar(timeframe) is None or _is_na_timeframe(timeframe)):
+        _time_feed_error(func, "timeframe 'na'")
+    tf = _timeframe_text(timeframe) if timeframe_supplied else None
+    chart = "" if chart_period is None else str(chart_period).strip()
+    open_i = _as_epoch_int(bar_open, func)
+    if tf is None or timeframes_equivalent(tf, chart or "D"):
+        if close:
+            return _as_epoch_int(bar_open if chart_close is None else chart_close, func)
+        return open_i
+    bucket = timeframe_bucket_ms(tf)
+    chart_bucket = timeframe_bucket_ms(chart) if chart else timeframe_bucket_ms("D")
+    if bucket is None or (chart_bucket is not None and bucket < chart_bucket):
+        _time_feed_error(func, f"timeframe {tf!r}")
+    width = _bucket_width_units(open_i, bucket)
+    if width <= 0:
+        _time_feed_error(func, f"timeframe {tf!r}")
+    start = (open_i // width) * width
+    if close:
+        return start + width
+    return start
+
+
 def _chart_period(evaluator: object | None = None) -> str:
     """Resolve chart timeframe.period from host context / Timeframe object."""
     ctx = getattr(evaluator, "context", None) or {}

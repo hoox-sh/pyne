@@ -81,8 +81,8 @@ def test_time_and_last_bar() -> None:
 
     src = """//@version=6
 indicator("t2")
-t = time(timeframe.period, "0930-1600:1234567")
-tc = time_close(timeframe.period, "0930-1600:1234567")
+t = time(timeframe.period)
+tc = time_close(timeframe.period)
 plot(last_bar_index, "lbi")
 plot(last_bar_time, "lbt")
 plot(t, "tt")
