@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-19T04:31:54Z
+  at: 2026-11-19T10:02:04Z
 sources:
   - id: tree
     resource: "tests"
@@ -102,6 +102,7 @@ okf_lock: generated
 - `test_host_realtime_cache.py` — setup_function, teardown_function, test_host_realtime_reemit_populates_object_mode_cache, test_host_realtime_second_run_reuses_cached_object_mode
 - `test_indicators.py` — TestAccdistIndicator, TestIiiIndicator, TestNviPviIndicators, TestPhase7Integration, TestWadIndicator, TestWvadIndicator
 - `test_interp_compile_parity.py` — harness, test_close5_lookback_interp_compile_na_and_values, test_harness_cli_flags_registered, test_harness_compare_ignore_fill_keys, test_harness_compare_ignore_hline_keys, test_harness_constant_hline, test_harness_expected_error_classifier, test_harness_is_fill_background_key, test_harness_mismatch_detail_type_na_and_n_bad, test_harness_normalize_error_auto_fib, test_harness_series_allclose_nan_none, test_harness_summarize_buckets
+- `test_intratick_order.py` — test_closed_leg_keeps_both_extremes_from_one_print_dual_host, test_confirm_applies_envelope_after_fills, test_confirm_closing_fill_matches_update_last_bar, test_confirm_opening_fill_matches_update_last_bar, test_confirm_same_print_open_and_close_matches_update_last_bar, test_partial_close_leftover_leg_keeps_extremes_compile, test_partial_close_leftover_leg_keeps_extremes_interpret, test_short_trail_print_favorable_first_dual_host, test_update_last_bar_closing_fill_keeps_retick_envelope, test_update_last_bar_opening_fill_keeps_retick_envelope, test_update_last_bar_same_print_open_and_close_keeps_envelope
 - `test_key_store_redis_coverage.py` — FakeRedis, test_create_get_update_delete, test_encode_decode, test_import_error_without_client
 - `test_known_bugs_regression.py` — test_bug_compile_mode_swallows_parse_errors, test_bug_ticker_new_prefix_ticker_positional
 - `test_langserver.py` — TestApplyTextEdit, TestDiagnostics, TestTrailingIdent, TestWorkspace

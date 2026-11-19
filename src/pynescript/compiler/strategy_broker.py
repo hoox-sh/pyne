@@ -608,6 +608,13 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
         ``long``): ``stop = low + offset``, only falling. Fixed ``stop_price``
         set at placement acts as a floor/ceiling that the trail may improve
         but not worsen beyond on first arm.
+
+        Intratick convention (both hosts, pinned by
+        ``tests/test_intratick_order.py``): inside one OHLC print the
+        favorable extreme is applied first (this ratchet), then the adverse
+        extreme is tested against the stop. Pine does not model intra-print
+        order; this matches the per-tick loop, which ratchets before each
+        fill test.
         """
         if not order.is_trail:
             return

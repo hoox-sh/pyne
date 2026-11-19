@@ -2161,6 +2161,14 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
         rising. Short exit (buy stop): ``stop = low + offset``, only falling.
         Fixed ``stop_price`` set at placement acts as a floor/ceiling that the
         trail may improve but not worsen beyond on first arm.
+
+        Intratick convention (both hosts, pinned by
+        ``tests/test_intratick_order.py``): inside one OHLC print the
+        favorable extreme is applied first (this ratchet), then the adverse
+        extreme is tested against the stop. Pine does not model intra-print
+        order; this matches the per-tick loop, which ratchets before each
+        fill test. A pre-print open through the ratcheted stop fills at the
+        open (``_order_fill_price`` gap rule).
         """
         if not order.is_trail:
             return
@@ -2917,6 +2925,12 @@ class StrategyBuiltinsMixin(StrategyBracketCore, BuiltinDispatchMixin):
                         direction=ot.direction,
                         size=leftover,
                         commission=ot.commission - entry_comm,
+                        # Keep the leg's accumulated MAE/MFE on the leftover
+                        # (compile keeps them too); a partial close must not
+                        # erase excursions the surviving size already lived
+                        # through.
+                        max_drawdown=float(getattr(ot, "max_drawdown", 0.0) or 0.0),
+                        max_runup=float(getattr(ot, "max_runup", 0.0) or 0.0),
                     )
                 )
             remaining -= close_qty

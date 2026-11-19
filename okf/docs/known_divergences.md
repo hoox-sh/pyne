@@ -7,7 +7,7 @@ tags: [doc, docs, known-divergences]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-16T12:54:52Z
+  at: 2026-11-19T10:02:04Z
 sources:
   - id: tree
     resource: "docs/known_divergences.md"
@@ -45,4 +45,5 @@ Repo path `docs/known_divergences.md`.
 
 # Mentions
 
+- [src/pynescript/compiler](/code/src/pynescript/compiler.md)
 - [tests](/code/tests.md)

@@ -2814,6 +2814,16 @@ class InterpretSession:
         intermediate realtime ticks in :meth:`Runtime.run` and a later
         :meth:`append_bars` stays exact.
 
+        MAE/MFE follows the same two-phase pattern as the interpret feed
+        tick path: after the broker restore (phase 1) and again after the
+        fills this re-tick triggers (phase 2), the forming bar's envelope —
+        its current ``high``/``low`` — is re-applied to open trades via
+        ``update_open_trade_extremes`` (persists like ``varip``; fills still
+        roll back). Re-applying is idempotent. The call site must pass the
+        *cumulative* forming bar (the latest high/low seen so far), which is
+        the same contract the data feed poll honours; passing a non-cumulative
+        print drops excursions from earlier ticks of the same bar.
+
         Confirmed :meth:`append_bars` commits (does not restore). Strategy
         series history (``_size_hist`` …) is overwritten, not appended.
         """
@@ -2839,6 +2849,12 @@ class InterpretSession:
         if self._last_open_broker_snap is not None:
             ev._strategy_state.restore(self._last_open_broker_snap)
             _ratchet_forming_trails(ev, h, low)
+        # D-03 (feed tick-path parity, phase 1/2): re-apply this re-tick's
+        # OHLC envelope to open-trade MAE/MFE after the restore, before any
+        # fills. ``bar`` is the cumulative forming bar (every re-tick passes
+        # the latest high/low seen so far), so re-applying is idempotent and
+        # recovers any excursion the restore rolled back.
+        if self._need_strategy:
             _update_forming_trade_extremes(ev, h, low)
         # Drop this bar's events/alerts/conditions; the re-visit re-emits.
         try:
@@ -2983,6 +2999,13 @@ class InterpretSession:
                 )
                 _stats.count("interpret.errors", dim="order_fill")
                 return self._error_result
+        # D-03 (feed tick-path parity, phase 2/2): re-apply this re-tick's
+        # OHLC envelope after the fills, so a leg opened by this re-tick's
+        # fills keeps this print's excursion (the pre-fill apply above covers
+        # trades already open at tick start, including ones this re-tick
+        # closes). Idempotent with the interpret broker's per-fill apply.
+        if self._need_strategy:
+            _update_forming_trade_extremes(ev, h, low)
         _dbg_t0 = time.perf_counter() if _dbg_on() else 0.0
         try:
             ev.visit(self._tree)
@@ -3036,7 +3059,15 @@ class InterpretSession:
             _swallow(_exc, what="commit last-bar strategy history")
 
     def _confirm_forming_last_bar(self, *, more_bars: bool = False) -> None:
-        """Re-visit the last bar as confirmed after unconfirmed forming ticks."""
+        """Re-visit the last bar as confirmed after unconfirmed forming ticks.
+
+        Mirrors :meth:`update_last_bar`'s two-phase envelope handling for
+        open-trade MAE/MFE: phase 1 re-applies the confirmed print's envelope
+        after the broker restore (before the fills, so a trade closed by the
+        re-visit keeps the print's excursion) and phase 2 re-applies it after
+        the fills (so a leg opened by them keeps it too). Re-applying is
+        idempotent (max-based) with the interpret broker's per-fill apply.
+        """
         if not self._last_bar_unconfirmed or self._n_bars <= 0 or self._error_result is not None:
             return
         ev = self.evaluator
@@ -3132,6 +3163,13 @@ class InterpretSession:
                 )
                 _stats.count("interpret.errors", dim="order_fill")
                 return
+        # D-03 (confirmation path, phase 2/2): re-apply this print's envelope
+        # after the fills, so a leg opened by this re-visit's fills keeps the
+        # print's excursion (the pre-fill apply above covers trades already
+        # open at restore, including ones this re-visit closes). Idempotent
+        # with the interpret broker's per-fill apply.
+        if self._need_strategy:
+            _update_forming_trade_extremes(ev, h, low)
         try:
             ev.visit(self._tree)
         except Exception as e:

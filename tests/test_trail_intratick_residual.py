@@ -26,10 +26,16 @@ and does not invent an open→high→low path inside one print.
   An earlier peak (or trough) stays in the stop after unconfirmed fills roll
   back. A later print can fill against that stop even when its own high/low
   would not arm it, and even when the stored bar no longer contains the peak.
-* Inside one OHLC print both hosts still ratchet from the favorable extreme
-  and then test the adverse extreme. High-vs-low order is not modeled: the
-  same print fills at the open when that open is through the new stop, rather
-  than at the stop (high then low) or not at all (low then high).
+* Inside one OHLC print the intratick convention is now pinned on both hosts
+  (2026-11-19): the favorable extreme is applied first (trail ratchet / MFE),
+  then the adverse extreme is tested against the stop (MAE). Pine does not
+  model intra-print order; this is a pinned convention, not modeled truth,
+  pinned by ``tests/test_intratick_order.py`` (including the short-side
+  mirror and dual-host asserts). The same print fills at the open when that
+  open is through the new stop, rather than at the stop (high then low) or
+  not at all (low then high). MAE/MFE extremes are order-invariant max-of-
+  leg-excursions, except the interpret leftover-leg partial-close path,
+  which now carries the leg's accumulated extremes too (2026-11-19).
 """
 
 from __future__ import annotations
