@@ -383,6 +383,11 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
         self._high: float = 0.0
         self._low: float = 0.0
         self._close: float = 0.0
+        # Set only while ``_process_pending_ohlc`` is filling. A same-tick
+        # close copies leg extremes before the post-fill update, and the
+        # stored bar is still the pre-tick print.
+        self._fill_high: float | None = None
+        self._fill_low: float | None = None
         self._equity_peak: float = float(initial_capital)
         self._equity_trough: float = float(initial_capital)
         self._max_drawdown: float = 0.0
@@ -528,6 +533,24 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
         return self._process_pending_ohlc(o, h, l, c)
 
     def _process_pending_ohlc(
+        self,
+        o: float,
+        h: float,
+        l: float,
+        c: float,
+    ) -> list[str]:
+        # Legs opened by this call must see this print, not begin_bar's bar.
+        prev_fill_high = self._fill_high
+        prev_fill_low = self._fill_low
+        self._fill_high = h
+        self._fill_low = l
+        try:
+            return self._fill_pending(o, h, l, c)
+        finally:
+            self._fill_high = prev_fill_high
+            self._fill_low = prev_fill_low
+
+    def _fill_pending(
         self,
         o: float,
         h: float,
@@ -2363,8 +2386,10 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
                 self._max_runup_percent = 100.0 * ru / abs(self._equity_trough)
 
     def _update_leg_extremes(self) -> None:
-        """Approximate per-open-leg MAE/MFE from bar high/low (currency units)."""
-        self.update_open_trade_extremes(self._high, self._low)
+        """Per-open-leg MAE/MFE from the fill print, else the stored bar."""
+        hi = self._high if self._fill_high is None else self._fill_high
+        lo = self._low if self._fill_low is None else self._fill_low
+        self.update_open_trade_extremes(hi, lo)
 
     @property
     def max_drawdown(self) -> float:

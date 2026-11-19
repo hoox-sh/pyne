@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-19T02:08:54Z
+  at: 2026-11-19T03:03:30Z
 sources:
   - id: tree
     resource: "tests"
@@ -121,6 +121,7 @@ okf_lock: generated
 - `test_lsp_navigation_extras.py` — TestCallHierarchy, TestCodeLens, TestDeclaration, TestInlineCompletion, TestTypeDefinition
 - `test_lsp_semantics.py` — TestCompletionSemantics, TestFormattingSafety, TestLinterPrecision, TestNavigationSemantics, TestQualifierPropagation, TestQuickFixes, TestSemanticDiagnostics, TestSeriesSimpleSemanticTokens, TestSignatureAndInlaySemantics, TestUtf16Positions, TestWorkspaceFreshness, TestWorkspaceIndex
 - `test_mae_realtime_ticks.py` — test_compile_emits_extremes_after_restore, test_forming_high_low_update_mae_dual_host, test_historical_held_trade_extremes_match_compile, test_historical_held_trade_extremes_match_compile_session, test_historical_ticks_one_keeps_bar_open_mae, test_same_bar_open_close_keeps_entry_extremes_full, test_same_bar_open_close_keeps_entry_extremes_partial, test_tick_fill_counts_fill_tick_extremes_interpret, test_tick_fill_counts_fill_tick_extremes_session, test_tick_limit_exit_keeps_exit_tick_extremes_interpret, test_tick_limit_exit_keeps_exit_tick_extremes_session, test_tick_stop_entry_ignores_pre_entry_low
+- `test_mae_same_tick_open_close.py` — test_same_tick_limit_open_close_keeps_fill_tick_extremes, test_same_tick_limit_open_close_session, test_same_tick_stop_open_close_ignores_pre_tick_low
 - `test_map_collections.py` — TestMapBasics, TestMapCopy, TestMapDifferentKeyTypes, TestMapDifferentValueTypes, TestMapEdgeCases, TestMapPutAll, TestMapQueryMethods
 - `test_matrix_collections.py` — TestMatrixAggregations, TestMatrixColumnOperations, TestMatrixCore, TestMatrixFilling, TestMatrixRowOperations, TestMatrixTransformations
 - `test_matrix_v6_surface.py` — test_array_binary_search_udt_method_form, test_array_binary_search_udt_sort_field, test_array_sort_udt_sort_field, test_input_text_area_returns_value, test_matrix_add_row_inserts_not_only_appends, test_matrix_eval_dispatch_det_and_avg, test_matrix_linear_algebra_det_inv_trace, test_matrix_new_empty_and_add_row_at_index, test_matrix_predicates_and_sort, test_matrix_sort_order_descending_numeric, test_matrix_sort_udt_sort_field, test_order_ascending_descending_constants

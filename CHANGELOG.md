@@ -10,6 +10,8 @@
 
 ### Fixed
 
+- **A same-tick entry and exit keeps the fill print's MAE/MFE on both hosts.** Interpret already applied that print's high/low after the entry fill, so the closed leg saw the tick. Compile copied the pre-tick bar stored by `begin_bar`, because the tick OHLC never replaced it before the close. The fill call now supplies the envelope. High-versus-low order inside one print stays unmodeled. Pinned by `tests/test_mae_same_tick_open_close.py`.
+
 - **A library call that omits a required argument raises `TypeError` on interpret.** Compile already rejected the short call (`helper(close)` when `k` is required, including a required parameter before a default) instead of padding with `na`. Interpret used to return an all-na series. Trailing defaults still bind. Pinned by `tests/test_compiler_library_inline.py::test_library_missing_required_arg_both_hosts` and `test_library_required_before_default_both_hosts`.
 
 - **Interpreter scalar `var` inside a UDF is stored per call-site path.** Nested `ema_calc` calls (TTM Wave) no longer share one `result`. Wave A1[1] on the synthetic bars matches compile at 0.1556462585033874. Pinned by `tests/test_ttm_wave_var_parity.py`.
