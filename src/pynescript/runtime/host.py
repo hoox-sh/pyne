@@ -206,6 +206,27 @@ _VWAP_RE = re.compile(r"\b(?:ta\.)?vwap\b")
 _AO_RE = re.compile(r"\b(?:ta\.)?ao\b")
 # input.source dropdown can pick hl2/hlc3/ohlc4/tr even when those ids are absent.
 _INPUT_SOURCE_RE = re.compile(r"\binput\.source\b")
+
+
+def _scan_text_with_libraries(source_code: str, libraries: list[dict[str, Any]] | None) -> str:
+    """Consumer source with registered library sources appended.
+
+    Host capability detection (which derived series to maintain) must also
+    see library bodies — a library referencing ``hl2`` hides it from the
+    consumer's text. Strategy/alert gating stays consumer-only.
+    """
+    if not libraries:
+        return source_code
+    parts = [source_code]
+    for lib in libraries:
+        if not isinstance(lib, dict):
+            continue
+        src = lib.get("source")
+        if isinstance(src, str) and src:
+            parts.append(src)
+    return "\n".join(parts)
+
+
 # Strategy snapshot / drain only when the script actually uses the broker.
 _STRATEGY_NAME_RE = re.compile(r"\bstrategy\b")
 # Post-loop alert export — skip import when source has no alert() / alertcondition().
@@ -2308,12 +2329,15 @@ class InterpretSession:
             except Exception as _exc:
                 _swallow(_exc, what="stamp chart right-visible bar time")
 
-        need_src_input = bool(_INPUT_SOURCE_RE.search(source_code))
-        self._need_hl2 = need_src_input or bool(_HL2_RE.search(source_code)) or bool(_AO_RE.search(source_code))
-        self._need_hlc3 = need_src_input or bool(_HLC3_RE.search(source_code)) or bool(_VWAP_RE.search(source_code))
-        self._need_ohlc4 = need_src_input or bool(_OHLC4_RE.search(source_code))
-        self._need_tr = need_src_input or bool(_TR_RE.search(source_code))
-        self._need_time_close = bool(_TIME_CLOSE_RE.search(source_code))
+        # Derived host series must also see library bodies: a library can
+        # reference hl2/hlc3/... with no trace in the consumer source.
+        scan_src = _scan_text_with_libraries(source_code, libraries)
+        need_src_input = bool(_INPUT_SOURCE_RE.search(scan_src))
+        self._need_hl2 = need_src_input or bool(_HL2_RE.search(scan_src)) or bool(_AO_RE.search(scan_src))
+        self._need_hlc3 = need_src_input or bool(_HLC3_RE.search(scan_src)) or bool(_VWAP_RE.search(scan_src))
+        self._need_ohlc4 = need_src_input or bool(_OHLC4_RE.search(scan_src))
+        self._need_tr = need_src_input or bool(_TR_RE.search(scan_src))
+        self._need_time_close = bool(_TIME_CLOSE_RE.search(scan_src))
         self._need_strategy = bool(_STRATEGY_NAME_RE.search(source_code))
         self._need_alerts = bool(_ALERT_CALL_RE.search(source_code))
         self._need_cross = "crossover" in source_code or "crossunder" in source_code or "ta.cross(" in source_code
@@ -3821,12 +3845,15 @@ class Runtime:
                 has_bid_ask = True
                 break
         # input.source can pick derived names that never appear as identifiers.
-        need_src_input = bool(_INPUT_SOURCE_RE.search(source_code))
-        need_hl2 = need_src_input or bool(_HL2_RE.search(source_code)) or bool(_AO_RE.search(source_code))
-        need_hlc3 = need_src_input or bool(_HLC3_RE.search(source_code)) or bool(_VWAP_RE.search(source_code))
-        need_ohlc4 = need_src_input or bool(_OHLC4_RE.search(source_code))
-        need_tr = need_src_input or bool(_TR_RE.search(source_code))
-        need_time_close = bool(_TIME_CLOSE_RE.search(source_code))
+        # Derived host series also see library bodies (they can reference
+        # hl2/hlc3/... with no trace in the consumer source).
+        scan_src = _scan_text_with_libraries(source_code, libraries)
+        need_src_input = bool(_INPUT_SOURCE_RE.search(scan_src))
+        need_hl2 = need_src_input or bool(_HL2_RE.search(scan_src)) or bool(_AO_RE.search(scan_src))
+        need_hlc3 = need_src_input or bool(_HLC3_RE.search(scan_src)) or bool(_VWAP_RE.search(scan_src))
+        need_ohlc4 = need_src_input or bool(_OHLC4_RE.search(scan_src))
+        need_tr = need_src_input or bool(_TR_RE.search(scan_src))
+        need_time_close = bool(_TIME_CLOSE_RE.search(scan_src))
         need_strategy = bool(_STRATEGY_NAME_RE.search(source_code))
         need_alerts = bool(_ALERT_CALL_RE.search(source_code))
         need_cross = "crossover" in source_code or "crossunder" in source_code or "ta.cross(" in source_code

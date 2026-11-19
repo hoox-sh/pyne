@@ -605,6 +605,11 @@ class NameEvaluator:
                 return None
             return value[-(slice_ + 1)]
 
+        if type(value) is str:
+            # Pine has no string subscripting. A raw string here means an
+            # unresolved identifier survived to the subscript path — never
+            # slice it into characters (``close[1]`` yielding ``'l'``).
+            return None
         if hasattr(value, "__getitem__"):
             try:
                 return value[slice_]

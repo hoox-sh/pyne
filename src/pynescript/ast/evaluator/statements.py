@@ -831,7 +831,12 @@ class StatementEvaluator:
         # Once per script: collect names used with history subscript so assigns
         # can track PineSeries across bars (``ma[barsback]``, ``x[1]``, …).
         if not self._history_names_scanned:
-            hist: set[str] = set()
+            # Update in place: library bodies loaded via ``_load_library_source``
+            # union their subscripted names into this same set (before or after
+            # this scan) so they must not be discarded here.
+            hist = getattr(self, "_history_names", None)
+            if not isinstance(hist, set):
+                hist = set()
             self._collect_history_names(node, hist)
             self._history_names = hist  # type: ignore[attr-defined]
             self._history_names_scanned = True  # type: ignore[attr-defined]
@@ -1858,13 +1863,19 @@ class StatementEvaluator:
         # call site — two ``kahlman(...)`` invocations cannot share one ``kf``.
         history_in_fn: set[str] = set()
         self._collect_history_names(node, history_in_fn)
-        series_locals: set[str] = set(history_in_fn - param_name_set)
-        series_locals_t = frozenset(series_locals)
+        # Only names *assigned* in the body (plain locals, loop targets, or
+        # ``var``/``varip``) may become per-call-site series locals. A
+        # subscripted free variable (host OHLCV like ``close``, or a
+        # module-level series aliased into the body) must keep resolving
+        # against the caller's context — popping it here left the raw name
+        # string in its place (``close[1]`` evaluated as ``'close'[1] == 'l'``).
+        var_all_names, varip_all_names = _udf_persistent_locals(node)
+        assigned_in_fn = _udf_plain_locals(node) | var_all_names | varip_all_names
+        series_locals_t = frozenset(history_in_fn & assigned_in_fn)
         # History ``var`` (``v[1]``) stays on the series-local path. A scalar
         # ``var`` is keyed by the whole call path so nested EMAs do not alias.
-        var_names_t, varip_names_t = _udf_persistent_locals(node)
-        var_names_t = frozenset(var_names_t - series_locals_t)
-        varip_names_t = frozenset(varip_names_t - series_locals_t)
+        var_names_t = frozenset(var_all_names - series_locals_t)
+        varip_names_t = frozenset(varip_all_names - series_locals_t)
         scalar_names_t = var_names_t | varip_names_t
         # Params subscripted in the body (``s[1]``) need a per-site series even
         # when the caller passed a scalar (``src = close`` is not in
@@ -2192,6 +2203,24 @@ class StatementEvaluator:
         statements like Console's interactive demo (``testLabel.delete()`` …).
         """
         tree = parse_pine(source, mode="exec")
+        # Subscripts inside the library body (params and locals of exported
+        # functions) must join the consumer's ``_history_names`` so
+        # ``_bind_series_name`` wraps those arguments in PineSeries at the
+        # call site — the consumer's own scan cannot see them. Mutate the
+        # shared set in place: ``visit_Script`` reuses the same object, so
+        # names merged here (before or after its scan) stay visible.
+        lib_hist: set[str] = set()
+        self._collect_history_names(tree, lib_hist)
+        if lib_hist:
+            hist = getattr(self, "_history_names", None)
+            if isinstance(hist, set):
+                hist |= lib_hist
+            else:
+                hist = set(lib_hist)
+                self._history_names = hist  # type: ignore[attr-defined]
+            # The cached commit set derives from ``_history_names``; drop it
+            # so unwritten-var commits see the library names too.
+            self._commit_history_stamp = None  # type: ignore[attr-defined]
         # Isolate pending exports so the consumer Script walk does not steal
         # them, and finalize before visit_Import falls through to a stub.
         saved_active = getattr(self, "_active_library", None)

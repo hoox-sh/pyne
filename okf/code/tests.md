@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-19T10:02:04Z
+  at: 2026-11-19T17:53:55Z
 sources:
   - id: tree
     resource: "tests"
@@ -229,6 +229,7 @@ okf_lock: generated
 - `test_trail_realtime_ticks.py` — test_compile_emits_ratchet_after_restore, test_forming_highs_ratchet_trail_dual_host, test_historical_ticks_one_keeps_bar_open_trail, test_ratchet_trails_survives_broker_restore_compile, test_ratchet_trails_survives_broker_restore_interpret, test_update_last_bar_ratchets_forming_high
 - `test_ttm_wave_var_parity.py` — test_ttm_wave_udf_var_matches_compile
 - `test_tv_goldens.py` — test_csv_export_route, test_loop_sma_close_i_matches_overwrite_model, test_sma_same_call_site_overwrites_current_bar, test_tostring_unwraps_series_and_keeps_precision, test_tv_golden_baseline_has_reasons, test_tv_golden_fixtures_are_paired, test_tv_goldens_have_no_new_failures, test_vendored_fixture_hashes_match_sources
+- `test_udfs_ohlcv_subscript.py` — test_consumer_local_subscript_still_works, test_global_series_via_local_alias, test_inline_udf_param_subscript_matches_library_shape, test_library_host_series_subscript_inside_body, test_library_param_subscript_matches_inline, test_library_param_subscript_offset_two, test_library_subscript_after_pinned_assignment, test_library_ta_sma_param_matches_inline, test_library_ta_sma_subscript_matches_inline, test_top_level_subscript_unchanged, test_udf_bare_ohlcv_still_resolves, test_udf_close_plus_close_subscript
 - `test_udt_instantiation.py` — TestComplexScenarios, TestFieldAccess, TestFieldMutation, TestNestedObjects, TestObjectCopy, TestObjectInstantiation, TestObjectsInArrays
 - `test_udt_methods.py` — TestBarLoopMethodRegistration, TestBareNaAndLabelDelete, TestComplexMethodScenarios, TestMethodDefinition, TestMethodInvocation, TestMethodIssetOnNa, TestMethodReturnValues, TestMultipleMethods, TestTHISBinding, TestUdtFieldCallSyntax, TestUdtNewNameShadowing
 - `test_udt_types.py` — TestField, TestIntegration, TestObjectInstance, TestUserDefinedType
