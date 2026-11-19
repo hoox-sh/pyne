@@ -402,3 +402,61 @@ class TestCompileBrokerSnapshotRestore:
         assert len(br.events) == 1
         assert br._equity_peak == 120_000.0
         assert br.netprofit == 0.0
+
+    def test_restore_truncates_appended_records_and_events(self) -> None:
+        """Append-only books roll back by truncation, in place.
+
+        ``events`` and ``closed_trade_records`` grow only by append; an
+        unconfirmed tick's entries must vanish on restore while the pre-tick
+        prefix stays the very same objects (identity, not copies).
+        """
+        from pynescript.compiler.strategy_broker import ClosedTradeRecord
+
+        br = CompileStrategyBroker()
+        br.events.append({"kind": "entry", "id": "L", "qty": 1.0})
+        keep_event = br.events[0]
+        br.closed_trade_records.append(
+            ClosedTradeRecord(
+                entry_id="L",
+                size=1.0,
+                entry_price=100.0,
+                exit_price=101.0,
+                profit=1.0,
+                commission=0.0,
+                direction="long",
+            )
+        )
+        keep_record = br.closed_trade_records[0]
+
+        snap = br.snapshot()
+        # Unconfirmed tick: two events + one closed-trade record get appended.
+        br.events.append({"kind": "close", "id": "L", "qty": 1.0})
+        br.events.append({"kind": "order", "id": "L:close", "qty": 1.0})
+        br.closed_trade_records.append(
+            ClosedTradeRecord(
+                entry_id="L",
+                size=1.0,
+                entry_price=100.0,
+                exit_price=102.0,
+                profit=2.0,
+                commission=0.0,
+                direction="long",
+            )
+        )
+        assert len(br.events) == 3
+        assert len(br.closed_trade_records) == 2
+
+        br.restore(snap)
+        assert br.events == [keep_event]
+        assert br.events[0] is keep_event
+        assert len(br.closed_trade_records) == 1
+        assert br.closed_trade_records[0] is keep_record
+
+    def test_restore_without_intervening_appends_is_noop(self) -> None:
+        """Restoring a snapshot with no intervening appends changes nothing."""
+        br = CompileStrategyBroker()
+        br.events.append({"kind": "entry", "id": "L", "qty": 1.0})
+        before = list(br.events)
+        snap = br.snapshot()
+        br.restore(snap)
+        assert br.events == before

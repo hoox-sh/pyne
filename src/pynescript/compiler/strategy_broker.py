@@ -418,25 +418,43 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
         self._day_filled_orders: int = 0
         self._calendar_day: int | None = None  # current tz calendar day
 
+    # Snapshot marker for append-only lists (``events`` / ``closed_trade_records``).
+    # Their length at snapshot time is all restore needs: the appended tail is
+    # exactly what an unconfirmed tick produced, so rollback is a truncate.
+    _ROLLBACK_MARKS_KEY = "__rollback_marks__"
+
     def snapshot(self) -> dict[str, Any]:
         """Copy broker books for unconfirmed realtime tick rollback.
 
-        Pending orders and open/closed trade records are copied; event dicts
-        are copied by value. :meth:`restore` writes back onto this same
-        instance so generated ``__strategy`` aliases stay valid.
+        Pending orders and open legs are copied (both are mutated in place
+        between snapshot and restore). ``events`` and ``closed_trade_records``
+        are append-only, so their *length* is recorded instead of copying the
+        contents — restore truncates. :meth:`restore` writes back onto this
+        same instance so generated ``__strategy`` aliases stay valid.
         """
         snap: dict[str, Any] = {}
+        events_len = len(self.events) if isinstance(self.__dict__.get("events"), list) else None
+        records = self.__dict__.get("closed_trade_records")
+        records_len = len(records) if isinstance(records, list) else None
+        if events_len is not None or records_len is not None:
+            snap[self._ROLLBACK_MARKS_KEY] = (events_len, records_len)
         for k, v in self.__dict__.items():
             if k == "pending_orders":
                 snap[k] = {oid: replace(o) for oid, o in v.items()}
-            elif k in {"open_legs", "closed_trade_records"}:
+            elif k == "open_legs":
                 snap[k] = [replace(x) for x in v]
+            elif k == "closed_trade_records":
+                # Append-only; length is recorded above. Pre-tick records are
+                # never mutated in place, so the surviving prefix stays valid.
+                continue
             elif k == "_bar_fill_budget" and isinstance(v, dict):
                 # Copy-on-snapshot: a tick that consumes budget must not mutate
                 # the bar-open snapshot restored on the next unconfirmed tick.
                 snap[k] = dict(v)
             elif k == "events":
-                snap[k] = [dict(e) for e in v]
+                # Append-only; length is recorded above. Pre-tick dicts are
+                # never mutated in place, so the surviving prefix stays valid.
+                continue
             else:
                 snap[k] = v
         return snap
@@ -445,18 +463,25 @@ class CompileStrategyBroker(StrategyRiskCore, StrategyBracketCore):
         """Replace in-place broker state from :meth:`snapshot` (same object)."""
         if not snap:
             return
+        marks = snap.get(self._ROLLBACK_MARKS_KEY)
+        if marks is not None:
+            events_len, records_len = marks
+            if events_len is not None and isinstance(self.events, list):
+                del self.events[events_len:]
+            if records_len is not None and isinstance(self.closed_trade_records, list):
+                del self.closed_trade_records[records_len:]
         for k, v in snap.items():
+            if k == self._ROLLBACK_MARKS_KEY:
+                continue
             cur = getattr(self, k, None)
             if k == "pending_orders" and isinstance(cur, dict):
                 cur.clear()
                 cur.update({oid: replace(o) for oid, o in v.items()})
-            elif k in {"open_legs", "closed_trade_records"} and isinstance(cur, list):
+            elif k == "open_legs" and isinstance(cur, list):
                 cur[:] = [replace(x) for x in v]
             elif k == "_bar_fill_budget" and isinstance(cur, dict):
                 cur.clear()
                 cur.update(v)
-            elif k == "events" and isinstance(cur, list):
-                cur[:] = [dict(e) for e in v]
             else:
                 setattr(self, k, v)
 
