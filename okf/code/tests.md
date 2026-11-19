@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-19T04:06:18Z
+  at: 2026-11-19T04:23:02Z
 sources:
   - id: tree
     resource: "tests"
@@ -192,6 +192,7 @@ okf_lock: generated
 - `test_set06_udf_volume_shadow.py` — test_corpus_get_counts_arity_and_run, test_corpus_if_var_convert_to_account, test_corpus_request_security_udt, test_request_security_udt_is_object_handle, test_udf_if_var_convert_to_account_is_valid_python, test_udf_local_vol_def_call_arity_match, test_udf_local_vol_reads_chart_volume
 - `test_set06_udt_switch_drawing.py` — test_box_copy_is_dict_not_none, test_chart_point_copy_not_list_none, test_corpus_0018_distance_ratio_library_compiles, test_corpus_13720_pivothigh_udt_length, test_corpus_1626_drawing_copy, test_corpus_5027_enum_udt, test_pivothigh_nan_length_is_nan, test_switch_with_nested_if_assigns_local, test_ta_cum_none_src_does_not_raise, test_udf_returns_udt_field_not_float_dict, test_udt_get_field_helper
 - `test_sqlite_keystore_coverage.py` — TestSQLiteKeyStoreCRUD, TestSQLiteKeyStoreMemoryAndPersistence, store
+- `test_square_bracket_line_wrap.py` — test_multiple_of_four_indent_inside_parentheses, test_multiple_of_four_indent_inside_square_brackets
 - `test_statements_expressions_edges.py` — TestIfElseNestedAndTernary, TestLoopsBreakContinue, TestSwitchCase, TestSwitchExpressionStatementMix, TestTupleUnpackAndNaBool
 - `test_strategy_deep_coverage.py` — TestStrategyDeclarationPaths, TestStrategyEntryExitOrder, TestStrategyQueriesAndRuntime, TestStrategySoftHelpers
 - `test_strategy_events.py` — TestBarIndexInEvents, TestCrossRequestLeakPrevention, TestEventCapture, TestKwargsPassedToBuiltinHandlers, TestPerBarEventReset, TestStrategyEventDataclass, TestStrategyHandlersReadKwargs, TestStrategyLongShortConstants
