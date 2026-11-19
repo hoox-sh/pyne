@@ -185,6 +185,32 @@ def pine_call_site_id(node: Any) -> int:
     return sid
 
 
+def push_udf_call_site(ev: Any, node: Any) -> Any:
+    """Push *node* onto the live UDF call path. Returns the previous site.
+
+    The path is the stack of Call sites, not the leaf site alone. A ``var``
+    inside ``ema`` reached from two ``macd`` calls must not share one binding
+    (TTM Wave). History locals still key off the leaf site.
+    """
+    prev = getattr(ev, "_pine_udf_site", None)
+    sid = pine_call_site_id(node)
+    ev._pine_udf_site = sid
+    stack = getattr(ev, "_pine_udf_stack", None)
+    if stack is None:
+        stack = []
+        ev._pine_udf_stack = stack
+    stack.append(sid)
+    return prev
+
+
+def pop_udf_call_site(ev: Any, prev: Any) -> None:
+    """Undo :func:`push_udf_call_site`."""
+    stack = getattr(ev, "_pine_udf_stack", None)
+    if stack:
+        stack.pop()
+    ev._pine_udf_site = prev
+
+
 def _store_call_site(node: Any, site: tuple) -> None:
     """Attach resolved call-site tuple to *node* (safe across GC id reuse).
 
@@ -948,8 +974,7 @@ class ExpressionEvaluator:
                                 ):
                                     _store_call_site(node, (_SITE_CONST, result))
                                 return result
-                            prev_site = getattr(self, "_pine_udf_site", None)
-                            self._pine_udf_site = pine_call_site_id(node)  # type: ignore[attr-defined]
+                            prev_site = push_udf_call_site(self, node)
                             try:
                                 return user(*args, **kwargs)
                             except TypeError as e:
@@ -962,7 +987,7 @@ class ExpressionEvaluator:
                                         raise
                                     return None
                             finally:
-                                self._pine_udf_site = prev_site  # type: ignore[attr-defined]
+                                pop_udf_call_site(self, prev_site)
                     if name in _DECL_CALL_NAMES and getattr(self, "_pine_defs_locked", False):
                         existing = getattr(self, "_script_declaration", None)
                         if existing is not None:
@@ -1048,8 +1073,7 @@ class ExpressionEvaluator:
                 # called bare as ``plot(x, "t")``) — the builtin wins, and the
                 # fall-through below uses the same evaluated args.
                 if user is not None and _user_call_matches(user, args):
-                    prev_site = getattr(self, "_pine_udf_site", None)
-                    self._pine_udf_site = pine_call_site_id(node)  # type: ignore[attr-defined]
+                    prev_site = push_udf_call_site(self, node)
                     try:
                         return user(*args, **kwargs)
                     except TypeError as e:
@@ -1062,7 +1086,7 @@ class ExpressionEvaluator:
                                 raise
                             return None
                     finally:
-                        self._pine_udf_site = prev_site  # type: ignore[attr-defined]
+                        pop_udf_call_site(self, prev_site)
             result = self._call_builtin(name, args, kwargs=kwargs)  # type: ignore[attr-defined]
             # Fold pure literal builtins on first eval (same bar nested loops).
             if (
@@ -1110,8 +1134,7 @@ class ExpressionEvaluator:
                         return self._call_builtin(name, args, kwargs=kwargs)  # type: ignore[attr-defined]
                     return None
                 return self._visit_Call_general(node, plan)
-            prev_site = getattr(self, "_pine_udf_site", None)
-            self._pine_udf_site = pine_call_site_id(node)  # type: ignore[attr-defined]
+            prev_site = push_udf_call_site(self, node)
             try:
                 return func(*args, **kwargs)
             except TypeError as e:
@@ -1124,7 +1147,7 @@ class ExpressionEvaluator:
                         raise
                     return None
             finally:
-                self._pine_udf_site = prev_site  # type: ignore[attr-defined]
+                pop_udf_call_site(self, prev_site)
 
         # General path: methods, UDT.new, recovered attrs.
         # site = (_SITE_G, arg_plan)
@@ -1546,6 +1569,10 @@ class ExpressionEvaluator:
         # Soft-fail non-callables (stubs, na) — return None
         if not callable(func):
             return None
+        # Attribute / recovered UDFs skip the Name fast path. Push the same
+        # call path so their ``var`` state does not alias the caller's.
+        is_udf = bool(getattr(func, "__pine_udf__", False) or getattr(func, "__pine_overloads__", False))
+        prev_site = push_udf_call_site(self, node) if is_udf else None
         try:
             return func(*args, **kwargs)
         except TypeError as e:
@@ -1553,6 +1580,9 @@ class ExpressionEvaluator:
             if _type_error_from_callee(e):
                 raise
             return None
+        finally:
+            if is_udf:
+                pop_udf_call_site(self, prev_site)
 
     def _is_qualified_attribute_builtin_call(
         self: EvaluatorProtocol,

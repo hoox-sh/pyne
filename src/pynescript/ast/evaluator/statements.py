@@ -31,7 +31,9 @@
   sets ``_pine_defs_locked`` (avoids multi-dispatch table growth O(bars²)).
 - **UDF bodies** rebind parameters and plain locals on the live ``context``
   dict and restore them on return (never replace ``self.context`` with a
-  copy). ``var`` / ``varip`` locals stay on that dict across calls.
+  copy). Scalar ``var`` / ``varip`` locals are stored per call-site path
+  so nested calls do not share one binding. History locals (``x[1]``)
+  stay per immediate call site.
 - **``na``** is ``None``; unresolved optional args are normalized via
   :func:`_normalize_na`.
 """
@@ -488,9 +490,11 @@ def _udf_plain_locals(func: ast.FunctionDef) -> frozenset[str]:
     call. ``:=`` targets are not declarations and keep writing the caller's
     binding.
 
-    ``var`` / ``varip`` locals are omitted: they persist on the shared dict
-    (``_var_declarations``), and restoring them would reset that state on
-    every call. Parameters are restored by the call binder.
+    ``var`` / ``varip`` locals are omitted. Scalar ones live in the
+    per-call-path store (see :meth:`StatementEvaluator._udf_path_bucket`);
+    snapshotting them here would only duplicate that save. History ``var``
+    names stay on the series-local path. Parameters are restored by the
+    call binder.
     """
     params = {arg.name for arg in func.args if isinstance(arg, ast.Param)}
     persistent: set[str] = set()
@@ -513,6 +517,71 @@ def _udf_plain_locals(func: ast.FunctionDef) -> frozenset[str]:
             elif hasattr(child, "_fields"):
                 stack.append(child)
     return frozenset(plain - params - persistent)
+
+
+def _udf_persistent_locals(func: ast.FunctionDef) -> tuple[frozenset[str], frozenset[str]]:
+    """``var`` and ``varip`` names declared in *func*, excluding nested defs.
+
+    Nested functions keep their own stores. Parameters are not locals.
+    """
+    params = {arg.name for arg in func.args if isinstance(arg, ast.Param)}
+    var_names: set[str] = set()
+    varip_names: set[str] = set()
+    stack: list[Any] = [func]
+    while stack:
+        current = stack.pop()
+        if isinstance(current, ast.FunctionDef) and current is not func:
+            continue
+        if isinstance(current, ast.Assign):
+            mode = getattr(current, "mode", None)
+            names = _assign_target_names(current.target)
+            if isinstance(mode, ast.VarIp):
+                varip_names.update(names)
+            elif isinstance(mode, ast.Var):
+                var_names.update(names)
+        for field in getattr(current, "_fields", ()):
+            child = getattr(current, field, None)
+            if isinstance(child, list):
+                stack.extend(c for c in child if hasattr(c, "_fields"))
+            elif hasattr(child, "_fields"):
+                stack.append(child)
+    return frozenset(var_names - params), frozenset(varip_names - params)
+
+
+def _load_udf_scalar_bucket(
+    ctx: dict[str, Any],
+    saved: dict[str, Any],
+    missing: object,
+    names: frozenset[str],
+    bucket: dict[str, Any] | None,
+) -> None:
+    """Install this call path's scalar ``var`` values and remember the caller.
+
+    A name missing from *bucket* is removed so the declaration initializes on
+    this first execution instead of reading the caller's binding.
+    """
+    if bucket is None:
+        return
+    for name in names:
+        if name not in saved:
+            saved[name] = ctx[name] if name in ctx else missing
+        if name in bucket:
+            ctx[name] = bucket[name]
+        else:
+            ctx.pop(name, None)
+
+
+def _save_udf_scalar_bucket(
+    ctx: dict[str, Any],
+    names: frozenset[str],
+    bucket: dict[str, Any] | None,
+) -> None:
+    """Write scalar ``var`` bindings back before the caller snapshot returns."""
+    if bucket is None:
+        return
+    for name in names:
+        if name in ctx:
+            bucket[name] = ctx[name]
 
 
 class BreakLoop(Exception):
@@ -918,6 +987,35 @@ class StatementEvaluator:
             pending = self._pending_library_exports  # type: ignore[attr-defined]
         pending[name] = value
 
+    def _udf_path_bucket(self, *, varip: bool) -> dict[str, Any] | None:
+        """Scalar UDF ``var`` / ``varip`` bucket for the live call path.
+
+        ``var`` lives in ``context['__udf_var_state']`` so the existing realtime
+        scope snapshot rolls it back with other context dicts. ``varip`` stays
+        on the evaluator: rollback must not undo it. ``None`` when this call
+        was not entered through ``visit_Call`` (no site stack).
+        """
+        stack = getattr(self, "_pine_udf_stack", None)
+        if not stack:
+            return None
+        path = tuple(stack)
+        if varip:
+            store = getattr(self, "_udf_varip_site_state", None)
+            if store is None:
+                store = {}
+                self._udf_varip_site_state = store  # type: ignore[attr-defined]
+        else:
+            ctx = self.context  # type: ignore[attr-defined]
+            store = ctx.get("__udf_var_state")
+            if not isinstance(store, dict):
+                store = {}
+                ctx["__udf_var_state"] = store
+        bucket = store.get(path)
+        if not isinstance(bucket, dict):
+            bucket = {}
+            store[path] = bucket
+        return bucket
+
     def visit_Assign(self, node: ast.Assign):
         """Assignment, including ``var`` / ``varip`` / ``const`` and tuple unpack.
 
@@ -1007,6 +1105,20 @@ class StatementEvaluator:
                 ctx = getattr(self, "context", {}) or {}
                 barstate = ctx.get("barstate")
                 is_rt = bool(getattr(barstate, "isrealtime", False)) if barstate is not None else False
+                # Scalar UDF ``var`` is per call-site path. The global declared
+                # set would alias every ``ema_calc`` in TTM Wave onto one result.
+                scalar_names = getattr(self, "_udf_scalar_var_names", None)
+                if scalar_names and name in scalar_names and getattr(self, "_pine_udf_stack", None):
+                    bucket = self._udf_path_bucket(varip=is_varip)
+                    already = bucket is not None and name in bucket
+                    if is_varip and is_rt:
+                        if node.value:
+                            value = self.visit(node.value)  # type: ignore[attr-defined]
+                            self._bind_series_name(name, value)
+                    elif not already and node.value:
+                        value = self.visit(node.value)  # type: ignore[attr-defined]
+                        self._bind_series_name(name, value)
+                    return
                 if is_varip and is_rt:
                     # Realtime tick: re-evaluate RHS every update (reference varip).
                     if node.value:
@@ -1677,7 +1789,8 @@ class StatementEvaluator:
 
         The generated callable rebinds parameters and plain locals **in place**
         on ``context`` and restores prior values in ``finally`` (see nested
-        ``user_function``). ``var`` / ``varip`` locals are left on the dict.
+        ``user_function``). Scalar ``var`` / ``varip`` locals are stored per
+        call-site path, not on the shared dict.
         """
         # Already bound on a prior bar — keep existing callables.
         if getattr(self, "_pine_defs_locked", False):
@@ -1708,6 +1821,12 @@ class StatementEvaluator:
         self._collect_history_names(node, history_in_fn)
         series_locals: set[str] = set(history_in_fn - param_name_set)
         series_locals_t = frozenset(series_locals)
+        # History ``var`` (``v[1]``) stays on the series-local path. A scalar
+        # ``var`` is keyed by the whole call path so nested EMAs do not alias.
+        var_names_t, varip_names_t = _udf_persistent_locals(node)
+        var_names_t = frozenset(var_names_t - series_locals_t)
+        varip_names_t = frozenset(varip_names_t - series_locals_t)
+        scalar_names_t = var_names_t | varip_names_t
         # Params subscripted in the body (``s[1]``) need a per-site series even
         # when the caller passed a scalar (``src = close`` is not in
         # ``_history_names`` unless ``src`` itself is indexed).
@@ -1730,6 +1849,9 @@ class StatementEvaluator:
             __series_locals=series_locals_t,
             __series_params=series_params_t,
             __plain_locals=plain_locals_t,
+            __var_names=var_names_t,
+            __varip_names=varip_names_t,
+            __scalar_names=scalar_names_t,
             **kwargs,
         ):
             """Invoke a UDF with in-place param rebind on the live context.
@@ -1737,8 +1859,9 @@ class StatementEvaluator:
             Hosts mutate the *same* ``context`` dict each bar (``bar_index``,
             ``time``, OHLCV). Replacing ``self.context`` with ``dict.copy()``
             would orphan those updates (every call would see bar 0). Parameter
-            names and plain locals are scoped. ``var`` / ``varip`` locals stay
-            on the shared dict across bars and across calls.
+            names and plain locals are scoped. Scalar ``var`` / ``varip``
+            locals load from the live call-path bucket and write back before
+            the caller bindings return.
 
             The function name itself is always snapshotted: Pine scripts often
             reuse the UDF name as a local series (``kama() => kama = 0.0; …``).
@@ -1769,6 +1892,13 @@ class StatementEvaluator:
                     all_stores = {}
                     self._udf_call_site_state = all_stores  # type: ignore[attr-defined]
                 site_store = all_stores.setdefault((__fname, site), {})
+
+            prev_scalar = getattr(self, "_udf_scalar_var_names", None)
+            if __scalar_names:
+                # visit_Assign reads this set and skips the shared declared-set.
+                self._udf_scalar_var_names = __scalar_names
+            var_bucket: dict[str, Any] | None = None
+            varip_bucket: dict[str, Any] | None = None
 
             try:
                 # Snapshot before series restore / param bind so the caller's
@@ -1835,6 +1965,17 @@ class StatementEvaluator:
                     else:
                         _bind(dname, dval)
 
+                # Scalar var/varip: one bucket per live call path (TTM Wave).
+                # No stack means the body was not entered through visit_Call;
+                # leave the name on the shared dict (direct visit() tests).
+                if __scalar_names and getattr(self, "_pine_udf_stack", None):
+                    if __var_names:
+                        var_bucket = self._udf_path_bucket(varip=False)
+                    if __varip_names:
+                        varip_bucket = self._udf_path_bucket(varip=True)
+                    _load_udf_scalar_bucket(ctx, saved, missing, __var_names, var_bucket)
+                    _load_udf_scalar_bucket(ctx, saved, missing, __varip_names, varip_bucket)
+
                 # Execute pre-classified body
                 result = None
                 visit = self.visit
@@ -1863,13 +2004,21 @@ class StatementEvaluator:
                     for n in __series_params:
                         if n in ctx:
                             site_store[n] = ctx[n]
+                _save_udf_scalar_bucket(ctx, __var_names, var_bucket)
+                _save_udf_scalar_bucket(ctx, __varip_names, varip_bucket)
                 return result
             finally:
+                if __scalar_names:
+                    self._udf_scalar_var_names = prev_scalar
                 for name, old in saved.items():
                     if old is missing:
                         ctx.pop(name, None)
                     else:
                         ctx[name] = old
+
+        # General-path calls push a site only for real UDFs. Name fast paths
+        # already push for every user callable.
+        user_function.__pine_udf__ = True  # type: ignore[attr-defined]
 
         # Tag Pine ``method`` callables so instance dispatch does not treat
         # ordinary functions (e.g. local ``update()``) as extension methods
@@ -1910,6 +2059,7 @@ class StatementEvaluator:
                 return chosen(*args, **kwargs)
 
             multi_dispatch.__pine_method__ = True  # type: ignore[attr-defined]
+            multi_dispatch.__pine_udf__ = True  # type: ignore[attr-defined]
             multi_dispatch.__pine_overloads__ = overloads  # type: ignore[attr-defined]
             multi_dispatch.__pine_first_type__ = None  # type: ignore[attr-defined]
             multi_dispatch.__pine_param_types__ = None  # type: ignore[attr-defined]

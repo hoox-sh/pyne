@@ -271,6 +271,9 @@ class BaseEvaluator(NodeVisitor):
         self._pine_line_profile: dict[int, list[float]] | None = None
         self._hot_body: tuple[Any, ...] | None = None
         self._pine_udf_site: int | None = None
+        # Live UDF Call-site path (pushed by visit_Call). Scalar ``var`` keys
+        # off the whole tuple so nested calls do not share one binding.
+        self._pine_udf_stack: list[int] = []
         self._pine_as_series_cache: dict[Any, tuple] = {}
         self._pine_ta_inc_cached: bool | None = None
         self._ta_call_i: int = 0

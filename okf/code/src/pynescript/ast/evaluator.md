@@ -7,7 +7,7 @@ tags: [ast, code, evaluator, pynescript]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-18T19:22:26Z
+  at: 2026-11-19T01:34:38Z
 sources:
   - id: tree
     resource: "src/pynescript/ast/evaluator"
@@ -21,7 +21,7 @@ okf_lock: generated
 - `__init__.py` — NodeLiteralEvaluator
 - `base.py` — BaseEvaluator
 - `events.py` — StrategyEvent
-- `expressions.py` — ExpressionEvaluator, pine_call_site_id
+- `expressions.py` — ExpressionEvaluator, pine_call_site_id, pop_udf_call_site, push_udf_call_site
 - `libraries.py` — LibraryModule, LibraryRegistry, bind_tradingview_ta_stub_exports
 - `literals.py` — LiteralEvaluator
 - `names.py` — NameEvaluator, ast_qualified_name

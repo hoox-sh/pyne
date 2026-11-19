@@ -10,6 +10,8 @@
 
 ### Fixed
 
+- **Interpreter scalar `var` inside a UDF is stored per call-site path.** Nested `ema_calc` calls (TTM Wave) no longer share one `result`. Wave A1[1] on the synthetic bars matches compile at 0.1556462585033874. Pinned by `tests/test_ttm_wave_var_parity.py`.
+
 - **A nested list keeps its object across an unconfirmed realtime rollback.** Map, Matrix, and UDT values already restored into the same object. A list nested in an array, dict, or map came back as a new list, so a handle taken before the tick still saw the unconfirmed mutation (including when the tick removed or replaced the list). Rollback now writes into that list. Pinned by `tests/test_realtime_rollback.py::test_nested_list_identity_survives_unconfirmed_tick_rollback`.
 
 - **A string longer than 4,096 characters is accepted.** No 4,096 cap was found in the evaluator or the linter, so none was raised to 40,960. A 4,097-character literal and `str.repeat` result evaluate, and lint does not treat that length as a string-length error (a line over 120 characters is still `C002`). A 40,961-character string is also accepted because that ceiling is not modeled. Pinned by `tests/test_string_max_length.py`.
