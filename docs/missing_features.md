@@ -105,7 +105,7 @@ Data providers include Mock, Yahoo Finance, AlphaVantage, and CCXT (100+ crypto 
 
 The Numba compile path handles pure numeric scripts: series assignments, arithmetic, history access, control flow, selected `ta.*` routines, tuple unpack, scalar math, plots, and `var` persistence. Scripts containing `varip` route to object mode, which owns per-tick persistence; numeric nopython is historical-only. Object mode handles UDTs, maps, drawings, and `varip`.
 
-Compile inlines exported library functions whose bodies use params/locals/literals, `math.*`, `str.*`, `ta.sma`/`ta.ema`, and a small bare-call set; other `ta.*` functions and namespaces stay fail-closed (`use mode=interpret or auto`). A call missing a required library argument preserves compile's short-call `TypeError` (including a required arg before a default); interpret returns `na` for the same call (pre-existing divergence). Warm-compile with disk IR cache is available via prewarm API/CLI.
+Compile inlines exported library functions whose bodies use params/locals/literals, `math.*`, `str.*`, `ta.sma`/`ta.ema`, and a small bare-call set; other `ta.*` functions and namespaces stay fail-closed (`use mode=interpret or auto`). A call missing a required library argument raises compile's short-call `TypeError` on both hosts (including a required arg before a default). Trailing defaults still bind. Warm-compile with disk IR cache is available via prewarm API/CLI.
 
 ---
 

@@ -10,6 +10,8 @@
 
 ### Fixed
 
+- **A library call that omits a required argument raises `TypeError` on interpret.** Compile already rejected the short call (`helper(close)` when `k` is required, including a required parameter before a default) instead of padding with `na`. Interpret used to return an all-na series. Trailing defaults still bind. Pinned by `tests/test_compiler_library_inline.py::test_library_missing_required_arg_both_hosts` and `test_library_required_before_default_both_hosts`.
+
 - **Interpreter scalar `var` inside a UDF is stored per call-site path.** Nested `ema_calc` calls (TTM Wave) no longer share one `result`. Wave A1[1] on the synthetic bars matches compile at 0.1556462585033874. Pinned by `tests/test_ttm_wave_var_parity.py`.
 
 - **A nested list keeps its object across an unconfirmed realtime rollback.** Map, Matrix, and UDT values already restored into the same object. A list nested in an array, dict, or map came back as a new list, so a handle taken before the tick still saw the unconfirmed mutation (including when the tick removed or replaced the list). Rollback now writes into that list. Pinned by `tests/test_realtime_rollback.py::test_nested_list_identity_survives_unconfirmed_tick_rollback`.

@@ -369,8 +369,20 @@ plot(lib.helper(close), "x")
 """
 
 
+def _short_call_type_error(out: dict[str, object]) -> str:
+    """TypeError clause after the function name (host prefixes differ)."""
+    assert out.get("error_kind") == "runtime", out
+    assert out.get("error_type") == "TypeError", out
+    message = str(out.get("error") or "")
+    marker = "TypeError: "
+    assert marker in message, message
+    detail = message.split(marker, 1)[1]
+    assert "() " in detail, detail
+    return detail.split("() ", 1)[1]
+
+
 def test_library_missing_required_arg_both_hosts() -> None:
-    """Compile preserves the short-call TypeError; interpret stays na."""
+    """A short library call that omits a required arg raises on both hosts."""
     interp = Runtime(symbol="TEST").run(
         _SRC_LIB_MISSING,
         _bars(4),
@@ -383,12 +395,10 @@ def test_library_missing_required_arg_both_hosts() -> None:
         mode="compile",
         libraries=_ta_libraries(_LIB_MISSING_REQUIRED),
     )
-    assert "error" not in interp, interp.get("error")
-    assert all(v is None for v in interp["series"]["x"])
-    assert compiled.get("error_kind") == "runtime", compiled
-    message = str(compiled.get("error") or "")
-    assert "missing 1 required positional argument" in message, message
-    assert "'k'" in message, message
+    clause = "missing 1 required positional argument: 'k'"
+    assert _short_call_type_error(interp) == clause
+    assert _short_call_type_error(compiled) == clause
+    assert "series" not in interp
 
 
 def test_library_required_before_default_both_hosts() -> None:
@@ -405,12 +415,10 @@ def test_library_required_before_default_both_hosts() -> None:
         mode="compile",
         libraries=_ta_libraries(_LIB_REQUIRED_BEFORE_DEFAULT),
     )
-    assert "error" not in interp, interp.get("error")
-    assert all(v is None for v in interp["series"]["x"])
-    assert compiled.get("error_kind") == "runtime", compiled
-    message = str(compiled.get("error") or "")
-    assert "missing 2 required positional arguments" in message, message
-    assert "'b'" in message and "'k'" in message, message
+    clause = "missing 2 required positional arguments: 'b' and 'k'"
+    assert _short_call_type_error(interp) == clause
+    assert _short_call_type_error(compiled) == clause
+    assert "series" not in interp
 
 
 _LIB_XLIB_UDT_B = """//@version=6

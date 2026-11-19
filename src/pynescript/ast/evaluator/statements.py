@@ -63,6 +63,45 @@ from pynescript.ast.type_system import UserDefinedType
 # Sentinel: param was not present in context before binding (pop on unbind).
 _CONTEXT_MISSING: Any = object()
 
+
+def _exported_short_call_missing(
+    param_names: tuple[str, ...],
+    default_names: frozenset[str],
+    nargs: int,
+) -> tuple[str, ...] | None:
+    """Formals a positional library-export call leaves unset.
+
+    Compile emits ``def f(a, b, k)`` with no defaults on the signature. A
+    positional call fills only a prefix of trailing defaults and stops at the
+    first param that has none; every formal after that prefix is missing.
+    ``None`` means the call is complete and trailing defaults still bind.
+    """
+    if nargs >= len(param_names):
+        return None
+    filled = nargs
+    for pname in param_names[nargs:]:
+        if pname not in default_names:
+            return param_names[filled:]
+        filled += 1
+    return None
+
+
+def _missing_positional_message(fname: str, missing: tuple[str, ...]) -> str:
+    """CPython text for a short call against a required-only signature."""
+    count = len(missing)
+    quoted = [f"'{name}'" for name in missing]
+    if count == 1:
+        listed = quoted[0]
+        noun = "argument"
+    elif count == 2:
+        listed = f"{quoted[0]} and {quoted[1]}"
+        noun = "arguments"
+    else:
+        listed = ", ".join(quoted[:-1]) + f", and {quoted[-1]}"
+        noun = "arguments"
+    return f"{fname}() missing {count} required positional {noun}: {listed}"
+
+
 # Lazy handles into expressions.py (import cycle + per-bar hot paths:
 # hoisting avoids the import machinery on every ``x += 1`` / switch).
 _BINOP_RAW: Any = None
@@ -1838,6 +1877,10 @@ class StatementEvaluator:
             self._func_series_locals = fsl  # type: ignore[attr-defined]
         fsl[func_name] = series_locals_t
 
+        # Exports only. Other UDFs keep the na path when an arg is omitted.
+        export_short_names = param_names if getattr(node, "export", None) else ()
+        export_default_names = frozenset(item[0] for item in defaults)
+
         # Create a closure
         def user_function(
             *args,
@@ -1852,6 +1895,8 @@ class StatementEvaluator:
             __var_names=var_names_t,
             __varip_names=varip_names_t,
             __scalar_names=scalar_names_t,
+            __short_names=export_short_names,
+            __default_names=export_default_names,
             **kwargs,
         ):
             """Invoke a UDF with in-place param rebind on the live context.
@@ -1874,6 +1919,13 @@ class StatementEvaluator:
             Series params (``s[1]``) get the same per-site wrap so a scalar
             caller like ``src = close; f(src)`` still has previous-bar ``s``.
             """
+            # Raise before binding so a missing required export arg cannot
+            # fall through to ``na`` arithmetic. Keyword calls skip this:
+            # compile pads those holes instead of raising.
+            if __short_names and not kwargs:
+                short_missing = _exported_short_call_missing(__short_names, __default_names, len(args))
+                if short_missing:
+                    raise TypeError(_missing_positional_message(__fname, short_missing))
             ctx = self.context  # type: ignore[attr-defined]
             saved: dict[str, Any] = {}
             missing = _CONTEXT_MISSING
