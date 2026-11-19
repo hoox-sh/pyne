@@ -383,16 +383,6 @@ def _is_nan_number(value: object) -> bool:
     return number != number
 
 
-def _arg_absent(value: object) -> bool:
-    """Missing, na, or blank — not a session / timezone / bars-back request."""
-    raw = _coerce_scalar(value)
-    if raw is None or type(raw).__name__ == "_NaValue" or _is_nan_number(raw):
-        return True
-    if isinstance(raw, str) and raw.strip() == "":
-        return True
-    return False
-
-
 def _is_na_timeframe(value: object) -> bool:
     raw = _coerce_scalar(value)
     if type(raw).__name__ == "_NaValue":
@@ -460,16 +450,11 @@ def _eval_time_call(
     UTC fixed-width bucket start (``timeframe_bucket_ms``), or that start
     plus the bucket width for ``time_close``. A finer or unknown timeframe
     raises :class:`RuntimeError` instead of returning the chart open.
-    Session, timezone, and ``timeframe_bars_back`` are the same error.
+    Session, timezone, and ``timeframe_bars_back`` are not applied: after
+    the bucket is chosen they do not change it and do not abort the run.
     """
     if extra:
         _time_feed_error(func, str(extra))
-    if not _arg_absent(session):
-        _time_feed_error(func, "session")
-    if not _arg_absent(timezone):
-        _time_feed_error(func, "timezone")
-    if not _arg_absent(bars_back):
-        _time_feed_error(func, "timeframe_bars_back")
     if timeframe_supplied and (_coerce_scalar(timeframe) is None or _is_na_timeframe(timeframe)):
         _time_feed_error(func, "timeframe 'na'")
     tf = _timeframe_text(timeframe) if timeframe_supplied else None

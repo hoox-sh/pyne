@@ -21,8 +21,9 @@
 
 Chart timeframe (or no args) stays the chart bar open/close. A coarser
 timeframe returns the fixed-width bucket from ``timeframe_bucket_ms``.
-A finer or unknown timeframe, and session / timezone / bars-back, raise
-the same runtime error on both hosts.
+A finer or unknown timeframe raises the same runtime error on both hosts.
+Session, timezone, and ``timeframe_bars_back`` do not change that result
+and do not abort the run.
 """
 
 from __future__ import annotations
@@ -177,27 +178,60 @@ plot(time("60"), "t")
     ("body", "detail"),
     [
         ('plot(time("5"), "t")', "time() cannot use timeframe '5' on this bar feed"),
+        ('plot(time("5", "0930-1600"), "t")', "time() cannot use timeframe '5' on this bar feed"),
         ('plot(time_close("nope"), "t")', "time_close() cannot use timeframe 'nope' on this bar feed"),
-        ('plot(time("15", "0930-1600"), "t")', "time() cannot use session on this bar feed"),
         (
-            'plot(time_close(timeframe.period, "0930-1600", "America/New_York"), "t")',
-            "time_close() cannot use session on this bar feed",
-        ),
-        (
-            'plot(time("15", timezone="America/New_York"), "t")',
-            "time() cannot use timezone on this bar feed",
-        ),
-        (
-            'plot(time(timeframe.period, timeframe_bars_back=1), "t")',
-            "time() cannot use timeframe_bars_back on this bar feed",
+            'plot(time_close("nope", "0930-1600", "America/New_York"), "t")',
+            "time_close() cannot use timeframe 'nope' on this bar feed",
         ),
         ('plot(time(na), "t")', "time() cannot use timeframe 'na' on this bar feed"),
+        ('plot(time(na, "0930-1600"), "t")', "time() cannot use timeframe 'na' on this bar feed"),
         ('plot(time_close(na), "t")', "time_close() cannot use timeframe 'na' on this bar feed"),
     ],
 )
 def test_unsupported_time_args_agree(body: str, detail: str) -> None:
     src = f'//@version=6\nindicator("t")\n{body}\n'
     _assert_same_error(src, _bars_15m(3), "15", detail)
+
+
+def test_session_timezone_and_bars_back_do_not_change_the_bucket() -> None:
+    """Extra args are ignored. Both hosts stay on the same chart or coarser bucket."""
+    src = """//@version=6
+indicator("ignored extras")
+plot(time, "bare")
+plot(time("15", "0930-1600"), "same_sess")
+plot(time("15", "0930-1600", "America/New_York"), "same_tz")
+plot(time(timeframe.period, timeframe_bars_back=1), "same_bb")
+plot(time("60"), "h")
+plot(time("60", "0930-1600"), "h_sess")
+plot(time("60", "0930-1600", "America/New_York"), "h_tz")
+plot(time(timeframe="60", session="0000-0800", timezone="GMT+3"), "h_kw")
+plot(time("60", timeframe_bars_back=4), "h_bb")
+plot(time_close, "tc")
+plot(time_close("15", "0930-1600", "America/New_York"), "tc_same")
+plot(time_close(timeframe.period, timeframe_bars_back=2), "tc_bb")
+plot(time_close("60"), "hc")
+plot(time_close("60", "0930-1600", "UTC", 3), "hc_extra")
+"""
+    bars = _bars_15m()
+    got = _series(src, bars, "15")
+    opens = [float(b["time"]) for b in bars]
+    closes = [*opens[1:], opens[-1] + _DAY]
+    hour = [float((_T0 + i * _STEP_15) // _HOUR * _HOUR) for i in range(len(bars))]
+    assert got["bare"] == opens
+    assert got["same_sess"] == opens
+    assert got["same_tz"] == opens
+    assert got["same_bb"] == opens
+    assert got["h"] == hour
+    assert got["h_sess"] == hour
+    assert got["h_tz"] == hour
+    assert got["h_kw"] == hour
+    assert got["h_bb"] == hour
+    assert got["tc"] == closes
+    assert got["tc_same"] == closes
+    assert got["tc_bb"] == closes
+    assert got["hc"] == [v + _HOUR for v in hour]
+    assert got["hc_extra"] == [v + _HOUR for v in hour]
 
 
 def test_bare_time_does_not_call_the_bucket_helper() -> None:

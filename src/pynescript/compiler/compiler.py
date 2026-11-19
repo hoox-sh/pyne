@@ -9470,7 +9470,8 @@ class CompilerVisitor(NodeVisitor):
         """Lower ``time`` / ``time_close``. No-arg chart path stays numeric.
 
         A timeframe, session, timezone, or bars-back argument calls
-        ``pine_time_call`` so both hosts share one bucket-or-error result.
+        ``pine_time_call`` so both hosts share one bucket. Session, timezone,
+        and bars-back are forwarded and then ignored; they do not abort.
         """
         close = func_name == "time_close"
         chart = self._use_time_close() if close else "time_arr[__bar_idx]"

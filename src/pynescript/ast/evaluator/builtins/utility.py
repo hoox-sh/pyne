@@ -636,8 +636,9 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
 
         No args, an empty timeframe, or the chart timeframe return the chart
         bar open in the host timestamp unit. A coarser timeframe returns the
-        UTC fixed-width bucket start. A finer or unknown timeframe, and
-        session, timezone, or timeframe_bars_back, raise RuntimeError.
+        UTC fixed-width bucket start. A finer or unknown timeframe raises
+        RuntimeError. Session, timezone, and timeframe_bars_back are not
+        applied: they do not change the bucket and do not abort the run.
         """
         return self._eval_time_builtin("time", args, kwargs, close=False)
 
@@ -692,8 +693,9 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         No args, an empty timeframe, or the chart timeframe return the host
         ``time_close`` (next bar open; last bar open plus one day). A coarser
         timeframe returns the bucket start plus its width. A finer or unknown
-        timeframe, and session, timezone, or timeframe_bars_back, raise
-        RuntimeError.
+        timeframe raises RuntimeError. Session, timezone, and
+        timeframe_bars_back are not applied: they do not change the bucket
+        and do not abort the run.
         """
         return self._eval_time_builtin("time_close", args, kwargs, close=True)
 

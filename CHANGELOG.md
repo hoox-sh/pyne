@@ -10,7 +10,7 @@
 
 ### Fixed
 
-- **`time(timeframe)` and `time_close(timeframe)` honor the timeframe or raise.** No args, an empty timeframe, or the chart timeframe still return the chart bar open or close. A coarser timeframe returns the fixed-width UTC bucket from `timeframe_bucket_ms` (`time_close` returns that bucket's end). A finer or unknown timeframe, and session, timezone, or `timeframe_bars_back`, raise the same runtime error on both hosts instead of the chart open. `_DISK_META_VERSION` 64 → 65. Pinned by `tests/test_time_timeframe_bucket.py`.
+- **`time(timeframe)` and `time_close(timeframe)` honor the timeframe or raise.** No args, an empty timeframe, or the chart timeframe still return the chart bar open or close. A coarser timeframe returns the fixed-width UTC bucket from `timeframe_bucket_ms` (`time_close` returns that bucket's end). A finer or unknown timeframe raises the same runtime error on both hosts instead of the chart open. Session, timezone, and `timeframe_bars_back` are not applied yet: they do not change that bucket and do not abort the run. `_DISK_META_VERSION` 64 → 65. Pinned by `tests/test_time_timeframe_bucket.py`.
 
 - **A same-tick entry and exit keeps the fill print's MAE/MFE on both hosts.** Interpret already applied that print's high/low after the entry fill, so the closed leg saw the tick. Compile copied the pre-tick bar stored by `begin_bar`, because the tick OHLC never replaced it before the close. The fill call now supplies the envelope. High-versus-low order inside one print stays unmodeled. Pinned by `tests/test_mae_same_tick_open_close.py`.
 

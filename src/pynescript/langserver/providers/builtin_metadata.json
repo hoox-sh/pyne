@@ -9063,7 +9063,7 @@
     "kind": "function",
     "detail": "time()",
     "brief": "Bar open time, or the bucket start of a coarser timeframe.",
-    "documentation": "Bar open time, or the bucket start of a coarser timeframe.\n\nNo args, an empty timeframe, or the chart timeframe return the chart\nbar open in the host timestamp unit. A coarser timeframe returns the\nUTC fixed-width bucket start. A finer or unknown timeframe, and\nsession, timezone, or timeframe_bars_back, raise RuntimeError.",
+    "documentation": "Bar open time, or the bucket start of a coarser timeframe.\n\nNo args, an empty timeframe, or the chart timeframe return the chart\nbar open in the host timestamp unit. A coarser timeframe returns the\nUTC fixed-width bucket start. A finer or unknown timeframe raises\nRuntimeError. Session, timezone, and timeframe_bars_back are not\napplied: they do not change the bucket and do not abort the run.",
     "snippet": "time",
     "params": [],
     "category": "builtin"
@@ -9073,7 +9073,7 @@
     "kind": "function",
     "detail": "time_close()",
     "brief": "Bar close time, or the bucket end of a coarser timeframe.",
-    "documentation": "Bar close time, or the bucket end of a coarser timeframe.\n\nNo args, an empty timeframe, or the chart timeframe return the host\n``time_close`` (next bar open; last bar open plus one day). A coarser\ntimeframe returns the bucket start plus its width. A finer or unknown\ntimeframe, and session, timezone, or timeframe_bars_back, raise\nRuntimeError.",
+    "documentation": "Bar close time, or the bucket end of a coarser timeframe.\n\nNo args, an empty timeframe, or the chart timeframe return the host\n``time_close`` (next bar open; last bar open plus one day). A coarser\ntimeframe returns the bucket start plus its width. A finer or unknown\ntimeframe raises RuntimeError. Session, timezone, and\ntimeframe_bars_back are not applied: they do not change the bucket and\ndo not abort the run.",
     "snippet": "time_close",
     "params": [],
     "category": "builtin"

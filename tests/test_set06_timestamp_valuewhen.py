@@ -150,8 +150,18 @@ def test_set06_timestamp_timezone_corpus_runs(rel: str) -> None:
     pine = path.read_text(encoding="utf-8")
 
     def _go() -> dict:
-        compiled = compile_script(pine, use_cache=False)
-        return compiled.run(*_ohlcv(24))
+        from pynescript.compiler import numba_builtins as nb
+
+        # compiled.run synthesizes 1-minute bars. The unset chart is daily, and
+        # a coarser chart left in this process rejects time("240") as finer.
+        previous = dict(nb._CHART_TF_FLAGS)
+        nb.set_chart_timeframe("1")
+        try:
+            compiled = compile_script(pine, use_cache=False)
+            return compiled.run(*_ohlcv(24))
+        finally:
+            nb._CHART_TF_FLAGS.clear()
+            nb._CHART_TF_FLAGS.update(previous)
 
     out = _run_with_timeout(_go, seconds=30.0)
     assert isinstance(out, dict)
