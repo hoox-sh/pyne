@@ -202,6 +202,7 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
             "year": self._builtin_year,
             "month": self._builtin_month,
             "dayofmonth": self._builtin_dayofmonth,
+            "dayofyear": self._builtin_dayofyear,
             "dayofweek": self._builtin_dayofweek,
             "hour": self._builtin_hour,
             "minute": self._builtin_minute,
@@ -660,6 +661,12 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         dt = self._dt_from_ts(ts, tz)
         return None if dt is None else dt.day
 
+    def _builtin_dayofyear(self, args: list[Any]) -> int | None:
+        """Extract day of year from timestamp (1-366; bare form uses chart time)."""
+        ts, tz = self._resolve_timestamp_arg(args, name="dayofyear")
+        dt = self._dt_from_ts(ts, tz)
+        return None if dt is None else dt.timetuple().tm_yday
+
     def _builtin_dayofweek(self, args: list[Any]) -> int | None:
         """Extract day of week from timestamp (1=Sunday, 7=Saturday)."""
         ts, tz = self._resolve_timestamp_arg(args, name="dayofweek")
@@ -1081,6 +1088,7 @@ _TIME_PART_KWARG_ORDER = ["time", "timezone"]
 UtilityFunctionsMixin._builtin_year._KWARG_ORDER = _TIME_PART_KWARG_ORDER
 UtilityFunctionsMixin._builtin_month._KWARG_ORDER = _TIME_PART_KWARG_ORDER
 UtilityFunctionsMixin._builtin_dayofmonth._KWARG_ORDER = _TIME_PART_KWARG_ORDER
+UtilityFunctionsMixin._builtin_dayofyear._KWARG_ORDER = _TIME_PART_KWARG_ORDER
 UtilityFunctionsMixin._builtin_dayofweek._KWARG_ORDER = _TIME_PART_KWARG_ORDER
 UtilityFunctionsMixin._builtin_hour._KWARG_ORDER = _TIME_PART_KWARG_ORDER
 UtilityFunctionsMixin._builtin_minute._KWARG_ORDER = _TIME_PART_KWARG_ORDER

@@ -720,13 +720,30 @@ def numba_store_src(dst, val, i):
 
 
 @numba.njit(cache=True)
+def var_init_fresh(flag):
+    """True the first time a ``var`` declaration executes.
+
+    ``flag`` is a length-1 float64 buffer, ``nan`` until this call, then
+    ``0.0``. A ``var`` first reached after bar 0 still captures its
+    initializer. ``varip`` does not use this.
+    """
+    fresh = np.isnan(flag[0])
+    flag[0] = 0.0
+    return fresh
+
+
+@numba.njit(cache=True)
 def numba_history_store(arr, i, value, off):
     """Store this bar's value and return the value ``off`` bars back.
 
     ``ta.sma(close, 5)[1]`` and ``ta.lowest(src, len)[off]`` have no named
     series. The subscript writes the current result, then reads the offset.
+    A negative offset (including the ``na`` sentinel ``-1``) is ``na``, not
+    a future bar.
     """
     arr[i] = value + 0.0
+    if off < 0:
+        return np.nan
     j = i - off
     if j < 0 or j >= arr.shape[0]:
         return np.nan
@@ -2263,7 +2280,16 @@ def udt_get_field(obj, key, default=np.nan):
 
 
 def udt_index(obj, idx):
-    """Index a Pine UDT dict or list/array: dict uses ordered values, list uses int."""
+    """Index a Pine UDT dict or list/array.
+
+    Dict fields stay non-negative. List, tuple, and ndarray use v6
+    negative-from-end (``array.get``). ``na`` / NaN is ``na``, not element 0.
+    Other non-numeric indexes still fall back to 0.
+    """
+    if idx is None:
+        return np.nan
+    if isinstance(idx, (float, np.floating)) and idx != idx:
+        return np.nan
     try:
         i = int(idx)
     except (TypeError, ValueError):
@@ -2274,11 +2300,17 @@ def udt_index(obj, idx):
             return vals[i]
         return np.nan
     if isinstance(obj, (list, tuple)):
-        if 0 <= i < len(obj):
+        n = len(obj)
+        if i < 0:
+            i += n
+        if 0 <= i < n:
             return obj[i]
         return np.nan
     if isinstance(obj, np.ndarray) and obj.ndim >= 1:
-        if 0 <= i < len(obj):
+        n = len(obj)
+        if i < 0:
+            i += n
+        if 0 <= i < n:
             return obj[i]
         return np.nan
     return np.nan
@@ -2766,6 +2798,69 @@ def safe_list_clear(arr):
     """Clear a real list; no-op for scalars (avoids float64.clear AttributeError)."""
     if isinstance(arr, list):
         arr.clear()
+
+
+def array_set_at(arr, index, value):
+    """``array.set`` with v6 negative-from-end.
+
+    ``na`` does not write element 0. Positive out-of-range still grows via
+    :func:`safe_list_set` (that helper no-ops on ``idx < 0`` for other callers).
+    """
+    if not isinstance(arr, list):
+        return arr
+    if index is None:
+        return arr
+    if isinstance(index, (float, np.floating)) and index != index:
+        return arr
+    try:
+        i = int(index)
+    except (TypeError, ValueError):
+        return arr
+    n = len(arr)
+    if i < 0:
+        i += n
+        if 0 <= i < n:
+            arr[i] = value
+        return arr
+    return safe_list_set(arr, i, value)
+
+
+def array_remove_at(arr, index):
+    """``array.remove``. ``na`` index raises; negative counts from the end.
+
+    A ``na`` id returns ``na`` and does not raise. Does not use ``safe_int``
+    (NaN → 0 would delete element 0).
+    """
+    if arr is None or (isinstance(arr, (float, np.floating)) and arr != arr):
+        return np.nan
+    if not isinstance(arr, list):
+        pine_raise("array.remove takes array and valid index")
+    if index is None or (isinstance(index, (float, np.floating)) and index != index):
+        pine_raise("array.remove takes array and valid index")
+    try:
+        i = int(index)
+    except (TypeError, ValueError):
+        pine_raise("array.remove takes array and valid index")
+    n = len(arr)
+    if n <= 0:
+        pine_raise("array.remove takes array and valid index")
+    if i < 0:
+        i += n
+    if i < 0 or i >= n:
+        pine_raise("array.remove takes array and valid index")
+    return arr.pop(i)
+
+
+def array_size_value(x):
+    """``array.size``. ``na`` id is ``na``, not 0.
+
+    Other values still go through :func:`safe_len`.
+    """
+    if x is None:
+        return np.nan
+    if isinstance(x, (float, np.floating)) and x != x:
+        return np.nan
+    return safe_len(x)
 
 
 def safe_list_pop(arr, index=None):
@@ -7073,6 +7168,79 @@ def numba_wvad(high, low, close, vol, period, i):
     return wad / vol_sum
 
 
+def array_covariance(a, b, third=True):
+    """Pine ``array.covariance``. Default biased (population, divide by n).
+
+    A bool third argument is ``biased``. An int third argument is the legacy
+    trailing length. ``na`` inputs and ``n < 2`` return ``na``.
+    """
+    if a is None or b is None:
+        return np.nan
+    if isinstance(a, (float, np.floating)) and a != a:
+        return np.nan
+    if isinstance(b, (float, np.floating)) and b != b:
+        return np.nan
+    biased = True
+    length = None
+    if isinstance(third, bool):
+        biased = third
+    elif isinstance(third, (int, float, np.integer, np.floating)):
+        if isinstance(third, (float, np.floating)) and third != third:
+            return np.nan
+        length = int(third)
+    else:
+        biased = bool(third)
+
+    def _nums(seq):
+        try:
+            items = list(seq)
+        except TypeError:
+            return None
+        out = []
+        for item in items:
+            if item is None:
+                continue
+            if isinstance(item, bool):
+                out.append(float(item))
+                continue
+            if isinstance(item, (int, float, np.integer, np.floating)):
+                out.append(float(item))
+                continue
+            try:
+                fv = float(item)
+            except (TypeError, ValueError):
+                continue
+            if fv == fv:
+                out.append(fv)
+        return out
+
+    n1 = _nums(a)
+    n2 = _nums(b)
+    if n1 is None or n2 is None:
+        return np.nan
+    if length is not None:
+        if length < 2 or len(n1) < length or len(n2) < length:
+            return np.nan
+        n1 = n1[-length:]
+        n2 = n2[-length:]
+    n = min(len(n1), len(n2))
+    if n < 2:
+        return np.nan
+    n1 = n1[:n]
+    n2 = n2[:n]
+    mean1 = sum(n1) / n
+    mean2 = sum(n2) / n
+    if mean1 != mean1 or mean2 != mean2:
+        return np.nan
+    numer = 0.0
+    for x, y in zip(n1, n2, strict=True):
+        numer += (x - mean1) * (y - mean2)
+    denom = n if biased else (n - 1)
+    if denom <= 0:
+        return np.nan
+    return numer / denom
+
+
 def array_range(arr):
     """Pine ``array.range(id)`` — max - min of numeric elements; empty → na.
 
@@ -7765,6 +7933,47 @@ def numba_utc_parts(ms):
         float(second),
         float(dayofweek),
     )
+
+
+@numba.njit(cache=True)
+def numba_dayofyear(ms):
+    """UTC day of year (1-366). NaN / inf → NaN, not the epoch day.
+
+    ``numba_utc_parts`` maps NaN to 1970-01-01 and its internal ``doy`` is
+    March-based, so this does not return that slot.
+    """
+    if not np.isfinite(ms):
+        return np.nan
+    parts = numba_utc_parts(ms)
+    year = int(parts[0])
+    month = int(parts[1])
+    day = int(parts[2])
+    before = 0
+    if month > 1:
+        before += 31
+    if month > 2:
+        before += 28
+    if month > 3:
+        before += 31
+    if month > 4:
+        before += 30
+    if month > 5:
+        before += 31
+    if month > 6:
+        before += 30
+    if month > 7:
+        before += 31
+    if month > 8:
+        before += 31
+    if month > 9:
+        before += 30
+    if month > 10:
+        before += 31
+    if month > 11:
+        before += 30
+    if month > 2 and ((year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)):
+        before += 1
+    return float(before + day)
 
 
 @numba.njit(cache=True)

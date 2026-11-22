@@ -1731,11 +1731,34 @@ class CompilerVisitor(NodeVisitor):
         lines.append(f"{indent}__ishistory = True")
         lines.append(f"{indent}__isnew = True")
 
-    def _var_init_cond(self, is_varip: bool) -> str:
-        """First-bar (and realtime-varip) predicate for ``var`` / ``varip`` init."""
+    def _var_init_buf(self, name: str) -> str:
+        """Length-1 slot, nan until this ``var`` declaration executes once.
+
+        Script-level buffers live in ``fixed_state`` (realtime rollback already
+        copies that list). A UDF buffer is named so the free-series scan passes
+        it through and each call site gets its own clone.
+        """
+        if self.in_function:
+            func = getattr(self, "_current_func_name", None) or "fn"
+            buf = f"__vinit_{self._safe_ident(str(func))}_{self._safe_ident(name)}_st"
+        else:
+            buf = f"__vinit_{self._safe_ident(name)}_st"
+        if buf not in self._fixed_state_size:
+            self.fixed_state.append((buf, 1))
+            self._fixed_state_size[buf] = 1
+        return buf
+
+    def _var_init_cond(self, is_varip: bool, name: str | None = None) -> str:
+        """First execution of a ``var``; bar 0 or realtime for ``varip``.
+
+        ``var`` used to be ``__bar_idx == 0``, so a declaration first reached
+        on a later bar stored ``na``. ``varip`` is unchanged.
+        """
         if is_varip:
             return "(__bar_idx == 0 or __isrealtime)"
-        return "(__bar_idx == 0)"
+        if not name:
+            return "(__bar_idx == 0)"
+        return f"var_init_fresh({self._var_init_buf(name)})"
 
     def _rt_snap_scalars(self) -> list[str]:
         """Python locals rolled back on unconfirmed realtime ticks (not varip)."""
@@ -2625,7 +2648,7 @@ class CompilerVisitor(NodeVisitor):
                 return self._emit_loop_assign(name, node.value)
             val = self.visit(node.value)
             if is_var:
-                return f"if {self._var_init_cond(is_varip)}:\n    {name} = {val}"
+                return f"if {self._var_init_cond(is_varip, name)}:\n    {name} = {val}"
             return f"{name} = {val}"
 
         # Pine for/while used as an expression: last body value → target.
@@ -2768,9 +2791,7 @@ class CompilerVisitor(NodeVisitor):
                 # list handles so array.push mutations accumulate across bars).
                 sl_arr = self._series_local_arr(name)
                 if is_var or name in getattr(self, "var_locals", set()):
-                    return (
-                        f"{sl_arr}[__bar_idx] = {val} if {self._var_init_cond(is_varip)} else {sl_arr}[__bar_idx - 1]"
-                    )
+                    return f"{sl_arr}[__bar_idx] = {val} if {self._var_init_cond(is_varip, name)} else {sl_arr}[__bar_idx - 1]"
                 return f"{sl_arr}[__bar_idx] = {val}"
             if self._is_map_new(node.value) or self._is_typed_map(type_node):
                 self.object_mode = True
@@ -2812,7 +2833,7 @@ class CompilerVisitor(NodeVisitor):
             self.arrays.discard(f"{name}_arr")
             self.arrays.discard(f"{loc}_arr")
             if is_var:
-                return f"if {self._var_init_cond(is_varip)}:\n    {loc} = {val}"
+                return f"if {self._var_init_cond(is_varip, name)}:\n    {loc} = {val}"
             return f"{loc} = {val}"
 
         # `var table t = na` / `label l = na` / `matrix m = f()` → scalar handle
@@ -2831,12 +2852,12 @@ class CompilerVisitor(NodeVisitor):
                 self.scalar_vars.add(py)
                 self.arrays.discard(f"{name}_arr")
                 if is_var:
-                    return f"if {self._var_init_cond(is_varip)}:\n    {py} = {val}"
+                    return f"if {self._var_init_cond(is_varip, name)}:\n    {py} = {val}"
                 return f"{py} = {val}"
             self.scalar_vars.add(name)
             self.arrays.discard(f"{name}_arr")
             if is_var:
-                return f"if {self._var_init_cond(is_varip)}:\n    {name} = {val}"
+                return f"if {self._var_init_cond(is_varip, name)}:\n    {name} = {val}"
             return f"{name} = {val}"
 
         # `var MyState s = na` / `var chart.point p = na` → object-dtype series
@@ -2849,7 +2870,7 @@ class CompilerVisitor(NodeVisitor):
             self.arrays.add(f"{name}_arr")
             if is_var:
                 return (
-                    f"if {self._var_init_cond(is_varip)}:\n"
+                    f"if {self._var_init_cond(is_varip, name)}:\n"
                     f"    {name}_arr[__bar_idx] = {val}\n"
                     f"else:\n"
                     f"    {name}_arr[__bar_idx] = {name}_arr[__bar_idx - 1]"
@@ -2893,7 +2914,7 @@ class CompilerVisitor(NodeVisitor):
             self.scalar_vars.add(name)
             self.string_scalars.add(name)
             if is_var:
-                return f"if {self._var_init_cond(is_varip)}:\n    {name} = {val}"
+                return f"if {self._var_init_cond(is_varip, name)}:\n    {name} = {val}"
             return f"{name} = {val}"
 
         # String/color RHS: bar-constant → scalar; per-bar (ternary colors, …) →
@@ -2922,7 +2943,7 @@ class CompilerVisitor(NodeVisitor):
                 self.scalar_vars.add(name)
                 self.string_scalars.add(name)
                 if is_var:
-                    return f"if {self._var_init_cond(is_varip)}:\n    {name} = {val}"
+                    return f"if {self._var_init_cond(is_varip, name)}:\n    {name} = {val}"
                 return f"{name} = {val}"
             # Per-bar string/color series (e.g. close > open ? color.green : color.red)
             # Also `color x = f()` where UDF returns a color string.
@@ -2931,7 +2952,7 @@ class CompilerVisitor(NodeVisitor):
             self.arrays.add(arr_n)
             if is_var:
                 return (
-                    f"if {self._var_init_cond(is_varip)}:\n"
+                    f"if {self._var_init_cond(is_varip, name)}:\n"
                     f"    {arr_n}[__bar_idx] = {val}\n"
                     f"else:\n"
                     f"    {arr_n}[__bar_idx] = {arr_n}[__bar_idx - 1]"
@@ -2941,7 +2962,7 @@ class CompilerVisitor(NodeVisitor):
         # Map / scalar object vars (var m = map.new...)
         if name in self.map_vars or name in self.scalar_vars:
             if is_var:
-                return f"if {self._var_init_cond(is_varip)}:\n    {name} = {val}"
+                return f"if {self._var_init_cond(is_varip, name)}:\n    {name} = {val}"
             return f"{name} = {val}"
 
         # Existing string series re-assign / already tracked
@@ -2951,7 +2972,7 @@ class CompilerVisitor(NodeVisitor):
             self.arrays.add(arr_n)
             if is_var:
                 return (
-                    f"if {self._var_init_cond(is_varip)}:\n"
+                    f"if {self._var_init_cond(is_varip, name)}:\n"
                     f"    {arr_n}[__bar_idx] = {val}\n"
                     f"else:\n"
                     f"    {arr_n}[__bar_idx] = {arr_n}[__bar_idx - 1]"
@@ -2967,7 +2988,7 @@ class CompilerVisitor(NodeVisitor):
             self.arrays.discard(f"{name}_arr")
             rhs = "{}" if self._is_map_new(node.value) else val
             if is_var:
-                return f"if {self._var_init_cond(is_varip)}:\n    {name} = {rhs}"
+                return f"if {self._var_init_cond(is_varip, name)}:\n    {name} = {rhs}"
             return f"{name} = {rhs}"
 
         # UDT series / chart.point dict / udt_index handle / UDT ref (p2 = p1)
@@ -2995,7 +3016,7 @@ class CompilerVisitor(NodeVisitor):
             self.arrays.add(f"{name}_arr")
             if is_var:
                 return (
-                    f"if {self._var_init_cond(is_varip)}:\n"
+                    f"if {self._var_init_cond(is_varip, name)}:\n"
                     f"    {name}_arr[__bar_idx] = {val}\n"
                     f"else:\n"
                     f"    {name}_arr[__bar_idx] = {name}_arr[__bar_idx - 1]"
@@ -3008,7 +3029,7 @@ class CompilerVisitor(NodeVisitor):
             self.scalar_vars.add(name)
             self.arrays.discard(f"{name}_arr")
             if is_var:
-                return f"if {self._var_init_cond(is_varip)}:\n    {name} = {val}"
+                return f"if {self._var_init_cond(is_varip, name)}:\n    {name} = {val}"
             return f"{name} = {val}"
 
         if self._is_array_or_matrix_handle(node.value):
@@ -3028,12 +3049,12 @@ class CompilerVisitor(NodeVisitor):
                 self.scalar_vars.add(py)
                 self.arrays.discard(f"{name}_arr")
                 if is_var:
-                    return f"if {self._var_init_cond(is_varip)}:\n    {py} = {val}"
+                    return f"if {self._var_init_cond(is_varip, name)}:\n    {py} = {val}"
                 return f"{py} = {val}"
             self.scalar_vars.add(name)
             self.arrays.discard(f"{name}_arr")
             if is_var:
-                return f"if {self._var_init_cond(is_varip)}:\n    {name} = {val}"
+                return f"if {self._var_init_cond(is_varip, name)}:\n    {name} = {val}"
             return f"{name} = {val}"
 
         # Sequence / list RHS must not land in float64 series
@@ -3043,7 +3064,7 @@ class CompilerVisitor(NodeVisitor):
             self.scalar_vars.add(name)
             self.arrays.discard(f"{name}_arr")
             if is_var:
-                return f"if {self._var_init_cond(is_varip)}:\n    {name} = {val}"
+                return f"if {self._var_init_cond(is_varip, name)}:\n    {name} = {val}"
             return f"{name} = {val}"
 
         # Non-numeric cast results / opaque object handles → safe float series
@@ -3051,7 +3072,7 @@ class CompilerVisitor(NodeVisitor):
             self.object_mode = True
             self.arrays.add(f"{name}_arr")
             if is_var:
-                return f"{name}_arr[__bar_idx] = {val} if {self._var_init_cond(is_varip)} else {name}_arr[__bar_idx-1]"
+                return f"{name}_arr[__bar_idx] = {val} if {self._var_init_cond(is_varip, name)} else {name}_arr[__bar_idx-1]"
             return f"{name}_arr[__bar_idx] = {val}"
 
         if not val:
@@ -3073,9 +3094,7 @@ class CompilerVisitor(NodeVisitor):
         if self._looks_like_const_expr(store_val):
             self.const_like_values[name] = store_val
         if is_var:
-            return (
-                f"{name}_arr[__bar_idx] = {store_val} if {self._var_init_cond(is_varip)} else {name}_arr[__bar_idx-1]"
-            )
+            return f"{name}_arr[__bar_idx] = {store_val} if {self._var_init_cond(is_varip, name)} else {name}_arr[__bar_idx-1]"
         return f"{name}_arr[__bar_idx] = {store_val}"
 
     def _looks_like_const_expr(self, expr: str) -> bool:
@@ -5201,8 +5220,12 @@ class CompilerVisitor(NodeVisitor):
                 )
             return f"list({a[0]} or [])" if a else "[]"
         if func_name == "array_covariance":
-            # Stub: real cov needs two arrays + means; enough to avoid NameError
-            return "0.0"
+            a = ra(args, kwargs, ("id1", "id2", "biased"))
+            if len(a) >= 3:
+                return f"array_covariance({a[0]}, {a[1]}, {a[2]})"
+            if len(a) >= 2:
+                return f"array_covariance({a[0]}, {a[1]})"
+            return "np.nan"
         if func_name == "matrix_copy":
             a = ra(args, kwargs, ("id",))
             return f"[list(__row) for __row in {a[0]}]" if a else "[]"
@@ -5260,14 +5283,14 @@ class CompilerVisitor(NodeVisitor):
                     f"((lambda __m: (__m[int({args[1]})].__setitem__(int({args[2]}), {args[3]}), __m)[1])({args[0]}))"
                 )
             if len(args) >= 3:
-                return f"safe_list_set({args[0]}, {args[1]}, {args[2]})"
+                return f"array_set_at({args[0]}, {args[1]}, {args[2]})"
             if len(a) >= 3:
-                return f"safe_list_set({a[0]}, {a[1]}, {a[2]})"
+                return f"array_set_at({a[0]}, {a[1]}, {a[2]})"
             return ""
         if func_name == "array_size":
             a = ra(args, kwargs, ("id",))
-            # safe_len: scalars (misclassified array handles) → 0, not TypeError
-            return f"safe_len({a[0]})" if a else "0"
+            # na id → na. safe_len(None) is 0; do not use it for array.size(na).
+            return f"array_size_value({a[0]})" if a else "0"
         if func_name == "array_range":
             # Pine array.range(id) = max - min; not Python range()
             a = ra(args, kwargs, ("id",))
@@ -5282,7 +5305,7 @@ class CompilerVisitor(NodeVisitor):
         if func_name == "array_remove":
             a = ra(args, kwargs, ("id", "index"))
             if len(a) > 1:
-                return f"safe_list_pop({a[0]}, int(safe_int({a[1]})))"
+                return f"array_remove_at({a[0]}, {a[1]})"
             if a:
                 return f"safe_list_pop({a[0]})"
             return "np.nan"
@@ -6944,9 +6967,8 @@ class CompilerVisitor(NodeVisitor):
             src = args[0] if args else "time_arr[__bar_idx]"
             return f"numba_utc_parts({src})[{_cal_fn[func_name]}]"
         if func_name == "dayofyear":
-            # Weak: day-of-month only when no full DOY helper (rare on compile path)
             src = args[0] if args else "time_arr[__bar_idx]"
-            return f"numba_utc_parts({src})[2]"
+            return f"numba_dayofyear({src})"
 
         # Bare v3/v4 TA aliases (sma, ema, …) → ta_* so one handler path.
         # Prefer user-defined functions when the same name is declared (e.g. custom sma).
@@ -9322,27 +9344,26 @@ class CompilerVisitor(NodeVisitor):
 
     @staticmethod
     def _safe_history_offset(offset_expr: str) -> str:
-        """Coerce a series-history offset to a non-NaN int index.
+        """Coerce a series-history offset to int.
 
         ``ta.highestbars`` / ``lowestbars`` (and ``math.abs`` of them) return
-        float64; Numba rejects float array indices. NaN → 0 so indexing never
-        raises (``int(nan)`` is invalid).
+        float64; Numba rejects float array indices. NaN becomes ``-1`` (not
+        ``0``) so a ``na`` offset is not the current bar. Negative offsets
+        stay negative. ``int(nan)`` is not evaluated.
         """
-        return f"(0 if ({offset_expr}) != ({offset_expr}) else int({offset_expr}))"
+        return f"(-1 if ({offset_expr}) != ({offset_expr}) else int({offset_expr}))"
 
     def _history_subscript(self, base: str, offset_expr: str) -> str:
-        """Emit ``base[bar - offset]`` with float/NaN-safe offset coercion.
+        """Emit ``base[bar - offset]``. ``na`` and negative offsets are na.
 
-        Also clamps the computed index to ``[0, len(base))`` so negative
-        offsets (future references, e.g. ``high[-highestbars(...)]``) do not
-        raise ``index N is out of bounds for axis 0 with size M`` near series
-        end — soft-fail to na instead.
+        In-range non-negative offsets stay. A negative offset must not read
+        a future bar when ``bar - offset`` is still inside the array.
         """
         off = self._safe_history_offset(offset_expr)
-        # idx = bar - offset; require 0 <= idx < len(base)
+        # idx = bar - offset; require offset >= 0 and 0 <= idx < len(base)
         return (
             f"({base}[__bar_idx - ({off})] "
-            f"if (__bar_idx >= ({off}) and (__bar_idx - ({off})) < len({base})) "
+            f"if (({off}) >= 0 and __bar_idx >= ({off}) and (__bar_idx - ({off})) < len({base})) "
             f"else np.nan)"
         )
 
@@ -9731,7 +9752,7 @@ class CompilerVisitor(NodeVisitor):
         """
         off = self._safe_history_offset(offset_expr)
         if self._is_numeric_or_bool_literal(value_expr):
-            return f"({value_expr} if __bar_idx >= ({off}) else np.nan)"
+            return f"({value_expr} if (({off}) >= 0 and __bar_idx >= ({off})) else np.nan)"
         return "np.nan"
 
     def visit_Subscript(self, node: ast.Subscript):
@@ -9855,7 +9876,7 @@ class CompilerVisitor(NodeVisitor):
             return (
                 f"({live} if ({off}) == 0 else "
                 f"({hist_arr}[__bar_idx - ({off})] "
-                f"if (__bar_idx >= ({off}) and "
+                f"if (({off}) >= 0 and __bar_idx >= ({off}) and "
                 f"(__bar_idx - ({off})) < len({hist_arr})) else np.nan))"
             )
 

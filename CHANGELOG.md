@@ -6,6 +6,8 @@
 
 - **History and type-call bases keep their parentheses, and LSP range format replaces whole touched lines.** `(close + open)[1]` and `(a + b)<float>(1)` unparse with the parens, so a format round-trip no longer moves `[]` or `<type>()` onto the right operand. A range-format edit covers the full lines it rewrites: a caret in `length=14` no longer inserts `length = 14` in front of the old token, and a selection that ends at the next line's column 0 no longer duplicates that line. Pinned by `tests/test_audit_unparser_2026_11_22.py`.
 
+- **Compile history, deferred `var`, array indexes, `array.covariance`, and `dayofyear` match interpret.** A `na` or negative history offset is `na` instead of another bar. A `var` or UDF `var` first reached after bar 0 captures that bar's initializer. Array `na` is not element 0, a negative index counts from the end, and `array.remove(id, na)` is a runtime error. `array.covariance` is the population covariance. `dayofyear` is the UTC day of year on both hosts (14 Nov 2023 is 318). `_DISK_META_VERSION` 65 → 66. Pinned by `tests/test_audit_compiler_2026_11_22.py`.
+
 ## [0.7.3] — 2026-11-19
 
 ### Added
