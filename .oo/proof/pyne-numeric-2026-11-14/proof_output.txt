@@ -1,1 +1,0 @@
-COLOR_FOLD_PROOF_OK numeric=7 object=68 errors=2 controls=6 hline_scanned=7 hline_meta=3 fill_color=rgba(34, 171, 148, 0.4980392156862745)

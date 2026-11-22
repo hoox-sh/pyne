@@ -1,0 +1,7 @@
+# Local-only agent context.
+# Git ignores these on purpose; search tools must still see them.
+!.oo/
+!.opencode/
+!.grok/
+!AGENTS.md
+!DESIGN.md

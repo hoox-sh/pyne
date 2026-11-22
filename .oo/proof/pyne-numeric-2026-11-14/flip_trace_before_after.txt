@@ -1,5 +1,0 @@
-PYNE numeric-mode flip trace, 55-script sample (set01-03, seed 42)
-before slice: color.new flip line L5718 executed 240 times
-after slice:  dynamic color.new fallback L5740 executed 82 times
-all 55 parsed scripts still object mode (other constructs dominate)
-sample: 20 set01 + 20 set02 + 20 set03, 5 parse errors

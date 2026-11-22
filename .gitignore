@@ -138,9 +138,6 @@ bun.lockb
 
 # Local private notes / agent sessions / tooling
 .private/
-.grok/
-.opencode/
-AGENTS.md
 
 # Local runtime / compose data
 logs/
@@ -173,15 +170,11 @@ src/pynescript/ast/grammar/antlr4/generated/src/
 .tmp/
 
 # OpenOrchestrate runtime state
-# Runtime only. Do not ignore the whole .oo/ directory: board, plans,
-# proof, tests, artifacts, handoff, and ownership stay tracked.
-.oo/state.db
-.oo/state.db-*
-.oo/state/state.db
-.oo/state/state.db-*
-.oo/state/*.json
-.oo/logs/
-.oo/memory/
-.oo/approvals/
-.oo/proof-env.txt
-.oo/companion.token
+# Local only. Never pushed.
+.oo/
+
+# Local-only agent context (never pushed, still read by the seats)
+.opencode/
+.grok/
+AGENTS.md
+DESIGN.md
