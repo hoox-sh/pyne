@@ -22,7 +22,7 @@
 Public handlers:
 
 - :func:`handle_formatting` — full document via parse + :class:`~pynescript.ast.unparser.NodeUnparser`
-- :func:`handle_range_formatting` — same unparser, edit limited to the requested range
+- :func:`handle_range_formatting` — same unparser; the edit covers every whole line the range touches
 - :func:`handle_on_type_formatting` — same unparser, edit limited to the just-completed line
 
 Prose comments are not on the ASDL tree. After the canonical unparse, comments
@@ -582,10 +582,37 @@ def handle_formatting(
         return []
 
 
+def _covered_line_span(n_lines: int, start: lsp.Position, end: lsp.Position) -> tuple[int, int] | None:
+    """Inclusive source lines a range-format edit must replace.
+
+    ``new_text`` is whole lines, so the edit is widened to those lines. A
+    range that ends at column 0 does not include that end line: the LSP end
+    is exclusive and sits on the following line. A caret (start == end) does.
+    """
+    if n_lines <= 0:
+        return None
+    start_line = start.line
+    end_line = end.line
+    if end_line < start_line or start_line >= n_lines:
+        return None
+    start_line = max(start_line, 0)
+    if end.character == 0 and end_line > start_line:
+        end_line -= 1
+    if end_line >= n_lines:
+        end_line = n_lines - 1
+    if end_line < start_line:
+        return None
+    return start_line, end_line
+
+
 def handle_range_formatting(
     params: lsp.DocumentRangeFormattingParams, source: str | None, tree: Any | None = None
 ) -> list[lsp.TextEdit] | None:
-    """Format the lines covering *params.range*; return a replace-edit or ``[]``.
+    """Format the whole lines *params.range* touches; return one edit or ``[]``.
+
+    The edit range is the full touched lines, not the client's character
+    columns. Putting full-line text into a narrower range splices it into
+    the leftover source (``length = 14length=14``).
 
     Args:
         params: Client range + formatting options.
@@ -612,19 +639,23 @@ def handle_range_formatting(
             return []
         source_lines, formatted_lines = aligned
 
-        range_start = params.range.start
-        range_end = params.range.end
+        span = _covered_line_span(len(source_lines), params.range.start, params.range.end)
+        if span is None:
+            return []
+        start_line, end_line = span
 
-        in_range = "\n".join(source_lines[range_start.line : range_end.line + 1])
-
-        formatted_in_range = "\n".join(formatted_lines[range_start.line : range_end.line + 1])
+        in_range = "\n".join(source_lines[start_line : end_line + 1])
+        formatted_in_range = "\n".join(formatted_lines[start_line : end_line + 1])
 
         if formatted_in_range == in_range:
             return []
 
         return [
             lsp.TextEdit(
-                range=params.range,
+                range=lsp.Range(
+                    start=lsp.Position(line=start_line, character=0),
+                    end=lsp.Position(line=end_line, character=len(source_lines[end_line])),
+                ),
                 new_text=formatted_in_range,
             )
         ]

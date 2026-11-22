@@ -2,6 +2,10 @@
 
 - **A non-multiple-of-4 indent is not an `if` / `for` / `while` / `once` body, and Python-only numbers are syntax errors.** One space (or any other indent that is not a multiple of 4) before a statement under those headers raises `IndentationError` instead of becoming the branch. `else` uses the same rule. `0x` / `0b` / `0o`, `_` separators, imaginary `1j`, and a leading-zero integer such as `01` are rejected, so `plot(0x10)` does not become `safe_float(16)`. A script that is only `//@version=6`, and a `//@version` after the last statement, keep that annotation. Pinned by `tests/test_audit_parser_2026_11_22.py`.
 
+### Fixed
+
+- **History and type-call bases keep their parentheses, and LSP range format replaces whole touched lines.** `(close + open)[1]` and `(a + b)<float>(1)` unparse with the parens, so a format round-trip no longer moves `[]` or `<type>()` onto the right operand. A range-format edit covers the full lines it rewrites: a caret in `length=14` no longer inserts `length = 14` in front of the old token, and a selection that ends at the next line's column 0 no longer duplicates that line. Pinned by `tests/test_audit_unparser_2026_11_22.py`.
+
 ## [0.7.3] — 2026-11-19
 
 ### Added

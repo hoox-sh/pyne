@@ -44,7 +44,9 @@ Round-trip notes
 * **Precedence:** binary / unary / boolean / comparison / ternary nodes record
   child precedence so parentheses appear only when needed to keep evaluation
   order. Binary ops assign ``precedence.next()`` on the RHS so chains stay
-  left-associative without redundant parens on the left.
+  left-associative without redundant parens on the left. Calls, attributes,
+  subscripts, and specializations force the receiver to :attr:`Precedence.ATOM`
+  so a non-atom base keeps the parentheses a primary requires.
 * **Multiline strings (v6):** string constants containing newlines prefer
   Pine triple-quoted forms (double or single) so output stays readable;
   otherwise escaped single-line forms are used.
@@ -962,6 +964,8 @@ class NodeUnparser(NodeVisitor):
         self._source.append("." + node.attr)
 
     def visit_Subscript(self, node: ast.Subscript):
+        """Emit ``value[slice]``; *value* is forced to :attr:`Precedence.ATOM`."""
+        self._precedences[node.value] = Precedence.ATOM
         self.traverse(node.value)
         src = self._source
         src.append("[")
@@ -990,6 +994,8 @@ class NodeUnparser(NodeVisitor):
         self.traverse(node.value)
 
     def visit_Specialize(self, node: ast.Specialize):
+        """Emit ``value<args>``; *value* is forced to :attr:`Precedence.ATOM`."""
+        self._precedences[node.value] = Precedence.ATOM
         self.traverse(node.value)
         src = self._source
         src.append("<")
