@@ -1,6 +1,14 @@
 ## [Unreleased]
 
+## [0.7.4] — 2026-11-22
+
 - **A non-multiple-of-4 indent is not an `if` / `for` / `while` / `once` body, and Python-only numbers are syntax errors.** One space (or any other indent that is not a multiple of 4) before a statement under those headers raises `IndentationError` instead of becoming the branch. `else` uses the same rule. `0x` / `0b` / `0o`, `_` separators, imaginary `1j`, and a leading-zero integer such as `01` are rejected, so `plot(0x10)` does not become `safe_float(16)`. A script that is only `//@version=6`, and a `//@version` after the last statement, keep that annotation. Pinned by `tests/test_audit_parser_2026_11_22.py`.
+
+### Changed
+
+- **Warm library compiles reuse a value-keyed digest of the script and library sources instead of re-hashing on every hit.** A changed source or library still misses. Pinned by `tests/test_perf_engine_warm.py`.
+
+- **Unary `ta.max` keeps a call-site window and updates one sample per bar.** `na` and a leading NaN match the full scan. `PYNE_TA_INCREMENTAL=0` still recomputes. Pinned by `tests/test_perf_basic_inc.py`.
 
 ### Fixed
 
