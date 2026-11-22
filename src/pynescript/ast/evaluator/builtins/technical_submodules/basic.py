@@ -28,6 +28,7 @@ from __future__ import annotations
 import math
 import statistics
 
+from collections import deque
 from typing import Any
 
 from .core import BINARY
@@ -36,6 +37,40 @@ from .core import QUINARY
 from .core import TERNARY
 from .core import UNARY
 from .core import TechnicalHelpers
+
+
+def _unary_max_keep(raw: Any) -> bool:
+    """True when ``max`` would consider *raw* (``None`` and non-numeric dropped)."""
+    return raw is not None and isinstance(raw, (int, float))
+
+
+def _unary_max_nan(raw: Any) -> bool:
+    """IEEE NaN. ``max`` keeps a leading NaN because nothing compares greater."""
+    return isinstance(raw, float) and raw != raw
+
+
+def _unary_max_rebuild(valid: deque[tuple[int, Any]]) -> deque[tuple[int, Any]]:
+    """Monotonic deque of non-NaN samples. Front is the first strict maximum."""
+    dq: deque[tuple[int, Any]] = deque()
+    for seq, val in valid:
+        if _unary_max_nan(val):
+            continue
+        while dq and val > dq[-1][1]:
+            dq.pop()
+        dq.append((seq, val))
+    return dq
+
+
+def _unary_max_value(valid: deque[tuple[int, Any]], maxdq: deque[tuple[int, Any]]) -> Any:
+    """``max`` of the capped window. Leading NaN wins; otherwise the deque front."""
+    if not valid:
+        return None
+    first = valid[0][1]
+    if _unary_max_nan(first):
+        return first
+    if not maxdq:
+        return None
+    return maxdq[0][1]
 
 
 class BasicIndicators(TechnicalHelpers):
@@ -899,9 +934,12 @@ class BasicIndicators(TechnicalHelpers):
 
         Also accepts a single series arg (extension methods like
         ``method max(float data) => ta.max(data)``) — returns the max of
-        available history, or the scalar itself. 1-arg stays full-path.
+        available history, or the scalar itself. Bar-mode 1-arg keeps that
+        max in call-site state (``PYNE_TA_INCREMENTAL=0`` recomputes).
         """
         if len(args) == UNARY:
+            if self._use_incremental_ta():
+                return self._max_unary_inc_update(args[0])
             series = self._as_series(args[0])
             valid = [v for v in series if v is not None and isinstance(v, (int, float))]
             return max(valid) if valid else None
@@ -909,6 +947,57 @@ class BasicIndicators(TechnicalHelpers):
         if self._use_incremental_ta():
             return self._highest_inc_update(series, period)
         return self._highest(series, period)
+
+    def _max_unary_inc_update(self, source: Any) -> Any:
+        """O(1) 1-arg ``ta.max``. One new sample per call; same bar replaces it.
+
+        The full path is ``max`` of ``_as_series`` (last ``_SERIES_MAX`` raw
+        samples, ``None`` / non-numeric skipped, not coerced). A NaN that is
+        the first kept sample in that window stays the result.
+        """
+        sid = getattr(self, "_pine_current_call_site", None)
+        if sid is None:
+            # No AST site: separate direct callers by the current index. Do not
+            # take a sliding-window slot (2-arg ``ta.max`` owns that counter).
+            key: tuple[Any, ...] = ("max_unary", None, int(getattr(self, "_ta_call_i", 0) or 0))
+        else:
+            key = ("max_unary", sid)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"valid": deque(), "maxdq": deque(), "seq": 0, "n": 0, "bar": None}
+            bucket[key] = st
+        raw = self._series_last(source)
+        ctx = getattr(self, "context", None)
+        bar = ctx.get("bar_index") if isinstance(ctx, dict) else None
+        cap = self._SERIES_MAX
+        replacing = bar is not None and st["bar"] == bar and st["seq"] > 0
+        valid: deque[tuple[int, Any]] = st["valid"]
+        if replacing:
+            seq = int(st["seq"])
+            if valid and valid[-1][0] == seq:
+                valid.pop()
+        else:
+            st["bar"] = bar
+            seq = int(st["seq"]) + 1
+            st["seq"] = seq
+            st["n"] = int(st["n"]) + 1
+            min_seq = seq - cap + 1
+            while valid and valid[0][0] < min_seq:
+                valid.popleft()
+            maxdq: deque[tuple[int, Any]] = st["maxdq"]
+            while maxdq and maxdq[0][0] < min_seq:
+                maxdq.popleft()
+        if _unary_max_keep(raw):
+            valid.append((seq, raw))
+        if replacing:
+            st["maxdq"] = _unary_max_rebuild(valid)
+        elif _unary_max_keep(raw) and not _unary_max_nan(raw):
+            maxdq = st["maxdq"]
+            while maxdq and raw > maxdq[-1][1]:
+                maxdq.pop()
+            maxdq.append((seq, raw))
+        return _unary_max_value(valid, st["maxdq"])
 
     def _builtin_ta_min(self, args: list[Any]) -> float | None:
         """Minimum value over a period (alias for ta.lowest).
