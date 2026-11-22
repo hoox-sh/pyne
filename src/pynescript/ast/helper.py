@@ -368,6 +368,14 @@ def _add_annotations(script, statements, comments):
             if annotations:
                 statement.annotations = annotations
 
+    # //@version after the last statement has no following statement to pair with.
+    # Odd length means the list ends on a comment group (it always starts with one).
+    groups = grouped_annotations_and_statements
+    if len(groups) > 1 and len(groups) % 2 == 1 and isinstance(groups[-1], list):
+        extra = [c.value for c in groups[-1] if c.kind.endswith("S")]
+        if extra:
+            script.annotations.extend(extra)
+
 
 def _collect_comment_nodes(builder: PinescriptASTBuilder, token_stream: CommonTokenStream) -> list[ast.Comment]:
     """Extract annotation-relevant comment nodes from the token stream.
@@ -479,15 +487,11 @@ def _parse(
                 return node
 
             statements = list(_get_statement_collector_cls()().visit(node))
-
-            if not statements:
-                return node
-
             comments = _collect_comment_nodes(builder, token_stream)
-
             if not comments:
                 return node
 
+            # Empty body still keeps script-level //@version (version-only scripts).
             _add_annotations(node, statements, comments)
 
         return node

@@ -128,6 +128,12 @@ class PinescriptLexerBase(Lexer):
         # True after start-of-input indent bootstrap has run
         self._inputStarted: bool = False
 
+        # if/for/while/once/else waiting for a multiple-of-4 block indent.
+        # Resource and generated/PinescriptLexerBase.py must stay in lockstep
+        # (runtime imports the generated base; this pass did not regenerate ANTLR).
+        self._block_header_types = frozenset({self.IF, self.FOR, self.WHILE, self.ONCE, self.ELSE})
+        self._block_header_open = False
+
     def _resetInternalStates(self):
         self._currentToken = None
         self._followingToken = None
@@ -138,6 +144,7 @@ class PinescriptLexerBase(Lexer):
         self._numSqBrackets = 0
         self._indentLengthStack = deque()
         self._inputStarted = False
+        self._block_header_open = False
 
     def nextToken(self) -> CommonToken:
         self._checkNextToken()
@@ -234,7 +241,13 @@ class PinescriptLexerBase(Lexer):
         self._lastPendingTokenType = token.type
         if token.channel == Token.DEFAULT_CHANNEL:
             self._lastPendingTokenTypeFromDefaultChannel = self._lastPendingTokenType
+            if token.type in self._block_header_types:
+                self._block_header_open = True
         self._pendingTokens.append(token)
+
+    def _is_line_continuation_token(self, token_type: int) -> bool:
+        # Operator, call, subscript, or attribute — not a new statement.
+        return token_type in self._operators or token_type in {self.DOT, self.LPAR, self.LSQB}
 
     def _hideAndAddPendingToken(self, token: CommonToken):
         token.channel = Token.HIDDEN_CHANNEL
@@ -277,13 +290,20 @@ class PinescriptLexerBase(Lexer):
             # Inside (...) / [...] already returned above (hidden), so only
             # block-indent (multiple of 4) emits NEWLINE + INDENT/DEDENT here.
             if indentation_length % self._indentLength == 0:
+                self._block_header_open = False
                 self._addPendingToken(nl_token)
                 self._addPendingToken(self._currentToken)
                 self._insertIndentOrDedentToken(indentation_length)
+            elif self._block_header_open and not self._is_line_continuation_token(following_type):
+                # Do not hide this newline: that would make plot() the inline body.
+                message = "indentation is not a multiple of 4"
+                self._reportLexerError(message, self._followingToken, PinescriptIndentationError)
+                self._createAndAddPendingToken(self.ERROR_TOKEN, Token.DEFAULT_CHANNEL, message, self._followingToken)
             else:
                 self._hideAndAddPendingToken(nl_token)
                 self._addPendingToken(self._currentToken)
         else:
+            self._block_header_open = False
             self._addPendingToken(nl_token)
             self._insertIndentOrDedentToken(0)
 

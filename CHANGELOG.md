@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+- **A non-multiple-of-4 indent is not an `if` / `for` / `while` / `once` body, and Python-only numbers are syntax errors.** One space (or any other indent that is not a multiple of 4) before a statement under those headers raises `IndentationError` instead of becoming the branch. `else` uses the same rule. `0x` / `0b` / `0o`, `_` separators, imaginary `1j`, and a leading-zero integer such as `01` are rejected, so `plot(0x10)` does not become `safe_float(16)`. A script that is only `//@version=6`, and a `//@version` after the last statement, keep that annotation. Pinned by `tests/test_audit_parser_2026_11_22.py`.
+
 ## [0.7.3] — 2026-11-19
 
 ### Added

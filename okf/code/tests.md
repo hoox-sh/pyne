@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-19T17:53:55Z
+  at: 2026-11-22T13:20:53Z
 sources:
   - id: tree
     resource: "tests"
@@ -26,6 +26,7 @@ okf_lock: generated
 - `test_arrays_deep_coverage.py` — TestArrayEverySomePercentrank, TestArrayJoinSortNaUdtDict, TestArraySliceUnshiftShiftIndex, TestArraySoftNaDirect
 - `test_arrays_edges_coverage.py` — TestArrayEmptyNaOutOfRange, TestArrayFromJoinFill, TestArrayMutationsStats, TestArrayPercentileModeStandardize, TestArrayRemoveInsertNewAliases, TestArraySortBinarySearch
 - `test_ast_infra_coverage.py` — TestSyntaxError, TestTransformer, TestTypeSystem, TestVisitorAndCollector
+- `test_audit_parser_2026_11_22.py` — test_bad_indent_does_not_poison_the_next_parse, test_decimal_integers_and_floats_stay, test_four_space_and_tab_blocks_parse, test_leading_version_still_round_trips, test_non_multiple_of_4_indent_is_not_a_structure_body, test_non_multiple_of_4_indent_is_not_an_if_body, test_operator_eol_wraps_and_condition_wraps_still_parse, test_paren_and_bracket_wrap_any_indent_still_parse, test_python_only_numbers_are_syntax_errors, test_same_line_if_and_function_soft_wrap_still_parse, test_switch_rejects_non_multiple_of_4_and_accepts_four, test_version_after_last_statement_is_stored
 - `test_axb1.py` — encode_frame_spec, frame_from_spec, test_axb1_is_opt_in, test_close_replies_leave_as_close_verify, test_control_and_idle_frames_stay_json_on_wire, test_encoder_matches_golden_vector, test_envelope_rejects_compression_bit, test_envelope_rejects_oversized_payload, test_envelope_rejects_unaligned_payload, test_error_frames_leave_as_binary_error, test_fnv1a32_matches_shared_hash_checks, test_hub_delta_append_stays_json
 - `test_backend.py` — TestAuth, TestBacktest, TestBacktestService, TestChartRenderer, TestGitOAuth, TestHealth, TestOptimizeEndpoint, TestPreview, TestRun, api_key, client
 - `test_backend_app_edges_coverage.py` — TestAuthFailureShapes, TestErrorSanitizer, TestStatsAndNotFound, client

@@ -66,6 +66,7 @@ from ast import literal_eval
 from antlr4 import ParserRuleContext
 
 from pynescript.ast import node as ast
+from pynescript.ast.error import SyntaxError as PinescriptSyntaxError
 from pynescript.ast.grammar.antlr4.parser import PinescriptParser
 from pynescript.ast.grammar.antlr4.visitor import PinescriptParserVisitor
 
@@ -98,41 +99,26 @@ _GT = ast.Gt()
 _GT_E = ast.GtE()
 
 
+def _reject_python_only_number(text: str) -> None:
+    """Pine numbers are decimal integers and plain floats, not Python literals."""
+    if (
+        "_" in text
+        or text.endswith(("j", "J"))
+        or (len(text) > 2 and text[0] == "0" and text[1] in "xXoObB")
+        or (len(text) > 1 and text[0] == "0" and text.isdigit())
+    ):
+        raise PinescriptSyntaxError(f"invalid numeric literal: {text}")
+
+
 def _parse_number_literal(text: str):
-    """Parse a Pine number token without always paying for ast.literal_eval."""
-    # Underscore digit separators (Pine / Python-style): strip for fast paths.
-    if "_" in text:
-        compact = text.replace("_", "")
-    else:
-        compact = text
-
-    # Leading-zero decimal ints (e.g. 01) — literal_eval rejects these.
-    if compact.isdigit():
-        return int(compact)
-
-    if len(compact) > 2 and compact[0] == "0":
-        base_ch = compact[1]
-        if base_ch in "xX":
-            return int(compact, 16)
-        if base_ch in "bB":
-            return int(compact, 2)
-        if base_ch in "oO":
-            return int(compact, 8)
-
-    # Common float / scientific forms (incl. ``1.`` / ``.5``)
-    if "." in compact or "e" in compact or "E" in compact:
-        try:
-            return float(compact)
-        except ValueError:
-            pass
-
-    # Imaginary / other exotic forms → literal_eval (may still fail on 01)
+    """Parse a Pine decimal integer or float. Python-only forms raise SyntaxError."""
+    _reject_python_only_number(text)
     try:
-        return literal_eval(text if "_" not in text else compact)
-    except (ValueError, SyntaxError):
-        if compact.isdigit():
-            return int(compact)
-        return float(compact)
+        if text.isdigit():
+            return int(text)
+        return float(text)
+    except ValueError as exc:
+        raise PinescriptSyntaxError(f"invalid numeric literal: {text}") from exc
 
 
 class PinescriptASTLocator:
