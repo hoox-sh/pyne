@@ -31,6 +31,9 @@ values or call markers consumed by :class:`~.expressions.ExpressionEvaluator`.
 - Series **wrappers** with a ``history`` list often store **most-recent-first**
   history; array-method recovery may reverse that to chronological order.
 - Scalars with no history: ``x[0]`` → ``x``, ``x[i>0]`` → ``None``.
+- Pine arrays (lists returned by ``array.*``, recorded on the evaluator)
+  are not bar lists. With no array-series history, ``a[0]`` is the array
+  and ``a[i>0]`` is ``na``.
 
 **``na``:** bare name ``na`` resolves via the zero-arg builtin path to
 ``None``. Missing attributes soft-fail to ``None`` rather than a truthy
@@ -59,6 +62,28 @@ from pynescript.ast.type_system import ObjectInstance
 
 
 _MATRIX_INDEX_DIMENSIONS = 2
+
+
+def _history_subscript_list(evaluator: Any, value: list, slice_: int) -> Any:
+    """Pine ``[]`` on a list: bar history, or the array id when it is one.
+
+    Chronological host lists (oldest first) map offset ``i`` to
+    ``list[-(i + 1)]``. A list returned by ``array.*`` is the array value.
+    There is no array-series history, so offset 0 is that array and any
+    other offset is ``na`` — the same rule as a scalar with no history.
+    """
+    if slice_ < 0:
+        return None
+    ids = getattr(evaluator, "_pine_array_ids", None)
+    if ids is not None and id(value) in ids:
+        if slice_ != 0:
+            return None
+        return value
+    n = len(value)
+    if slice_ >= n:
+        return None
+    return value[-(slice_ + 1)]
+
 
 # Lazy handle (expressions.py imports this module at top level, so a static
 # import would be circular; subscript call-sites hit this per bar).
@@ -527,12 +552,7 @@ class NameEvaluator:
                 slice_ = int(slice_)
                 st = int
             if type(value) is list and st is int:
-                if slice_ < 0:
-                    return None
-                n = len(value)
-                if slice_ >= n:
-                    return None
-                return value[-(slice_ + 1)]
+                return _history_subscript_list(self, value, slice_)
             # Fall through for matrix / scalar / non-int index
         else:
             visit = self.visit
@@ -551,12 +571,7 @@ class NameEvaluator:
                 st = int
 
             if type(value) is list and st is int:
-                if slice_ < 0:
-                    return None
-                n = len(value)
-                if slice_ >= n:
-                    return None
-                return value[-(slice_ + 1)]
+                return _history_subscript_list(self, value, slice_)
 
         st = type(slice_)
         # na index → na (do not crash the bar loop)
@@ -577,16 +592,9 @@ class NameEvaluator:
 
         # Fast path: list/array with integer index (history series / array.get style)
         if vt is list and st is int:
-            # Negative history offsets are invalid Pine; soft-fail to na
-            # (warmup / for-to auto-step / highestbars misuse) rather than abort.
-            if slice_ < 0:
-                return None
-            # Pine: series[0] = current (latest) → list[-1]; series[i] → list[-(i+1)]
-            # Bounds: slice_ >= len → na (equivalent to abs(-(i+1)) > len)
-            n = len(value)
-            if slice_ >= n:
-                return None
-            return value[-(slice_ + 1)]
+            # Negative offsets → na. Plain lists are chronological bar history.
+            # ``array.*`` lists are the array id (see ``_history_subscript_list``).
+            return _history_subscript_list(self, value, slice_)
 
         # Handle Matrix indexing: m[row, col]
         if isinstance(value, Matrix):
@@ -598,12 +606,7 @@ class NameEvaluator:
 
         # list subclasses (rare) — same Pine reverse-index semantics
         if isinstance(value, list) and st is int:
-            if slice_ < 0:
-                return None
-            n = len(value)
-            if slice_ >= n:
-                return None
-            return value[-(slice_ + 1)]
+            return _history_subscript_list(self, value, slice_)
 
         if type(value) is str:
             # Pine has no string subscripting. A raw string here means an

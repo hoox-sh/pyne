@@ -1509,6 +1509,72 @@ def _restore_drawing_registry(snap: dict[str, Any] | None) -> None:
         _swallow(_exc, what="restore drawing registry")
 
 
+def _drop_newest_samples(hist: Any, extra: int) -> None:
+    """Drop *extra* newest-first samples pushed by one unconfirmed tick.
+
+    ``PineSeries`` history is a deque (``popleft``). The ring view has no
+    ``popleft``; shortening its buffer length forgets the newest appends
+    when the ring has not wrapped.
+    """
+    if extra <= 0:
+        return
+    popleft = getattr(hist, "popleft", None)
+    if callable(popleft):
+        for _ in range(extra):
+            popleft()
+        return
+    buf = getattr(hist, "_buf", None)
+    if buf is not None and hasattr(buf, "_len"):
+        buf._len = max(0, int(buf._len) - extra)
+        return
+    if isinstance(hist, list):
+        del hist[:extra]
+
+
+def _restore_series_history(target: Any, meta: tuple[int, Any]) -> None:
+    """Undo one tick's ``update`` push and ``set_current`` overwrite."""
+    snap_len, snap0 = meta
+    hist = getattr(target, "history", None)
+    if hist is None:
+        return
+    try:
+        extra = len(hist) - int(snap_len)
+    except (TypeError, ValueError):
+        return
+    if extra > 0:
+        _drop_newest_samples(hist, extra)
+    if snap_len and hist:
+        try:
+            if hist[0] != snap0:
+                hist[0] = snap0
+        except (TypeError, IndexError, AttributeError) as _exc:
+            _swallow(_exc, what="restore realtime series history")
+
+
+def _restore_series_assign_map(evaluator: Any, snap: dict[str, Any]) -> None:
+    """Put ``_series_assign_bar`` back, keeping ``varip`` stamps.
+
+    A rolled-back ``var`` ``:=`` must not leave this bar stamped, or the
+    confirmed tick ``set_current``s over the previous bar's slot. ``varip``
+    keeps the stamp so the next tick does not push another sample.
+    """
+    snap_map = snap.get("series_assign")
+    if not isinstance(snap_map, dict):
+        return
+    restored = dict(snap_map)
+    varip_names = snap.get("varip_names") or set()
+    live = getattr(evaluator, "_series_assign_bar", None)
+    if isinstance(live, dict):
+        for key, val in live.items():
+            name = key[1] if isinstance(key, tuple) and len(key) >= 2 else key
+            if name in varip_names:
+                restored[key] = val
+        live.clear()
+        live.update(restored)
+    else:
+        evaluator._series_assign_bar = restored
+
+
 def _snapshot_realtime_scope(evaluator: Any) -> dict[str, Any] | None:
     """Snapshot ``var`` scope before an intermediate realtime tick.
 
@@ -1516,8 +1582,8 @@ def _snapshot_realtime_scope(evaluator: Any) -> dict[str, Any] | None:
     state rolled back to the last confirmed bar. The snapshot holds context
     bindings (by reference), container contents (arrays / matrices /
     maps / UDT fields, with one extra list/dict nesting level),
-    ``.current`` of series-like values, and
-    the ``var`` declaration set — everything
+    ``.current`` and the newest-first history length of series-like values,
+    the series-assign map, and the ``var`` declaration set — everything
     :func:`_restore_realtime_scope` needs to undo one tick. ``varip`` names
     are recorded (not snapshotted) so they persist across ticks.
     Restore writes contents back into the same objects, including nested
@@ -1536,6 +1602,7 @@ def _snapshot_realtime_scope(evaluator: Any) -> dict[str, Any] | None:
     varips = getattr(evaluator, "_varip_declarations", None)
     varip_names = set(varips) if varips else set()
     currents: dict[str, Any] = {}
+    series_hist: dict[str, tuple[int, Any]] = {}
     containers: dict[str, Any] = {}
     for name, value in bindings.items():
         if name in varip_names:
@@ -1543,6 +1610,10 @@ def _snapshot_realtime_scope(evaluator: Any) -> dict[str, Any] | None:
         try:
             if hasattr(value, "update") and hasattr(value, "current") and hasattr(value, "history"):
                 currents[name] = getattr(value, "current", None)
+                hist = getattr(value, "history", None)
+                if hist is not None:
+                    hlen = len(hist)
+                    series_hist[name] = (hlen, hist[0] if hlen else None)
         except Exception as _exc:
             _swallow(_exc)
         copied = _copy_container_contents(value)
@@ -1555,6 +1626,8 @@ def _snapshot_realtime_scope(evaluator: Any) -> dict[str, Any] | None:
             "bindings": bindings,
             "currents": currents,
             "containers": containers,
+            "series_hist": series_hist,
+            "series_assign": dict(getattr(evaluator, "_series_assign_bar", None) or {}),
             "varip_names": varip_names,
             "var_declarations": set(declared) if declared else set(),
             "once_fired": dict(once_fired) if isinstance(once_fired, dict) else {},
@@ -1568,14 +1641,14 @@ def _snapshot_realtime_scope(evaluator: Any) -> dict[str, Any] | None:
 def _restore_realtime_scope(evaluator: Any, snap: dict[str, Any] | None) -> None:
     """Undo one intermediate realtime tick (see :func:`_snapshot_realtime_scope`).
 
-    Restores ``var`` bindings, container contents, and series ``.current``
-    values in place — the context dict itself is never replaced, and
-    list/Matrix/Map/UDT mutations write back into the same objects,
-    including a nested list the tick removed or replaced.
+    Restores ``var`` bindings, container contents, series ``.current``,
+    and the newest-first history slot written by that tick. ``update``
+    pushes are popped; ``set_current`` overwrites of ``history[0]`` are
+    put back. The series-assign map is restored except for ``varip``
+    names, so a confirmed tick that does not ``:=`` does not keep the
+    unconfirmed sample and does not skip a later real write.
     ``varip`` names keep their post-tick values (reference persistence).
-    History pushes and the series-assign map are intentionally left alone:
-    the start-of-visit commit already ran for this bar, and re-running it
-    on the final tick would double-push. Best-effort: never raises.
+    Best-effort: never raises.
     """
     if not snap:
         return
@@ -1607,13 +1680,21 @@ def _restore_realtime_scope(evaluator: Any, snap: dict[str, Any] | None) -> None
                 _restore_container_contents(ctx.get(name), contents)
             except Exception as _exc:
                 _swallow(_exc, what="restore realtime container contents")
+        hist_meta = snap.get("series_hist") or {}
         for name, current in (snap.get("currents") or {}).items():
             target = ctx.get(name)
             try:
                 if target is not None and hasattr(target, "update") and hasattr(target, "current"):
+                    meta = hist_meta.get(name)
+                    if meta is not None:
+                        _restore_series_history(target, meta)
                     target.current = current
             except Exception as _exc:
                 _swallow(_exc, what="restore realtime series current")
+        try:
+            _restore_series_assign_map(evaluator, snap)
+        except Exception as _exc:
+            _swallow(_exc, what="restore realtime series assign map")
     except Exception as _exc:
         _swallow(_exc)
     try:

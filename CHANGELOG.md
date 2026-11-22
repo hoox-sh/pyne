@@ -8,6 +8,8 @@
 
 - **Compile history, deferred `var`, array indexes, `array.covariance`, and `dayofyear` match interpret.** A `na` or negative history offset is `na` instead of another bar. A `var` or UDF `var` first reached after bar 0 captures that bar's initializer. Array `na` is not element 0, a negative index counts from the end, and `array.remove(id, na)` is a runtime error. `array.covariance` is the population covariance. `dayofyear` is the UTC day of year on both hosts (14 Nov 2023 is 318). `_DISK_META_VERSION` 65 → 66. Pinned by `tests/test_audit_compiler_2026_11_22.py`.
 
+- **Interpreter realtime `var` history, collection `for-in`, NaN-as-`na`, plain UDF arity, and array `[]`.** A realtime `var` whose confirmed tick does not `:=` keeps `x[0]` on the incoming value and `x[1]` on the previous bar (the unconfirmed `:=` no longer leaves a dirty history slot). `for [k, v] in map` and `for row in matrix` run; `for-in` snapshots the items at entry. Float NaN from incremental `ta.*` is `na` for `nz` and comparisons. A plain UDF missing a required argument raises `TypeError` the same way an export does. `array.from(...)[0]` is the current array, not an element; `a[1]` is `na`. v6 `and`/`or` stay eager. Pinned by `tests/test_audit_interpreter_2026_11_22.py`.
+
 ## [0.7.3] — 2026-11-19
 
 ### Added

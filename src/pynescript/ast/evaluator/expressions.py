@@ -43,6 +43,7 @@ from itertools import count
 from typing import Any
 
 from pynescript.ast import node as ast
+from pynescript.ast.evaluator.builtins.base import _is_na_scalar
 from pynescript.ast.evaluator.builtins.request import match_htf_offset_ast
 from pynescript.ast.evaluator.builtins.request import match_htf_simple_ta_ast
 from pynescript.ast.evaluator.names import _BARE_SERIES_BUILTINS
@@ -787,6 +788,10 @@ class ExpressionEvaluator:
             tr = type(right)
             # Scalar numeric compare — dominant after series unwrap / bar inject
             if (tl is float or tl is int) and (tr is float or tr is int):
+                # Float NaN is Pine ``na`` (same check as ``nz`` / ``na()``).
+                # ``nan != 0`` must not take the true branch.
+                if _is_na_scalar(left) or _is_na_scalar(right):
+                    return False
                 if op_t is ast.Lt:
                     result = left < right
                 elif op_t is ast.LtE:

@@ -55,8 +55,21 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
     (``_expect_array``, index bounds) raise via the shared mixin ``_error`` path.
     """
 
+    def _note_pine_array(self, seq: list[Any]) -> None:
+        """Remember a list that ``array.*`` returned, so ``[]`` is not an element.
+
+        Ids, not a list subclass: ``type(seq) is list`` stays true for
+        element-wise ops and for chronological host lists that were never
+        returned from here.
+        """
+        ids = getattr(self, "_pine_array_ids", None)
+        if ids is None:
+            ids = set()
+            self._pine_array_ids = ids  # type: ignore[attr-defined]
+        ids.add(id(seq))
+
     def _array_builtin_map(self) -> dict[str, BuiltinHandler]:
-        return {
+        raw: dict[str, BuiltinHandler] = {
             "array.size": self._builtin_array_size,
             "array.get": self._builtin_array_get,
             "array.push": self._builtin_array_push,
@@ -127,6 +140,19 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             "array.new_chart.point": self._builtin_array_new_empty,
             "array.unshift": self._builtin_array_unshift,
         }
+        note = self._note_pine_array
+
+        def _track(handler: BuiltinHandler) -> BuiltinHandler:
+            # One positional ``args`` so dispatch still treats this as list-style.
+            def wrapped(args: list[Any]) -> Any:
+                result = handler(args)
+                if type(result) is list:
+                    note(result)
+                return result
+
+            return wrapped
+
+        return {name: _track(handler) for name, handler in raw.items()}
 
     def _type_name(self, value: Any) -> str:
         """Short type label for error messages."""

@@ -45,6 +45,8 @@ from typing import Any
 
 from pynescript.ast import node as ast
 from pynescript.ast.evaluator.builtins.declarations import ScriptDeclaration
+from pynescript.ast.evaluator.builtins.map import Map
+from pynescript.ast.evaluator.builtins.matrix import Matrix
 from pynescript.ast.evaluator.libraries import STUB_KNOWN_EXPORTS
 from pynescript.ast.evaluator.libraries import LibraryModule
 from pynescript.ast.evaluator.libraries import bind_tradingview_ta_stub_exports
@@ -964,6 +966,14 @@ class StatementEvaluator:
             self._commit_history_stamp = (history_names, declared)  # type: ignore[attr-defined]
         if not commit_names:
             return
+        # Realtime forming bar: do not push a carry sample. An unconfirmed
+        # ``:=`` rolls its own ``update`` back. The confirmed tick that does
+        # not write must leave ``history[0]`` on the incoming value and
+        # ``history[1]`` on the previous bar. A push here duplicates the
+        # incoming value into ``history[1]``.
+        barstate = self.context.get("barstate")
+        if barstate is not None and getattr(barstate, "isrealtime", False):
+            return
         last_map: dict[Any, int] | None = getattr(self, "_series_assign_bar", None)
         if last_map is None:
             last_map = {}
@@ -1767,26 +1777,49 @@ class StatementEvaluator:
         target = node.target
         iterable = self.visit(node.iter)  # type: ignore[attr-defined]
 
-        # Handle different iterable types (list, Matrix, Map?)
-        # Pine Script 'for x in array' iterates values.
+        # Pine ``for x in array`` iterates values. Map yields key/value pairs.
+        # Matrix yields rows. Strings, bytes, and dicts are not collections.
         # Soft-fail non-iterables (stubs, na, security scalars) → empty loop.
         if iterable is None:
             return None
         if isinstance(iterable, (str, bytes, dict)):
             return None
-        if not hasattr(iterable, "__iter__"):
-            return None
 
-        last_result = None
+        # Snapshot at entry so ``array.push`` during the body does not extend
+        # the loop (and a self-push cannot hang). Same 1_000_000 ceiling as
+        # ``for`` / ``while``.
+        max_iters = 1_000_000
         try:
-            # Pine: ``for [i, v] in array`` yields index+value pairs.
-            # Use enumerate when iterating a list with a 2-tuple target.
-            use_enumerate = isinstance(target, ast.Tuple) and len(target.elts) == 2 and isinstance(iterable, list)
-            iterator = enumerate(iterable) if use_enumerate else iter(iterable)
+            if isinstance(iterable, Map):
+                items: list[Any] = list(iterable.data.items())
+            elif isinstance(iterable, Matrix):
+                items = [row.copy() for row in iterable.data]
+            elif isinstance(iterable, list):
+                items = iterable.copy()
+            elif hasattr(iterable, "__iter__"):
+                items = []
+                for item in iterable:
+                    items.append(item)
+                    if len(items) >= max_iters:
+                        break
+            else:
+                return None
         except TypeError:
             return None
+        if len(items) > max_iters:
+            items = items[:max_iters]
 
+        last_result = None
+        # Pine: ``for [i, v] in array`` yields index+value pairs.
+        # Use enumerate when iterating a list with a 2-tuple target.
+        use_enumerate = isinstance(target, ast.Tuple) and len(target.elts) == 2 and isinstance(iterable, list)
+        iterator = enumerate(items) if use_enumerate else items
+
+        n_seen = 0
         for item in iterator:
+            n_seen += 1
+            if n_seen > max_iters:
+                break
             # Bind loop target(s)
             if isinstance(target, ast.Name):
                 self.context[target.id] = item  # type: ignore[attr-defined]
@@ -1888,9 +1921,11 @@ class StatementEvaluator:
             self._func_series_locals = fsl  # type: ignore[attr-defined]
         fsl[func_name] = series_locals_t
 
-        # Exports only. Other UDFs keep the na path when an arg is omitted.
-        export_short_names = param_names if getattr(node, "export", None) else ()
-        export_default_names = frozenset(item[0] for item in defaults)
+        # Short positional calls raise for every UDF, not only exports.
+        # Otherwise the body reads the caller's binding or the unresolved
+        # name. Keyword calls still skip the check (compile pads those holes).
+        short_names = param_names
+        default_names = frozenset(item[0] for item in defaults)
 
         # Create a closure
         def user_function(
@@ -1906,8 +1941,8 @@ class StatementEvaluator:
             __var_names=var_names_t,
             __varip_names=varip_names_t,
             __scalar_names=scalar_names_t,
-            __short_names=export_short_names,
-            __default_names=export_default_names,
+            __short_names=short_names,
+            __default_names=default_names,
             **kwargs,
         ):
             """Invoke a UDF with in-place param rebind on the live context.
