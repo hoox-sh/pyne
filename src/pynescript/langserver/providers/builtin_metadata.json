@@ -1837,6 +1837,16 @@
     "params": ["time", "timezone"],
     "category": "builtin"
   },
+  "dayofyear": {
+    "label": "dayofyear",
+    "kind": "function",
+    "detail": "dayofyear(time, timezone)",
+    "brief": "Extract day of year from timestamp (1-366; bare form uses chart time).",
+    "documentation": "Extract day of year from timestamp (1-366; bare form uses chart time).",
+    "snippet": "dayofyear(${1:time}, ${2:timezone})",
+    "params": ["time", "timezone"],
+    "category": "builtin"
+  },
   "dema": {
     "label": "dema",
     "kind": "function",

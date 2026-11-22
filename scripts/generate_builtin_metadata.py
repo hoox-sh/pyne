@@ -28,6 +28,10 @@ CLI (from repo root, with package importable)::
     python scripts/generate_builtin_metadata.py
 
 Writes ``src/pynescript/langserver/providers/builtin_metadata.json``.
+
+An existing catalog is kept. Only dispatch names that are missing are
+inserted, in sorted order, so a run does not drop entries the current
+handlers can no longer reproduce.
 """
 
 from __future__ import annotations
@@ -249,6 +253,60 @@ def generate_metadata() -> dict[str, Any]:
     return metadata
 
 
+_ENTRY_KEYS = ("label", "kind", "detail", "brief", "documentation", "snippet", "params", "category")
+
+
+def _render_params(params: list[Any]) -> str:
+    """Match the catalog: short param lists stay on one line."""
+    inline = "[" + ", ".join(json.dumps(item, ensure_ascii=False) for item in params) + "]"
+    if len('    "params": ') + len(inline) <= 88:
+        return inline
+    inner = ",\n".join(f"      {json.dumps(item, ensure_ascii=False)}" for item in params)
+    return "[\n" + inner + "\n    ]"
+
+
+def _format_entry(name: str, info: dict[str, Any]) -> str:
+    """One catalog object in the same shape as ``dayofmonth`` / ``year``."""
+    lines = [f"  {json.dumps(name, ensure_ascii=False)}: {{"]
+    body: list[str] = []
+    for key in _ENTRY_KEYS:
+        value = info.get(key, [] if key == "params" else "")
+        rendered = (
+            _render_params(value)
+            if key == "params" and isinstance(value, list)
+            else json.dumps(value, ensure_ascii=False)
+        )
+        body.append(f"    {json.dumps(key)}: {rendered}")
+    lines.append(",\n".join(body))
+    lines.append("  }")
+    return "\n".join(lines)
+
+
+def _insert_missing(text: str, missing: dict[str, Any]) -> str:
+    """Insert missing entries in sorted order. Leave every existing entry untouched."""
+    if not text.endswith("\n"):
+        text += "\n"
+    for name in sorted(missing):
+        entry = _format_entry(name, missing[name])
+        positions: list[tuple[str, int]] = []
+        for match in re.finditer(r'^  ("(?:\\.|[^"\\])*"): \{', text, re.MULTILINE):
+            positions.append((json.loads(match.group(1)), match.start()))
+        later = [start for key, start in positions if key > name]
+        if later:
+            at = later[0]
+            text = text[:at] + entry + ",\n" + text[at:]
+            continue
+        close = text.rstrip()
+        if not close.endswith("}"):
+            raise RuntimeError("builtin_metadata.json has no closing brace")
+        # Last entry has no trailing comma. Insert before the root ``}``.
+        body, _, _root = close.rpartition("\n}")
+        if not body.rstrip().endswith(","):
+            body = body.rstrip() + ","
+        text = body + "\n" + entry + "\n}\n"
+    return text
+
+
 def main():
     """Generate and save builtin metadata JSON."""
     metadata = generate_metadata()
@@ -256,16 +314,29 @@ def main():
     output_path = Path(__file__).parent.parent / "src/pynescript/langserver/providers/builtin_metadata.json"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(metadata, f, indent=2, ensure_ascii=False)
+    if output_path.exists():
+        existing = json.loads(output_path.read_text(encoding="utf-8"))
+        missing = {name: info for name, info in metadata.items() if name not in existing}
+        if missing:
+            updated = _insert_missing(output_path.read_text(encoding="utf-8"), missing)
+            output_path.write_text(updated, encoding="utf-8")
+            print(f"Inserted {len(missing)} missing dispatch name(s): {', '.join(sorted(missing))}")
+        else:
+            print("Catalog already covers every dispatch name")
+        written = json.loads(output_path.read_text(encoding="utf-8"))
+    else:
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        written = metadata
+        print(f"Generated {len(metadata)} builtin entries")
 
-    # Print summary
     categories: dict[str, int] = {}
-    for info in metadata.values():
-        cat = info["category"]
+    for info in written.values():
+        cat = info.get("category", "")
         categories[cat] = categories.get(cat, 0) + 1
 
-    print(f"Generated {len(metadata)} builtin entries")
+    print(f"Catalog size: {len(written)}")
     print(f"Output: {output_path}")
     print("\nBy category:")
     for cat, count in sorted(categories.items()):

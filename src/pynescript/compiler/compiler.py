@@ -570,6 +570,22 @@ _DRAWING_FUNCS = frozenset(
 )
 
 
+def _pine_list_set_expr(arr: str, index: str, value: str) -> str:
+    """``array.set`` via ``safe_list_set`` after the Pine index rule.
+
+    ``safe_list_set`` no-ops on a negative index. Count a negative Pine index
+    from the end here, before that helper. ``na`` stays a no-op (not element
+    0). A positive out-of-range index still grows inside ``safe_list_set``.
+    """
+    # int() truncates like array_set_at. NaN fails ``__i == __i`` so it is not 0.
+    resolved = (
+        "((int(__i) + len(__a) if int(__i) < 0 else int(__i)) "
+        "if (isinstance(__a, list) and isinstance(__i, (int, float, np.integer, np.floating)) "
+        "and __i == __i) else -1)"
+    )
+    return f"((lambda __a, __i, __v: safe_list_set(__a, {resolved}, __v))({arr}, {index}, {value}))"
+
+
 def _iter_child_values(node: Any) -> Iterator[Any]:
     """Yield child field values of an AST node (slots-compatible traversal).
 
@@ -5270,7 +5286,8 @@ class CompilerVisitor(NodeVisitor):
         if func_name == "array_set":
             # Method ``m.set(row, col, val)`` → 4 args after id prepend.
             # Method ``a.set(index, val)`` → 3 args.
-            # Use safe_list_set (grow/no-op) so OOB indices soft-fail like interpret.
+            # safe_list_set grows a positive OOB index. A negative Pine index
+            # is counted from the end before that call; na does not write 0.
             a = ra(
                 args,
                 kwargs,
@@ -5283,9 +5300,9 @@ class CompilerVisitor(NodeVisitor):
                     f"((lambda __m: (__m[int({args[1]})].__setitem__(int({args[2]}), {args[3]}), __m)[1])({args[0]}))"
                 )
             if len(args) >= 3:
-                return f"array_set_at({args[0]}, {args[1]}, {args[2]})"
+                return _pine_list_set_expr(args[0], args[1], args[2])
             if len(a) >= 3:
-                return f"array_set_at({a[0]}, {a[1]}, {a[2]})"
+                return _pine_list_set_expr(a[0], a[1], a[2])
             return ""
         if func_name == "array_size":
             a = ra(args, kwargs, ("id",))
