@@ -1,0 +1,50 @@
+{
+  "population": "input_type_token",
+  "pattern": "type\\s*=\\s*input\\s*\\.",
+  "flags": 0,
+  "pattern_origin": "2026-11-14 proof PATS['input_type'] (re-verified 2026-11-17)",
+  "label": "before:98cc8e70",
+  "src": "/tmp/opencode/oo-base-input_type_token/src",
+  "data": "/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/data",
+  "sets": [
+    "set01",
+    "set02",
+    "set03",
+    "set04"
+  ],
+  "match": "type\\s*=\\s*input\\s*\\.",
+  "total": 115,
+  "numeric": 0,
+  "object": 106,
+  "error": 9,
+  "timeout": 0,
+  "per_set": {
+    "set01": {
+      "total": 80,
+      "numeric": 0,
+      "object": 80,
+      "error": 0
+    },
+    "set02": {
+      "total": 8,
+      "numeric": 0,
+      "object": 7,
+      "error": 1
+    },
+    "set03": {
+      "total": 17,
+      "numeric": 0,
+      "object": 15,
+      "error": 2
+    },
+    "set04": {
+      "total": 10,
+      "numeric": 0,
+      "object": 4,
+      "error": 6
+    }
+  },
+  "duration_s": 32.3,
+  "workers": 7,
+  "repo_head": "a85c6cb64e0b6a8992d3c7376cd62547897c1843"
+}

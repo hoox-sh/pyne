@@ -1,0 +1,20 @@
+Checker evidence — cross-library UDT constructor/method (2026-11-16)
+Card: pyne-cross-library-udts-methods--3fc6cd11
+HEAD: f770cf62 + uncommitted slice
+
+Counts resolved: 2 new tests + existing cycle test = 3 named; library
+69 + 2 = 71; targeted 509.
+Named: ctor/method b.Box.new(x).v and .bump() match interpret; annotation
+fail-closed (unsupported name b); cycle fail-closed (recursive import).
+Failing-before (pristine HEAD compiler.py 2f6ef8be...): 1 failed / 2 passed;
+ctor/method compile error "library function make uses unsupported name b".
+
+Guards:
+  duplicate type Box across B/C -> compile fail-closed collision
+  nested UDT field Inner -> compile fail-closed non-scalar field
+  cross-library type annotation -> fail-closed
+  re-exported alias path unchanged (no new type registration)
+Synthetic alias set is __xlib_<n> only; local alias b is not allowed.
+Free functions/scalar methods/same-library/cross-library free calls, ta
+allowlist, exported defaults, strict missing args all green in 509.
+Full verify.sh: 5 passed, 0 skipped (308.5s, single final run).

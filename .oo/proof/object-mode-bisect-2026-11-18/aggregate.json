@@ -1,0 +1,1236 @@
+{
+  "corpus": {
+    "unique_object_outcome_files": 2357,
+    "results_records": 2357,
+    "by_population_records": {
+      "plotshape": 1170,
+      "input_type_token": 642,
+      "assigned_hline": 255,
+      "runtime_error": 628
+    },
+    "population_unique_files": {
+      "assigned_hline": 255,
+      "input_type_token": 642,
+      "plotshape": 1170,
+      "runtime_error": 628
+    }
+  },
+  "outcomes": {
+    "object": 2357,
+    "numeric": 0,
+    "error": 0
+  },
+  "outcome_parity_vs_2026-11-18": {
+    "compared": 2357,
+    "changed": []
+  },
+  "traced_object_files": 2357,
+  "missing_trace_for_object_files": [],
+  "error_outcome_files_with_trace": 0,
+  "unreadable_files": [],
+  "sites": [
+    {
+      "line": 6300,
+      "site": "visit_Call",
+      "label": "input.color/symbol/timeframe/session",
+      "family": "input",
+      "count": 337,
+      "pct": 14.3,
+      "per_population": {
+        "input_type_token": 99,
+        "plotshape": 217,
+        "assigned_hline": 35,
+        "runtime_error": 41
+      },
+      "example_files": [
+        "set01/indicators/116_ind_us_treasury_yields.pine",
+        "set01/indicators/138_ind_vortex_bands.pine",
+        "set01/indicators/142_ind_ulcer_index.pine",
+        "set01/indicators/144_ind_price_volume_trend.pine",
+        "set01/indicators/173_ind_bullish_bearish_candle_series_distribution.pine"
+      ]
+    },
+    {
+      "line": 6583,
+      "site": "visit_Call",
+      "label": "array.*/matrix.* call",
+      "family": "array",
+      "count": 283,
+      "pct": 12.0,
+      "per_population": {
+        "runtime_error": 272,
+        "input_type_token": 8,
+        "plotshape": 10,
+        "assigned_hline": 3
+      },
+      "example_files": [
+        "set02/indicators/112_ind_autoregressive_fir_moving_average_afirma.pine",
+        "set02/indicators/113_ind_autoregressive_fir_moving_average_afirma_2.pine",
+        "set02/indicators/117_ind_beta_distribution_cdf_betadist.pine",
+        "set02/indicators/122_ind_cointegration_cointegration.pine",
+        "set02/indicators/123_ind_cointegration_cointegration_2.pine"
+      ]
+    },
+    {
+      "line": 2949,
+      "site": "visit_Assign",
+      "label": "string constant RHS",
+      "family": "string",
+      "count": 279,
+      "pct": 11.8,
+      "per_population": {
+        "plotshape": 232,
+        "input_type_token": 50,
+        "assigned_hline": 39,
+        "runtime_error": 12
+      },
+      "example_files": [
+        "set01/indicators/106_ind_halftrend.pine",
+        "set01/indicators/107_ind_supertrend.pine",
+        "set01/indicators/108_ind_nick_rypock_trailing_reverse.pine",
+        "set01/indicators/109_ind_chandelier_exit.pine",
+        "set01/indicators/111_ind_parabolic_sar.pine"
+      ]
+    },
+    {
+      "line": 5715,
+      "site": "_emit_strategy_attr",
+      "label": "strategy direction/avg_price attrs",
+      "family": "strategy",
+      "count": 205,
+      "pct": 8.7,
+      "per_population": {
+        "input_type_token": 92,
+        "plotshape": 130,
+        "assigned_hline": 6
+      },
+      "example_files": [
+        "set01/strategies/053_str_flawless_victory.pine",
+        "set01/strategies/057_str_stoch_rsi_crossover_strat_plus_ema_yt_trade_pro.pine",
+        "set01/strategies/075_str_machine_learning_perceptron_based_strategy_v_3.pine",
+        "set01/strategies/090_str_dualma.pine",
+        "set01/strategies/092_str_defaultstrategy.pine"
+      ]
+    },
+    {
+      "line": 6267,
+      "site": "visit_Call",
+      "label": "strategy() declaration",
+      "family": "strategy",
+      "count": 180,
+      "pct": 7.6,
+      "per_population": {
+        "input_type_token": 116,
+        "plotshape": 84,
+        "runtime_error": 6,
+        "assigned_hline": 5
+      },
+      "example_files": [
+        "set01/strategies/064_str_password_protected.pine",
+        "set01/strategies/081_str_4_jma_crossover_strategy.pine",
+        "set01/strategies/083_str_hma_kahlman_strategy_with_pivoting.pine",
+        "set01/strategies/085_str_hull_trend_with_kahlman_strategy.pine",
+        "set01/strategies/089_str_simple_long_term_strategy.pine"
+      ]
+    },
+    {
+      "line": 2977,
+      "site": "visit_Assign",
+      "label": "stringy RHS (expr classifies as string)",
+      "family": "string",
+      "count": 107,
+      "pct": 4.5,
+      "per_population": {
+        "input_type_token": 57,
+        "assigned_hline": 10,
+        "plotshape": 69,
+        "runtime_error": 4
+      },
+      "example_files": [
+        "set01/indicators/124_ind_spencer_21_point_moving_average.pine",
+        "set01/indicators/125_ind_true_strength_index.pine",
+        "set01/indicators/127_ind_adaptive_laguerre_filter.pine",
+        "set01/indicators/129_ind_stochastic.pine",
+        "set01/indicators/131_ind_schaff_trend_cycle.pine"
+      ]
+    },
+    {
+      "line": 9249,
+      "site": "visit_BinOp",
+      "label": "BinOp name+name add inside UDF",
+      "family": "misc",
+      "count": 89,
+      "pct": 3.8,
+      "per_population": {
+        "runtime_error": 62,
+        "plotshape": 23,
+        "assigned_hline": 7,
+        "input_type_token": 16
+      },
+      "example_files": [
+        "set02/indicators/119_ind_parabolic_sar_extended_sarext.pine",
+        "set02/indicators/133_ind_connors_rsi_crsi.pine",
+        "set02/indicators/134_ind_connors_rsi_crsi_2.pine",
+        "set02/indicators/166_ind_baxter_king_band_pass_filter_baxterking.pine",
+        "set02/indicators/167_ind_baxter_king_band_pass_filter_baxterking_2.pine"
+      ]
+    },
+    {
+      "line": 4842,
+      "site": "visit_Attribute",
+      "label": "input.* stringy token (type=input.color/symbol/\u2026)",
+      "family": "input",
+      "count": 84,
+      "pct": 3.6,
+      "per_population": {
+        "input_type_token": 81,
+        "plotshape": 11,
+        "assigned_hline": 7
+      },
+      "example_files": [
+        "set01/indicators/119_ind_session_input_parser.pine",
+        "set01/indicators/217_ind_macd.pine",
+        "set01/indicators/219_ind_3_ma_plus_cross.pine",
+        "set05/indicators/8269_ind_5ma.pine",
+        "set05/indicators/8270_ind_hardcoded_moving_averages.pine"
+      ]
+    },
+    {
+      "line": 1194,
+      "site": "_visit_import_inner",
+      "label": "import <lib> statement (library import)",
+      "family": "library",
+      "count": 83,
+      "pct": 3.5,
+      "per_population": {
+        "plotshape": 57,
+        "runtime_error": 18,
+        "input_type_token": 12,
+        "assigned_hline": 11
+      },
+      "example_files": [
+        "set01/indicators/231_ind_machine_learning_perceptron_based_strategy_v_2.pine",
+        "set01/indicators/233_ind_machine_learning_perceptron_based_strategy.pine",
+        "set02/indicators/237_ind_shrike_scan.pine",
+        "set03/indicators/0704_ind_shrike_scan_1.pine",
+        "set03/indicators/0714_ind_shrike_scan.pine"
+      ]
+    },
+    {
+      "line": 3127,
+      "site": "visit_Assign",
+      "label": "catch-all: unclassified non-numeric RHS in assignment",
+      "family": "misc",
+      "count": 82,
+      "pct": 3.5,
+      "per_population": {
+        "input_type_token": 7,
+        "plotshape": 23,
+        "assigned_hline": 8,
+        "runtime_error": 53
+      },
+      "example_files": [
+        "set01/indicators/165_ind_t3_moving_average.pine",
+        "set01/indicators/199_ind_ttm_squeeze_plus_macd_line.pine",
+        "set01/indicators/215_ind_kdj.pine",
+        "set01/indicators/224_ind_chop_and_explode_ps5.pine",
+        "set01/indicators/226_ind_chop_and_explode_ps5_v_2.pine"
+      ]
+    },
+    {
+      "line": 6262,
+      "site": "visit_Call",
+      "label": "library() declaration",
+      "family": "library",
+      "count": 69,
+      "pct": 2.9,
+      "per_population": {
+        "runtime_error": 54,
+        "plotshape": 14,
+        "input_type_token": 4,
+        "assigned_hline": 1
+      },
+      "example_files": [
+        "set01/libraries/001_lib_mathcomplexevaluate.pine",
+        "set01/libraries/003_lib_mathcomplexarray.pine",
+        "set01/libraries/005_lib_withglobalpass.pine",
+        "set01/libraries/007_lib_mathgeometrycurveschaikin.pine",
+        "set01/libraries/008_lib_withlocalerror.pine"
+      ]
+    },
+    {
+      "line": 6365,
+      "site": "visit_Call",
+      "label": "hline() with non-numeric price",
+      "family": "drawing",
+      "count": 55,
+      "pct": 2.3,
+      "per_population": {
+        "assigned_hline": 55,
+        "plotshape": 6,
+        "input_type_token": 5
+      },
+      "example_files": [
+        "set01/indicators/200_ind_rsi_divergence.pine",
+        "set04/indicators/0587_ind_example_1.pine",
+        "set04/indicators/0588_ind_fill_between_hlines.pine",
+        "set04/indicators/0619_ind_tsi.pine",
+        "set04/indicators/0716_ind_plot_visuals_display_demo.pine"
+      ]
+    },
+    {
+      "line": 5010,
+      "site": "visit_Attribute",
+      "label": "dividends/currency/earnings/splits stub attr",
+      "family": "namespace",
+      "count": 51,
+      "pct": 2.2,
+      "per_population": {
+        "plotshape": 33,
+        "input_type_token": 25,
+        "runtime_error": 3,
+        "assigned_hline": 3
+      },
+      "example_files": [
+        "set01/strategies/030_str_bollinger_bands_winner_pro.pine",
+        "set01/strategies/035_str_omar_edited_wf.pine",
+        "set01/strategies/047_str_rsi_plus_ema.pine",
+        "set01/strategies/051_str_mtf_rsi.pine",
+        "set01/strategies/052_str_alert_bb_plus_rsi.pine"
+      ]
+    },
+    {
+      "line": 6567,
+      "site": "visit_Call",
+      "label": "drawing constructor (label/line/box/table/polyline)",
+      "family": "drawing",
+      "count": 48,
+      "pct": 2.0,
+      "per_population": {
+        "plotshape": 38,
+        "input_type_token": 10,
+        "assigned_hline": 1,
+        "runtime_error": 1
+      },
+      "example_files": [
+        "set01/indicators/123_ind_fancy_shapes.pine",
+        "set03/indicators/0833_ind_y_n_senaryo_2.pine",
+        "set03/indicators/0854_ind_y_n_senaryo_1.pine",
+        "set05/indicators/6853_ind_four_displays_of_text.pine",
+        "set05/indicators/6907_ind_plotting_text_demo.pine"
+      ]
+    },
+    {
+      "line": 4799,
+      "site": "visit_Name",
+      "label": "bare type name used as a value",
+      "family": "namespace",
+      "count": 48,
+      "pct": 2.0,
+      "per_population": {
+        "assigned_hline": 26,
+        "plotshape": 22
+      },
+      "example_files": [
+        "set01/indicators/175_ind_commodity_channel_index.pine",
+        "set01/indicators/178_ind_rsi_relative_strength_index.pine",
+        "set01/indicators/179_ind_jurik_rsx.pine",
+        "set01/indicators/180_ind_jurik_rsx_2.pine",
+        "set01/indicators/182_ind_ehlers_fisherized_deviation_scaled_oscillator.pine"
+      ]
+    },
+    {
+      "line": 6626,
+      "site": "visit_Call",
+      "label": "color.new/color() outside literal-fold context (e.g. assignment)",
+      "family": "color",
+      "count": 48,
+      "pct": 2.0,
+      "per_population": {
+        "plotshape": 32,
+        "runtime_error": 9,
+        "assigned_hline": 3,
+        "input_type_token": 12
+      },
+      "example_files": [
+        "set01/indicators/247_ind_williams_vix_fix_paired_with_supertrend_heatmap.pine",
+        "set02/indicators/207_ind_bollinger_band_squeeze_detector.pine",
+        "set02/indicators/217_ind_order_blocks_simple.pine",
+        "set03/indicators/0528_ind_gann_high_low_activator.pine",
+        "set03/indicators/0529_ind_gann_high_low_activator_2.pine"
+      ]
+    },
+    {
+      "line": 4734,
+      "site": "visit_Name",
+      "label": "bare color-name constant (red, green, \u2026)",
+      "family": "color",
+      "count": 32,
+      "pct": 1.4,
+      "per_population": {
+        "assigned_hline": 11,
+        "plotshape": 22
+      },
+      "example_files": [
+        "set01/indicators/194_ind_stochastic_connors_rsi.pine",
+        "set05/indicators/8707_ind_a_plus_b.pine",
+        "set05/indicators/8720_ind_divergence.pine",
+        "set05/indicators/8732_ind_stochastic_connors_rsi.pine",
+        "set05/indicators/8768_ind_equilibrium.pine"
+      ]
+    },
+    {
+      "line": 8018,
+      "site": "visit_Call",
+      "label": "float()/na-like cast of non-numeric arg",
+      "family": "coercion",
+      "count": 32,
+      "pct": 1.4,
+      "per_population": {
+        "runtime_error": 32
+      },
+      "example_files": [
+        "set02/indicators/145_ind_quantitative_qualitative_estimation_qqe.pine",
+        "set02/indicators/146_ind_quantitative_qualitative_estimation_qqe_2.pine",
+        "set02/indicators/153_ind_yang_zhang_volatility_adjusted_moving_average_yzvama_2.pine",
+        "set02/indicators/168_ind_williams_gator_oscillator.pine",
+        "set02/indicators/169_ind_williams_gator_oscillator_gator.pine"
+      ]
+    },
+    {
+      "line": 7962,
+      "site": "visit_Call",
+      "label": "color.rgb",
+      "family": "color",
+      "count": 32,
+      "pct": 1.4,
+      "per_population": {
+        "plotshape": 27,
+        "input_type_token": 4,
+        "assigned_hline": 4
+      },
+      "example_files": [
+        "set03/indicators/0945_ind_plotting_and_coloring_conditions_demo.pine",
+        "set05/indicators/7358_ind_fartcloud.pine",
+        "set05/indicators/7360_ind_temp.pine",
+        "set05/indicators/7422_ind_abnormal_volume_scanner.pine",
+        "set05/indicators/7669_ind_conditional_shapes_demo.pine"
+      ]
+    },
+    {
+      "line": 7825,
+      "site": "visit_Call",
+      "label": "nz() with non-numeric arg/replacement",
+      "family": "coercion",
+      "count": 27,
+      "pct": 1.1,
+      "per_population": {
+        "input_type_token": 2,
+        "plotshape": 9,
+        "runtime_error": 16
+      },
+      "example_files": [
+        "set01/indicators/130_ind_butterworth_filter.pine",
+        "set01/indicators/134_ind_gaussian_filter.pine",
+        "set01/indicators/228_ind_kalman_gain_parameter_mechanics.pine",
+        "set01/indicators/241_ind_hma_kahlman_trend_differencefilter_and_trendlines.pine",
+        "set01/indicators/245_ind_hma_kahlman_trend_clipping_and_trendlines.pine"
+      ]
+    },
+    {
+      "line": 1713,
+      "site": "_emit_alert_call",
+      "label": "alert()/alertcondition() call",
+      "family": "misc",
+      "count": 26,
+      "pct": 1.1,
+      "per_population": {
+        "plotshape": 24,
+        "input_type_token": 5,
+        "runtime_error": 1,
+        "assigned_hline": 2
+      },
+      "example_files": [
+        "set02/indicators/236_ind_volimb.pine",
+        "set05/indicators/6876_ind_simple_alert_demo.pine",
+        "set05/indicators/7402_ind_rocket_launches.pine",
+        "set05/indicators/7856_ind_simple_alert_demo_2.pine",
+        "set05/indicators/8347_ind_myindicators.pine"
+      ]
+    },
+    {
+      "line": 5771,
+      "site": "_syminfo_compile_expr",
+      "label": "syminfo.tickerid / syminfo.root",
+      "family": "syminfo",
+      "count": 23,
+      "pct": 1.0,
+      "per_population": {
+        "runtime_error": 4,
+        "input_type_token": 6,
+        "plotshape": 15
+      },
+      "example_files": [
+        "set03/indicators/0628_ind_realized_volatility_rv.pine",
+        "set05/indicators/7013_ind_htf_close.pine",
+        "set05/indicators/7962_ind_htf_close_2.pine",
+        "set05/indicators/8169_ind_levels.pine",
+        "set05/indicators/8170_ind_levels_2.pine"
+      ]
+    },
+    {
+      "line": 2841,
+      "site": "visit_Assign",
+      "label": "RHS is a sequence (array/list handle)",
+      "family": "array",
+      "count": 17,
+      "pct": 0.7,
+      "per_population": {
+        "runtime_error": 14,
+        "plotshape": 3,
+        "assigned_hline": 1,
+        "input_type_token": 1
+      },
+      "example_files": [
+        "set03/indicators/0370_ind_quadruple_ema_qema.pine",
+        "set03/indicators/0415_ind_zero_lag_triple_ema_zltema.pine",
+        "set03/indicators/0436_ind_weibull_distribution_cdf_weibulldist.pine",
+        "set03/indicators/0437_ind_weibull_distribution_cdf_weibulldist_2.pine",
+        "set03/indicators/0473_ind_triple_exponential_moving_average_tema.pine"
+      ]
+    },
+    {
+      "line": 6772,
+      "site": "visit_Call",
+      "label": "str.tostring / tostring",
+      "family": "string",
+      "count": 17,
+      "pct": 0.7,
+      "per_population": {
+        "runtime_error": 4,
+        "input_type_token": 6,
+        "plotshape": 9,
+        "assigned_hline": 1
+      },
+      "example_files": [
+        "set03/indicators/0660_ind_geometric_mean_geomean.pine",
+        "set03/indicators/0661_ind_geometric_mean_geomean_2.pine",
+        "set04/indicators/0263_ind_harmonic_mean_harmean.pine",
+        "set04/indicators/0264_ind_harmonic_mean_harmean_2.pine",
+        "set05/indicators/8496_ind_pivot_points_high_low.pine"
+      ]
+    },
+    {
+      "line": 5756,
+      "site": "_timeframe_compile_expr",
+      "label": "timeframe.* compile-time attr",
+      "family": "timeframe",
+      "count": 11,
+      "pct": 0.5,
+      "per_population": {
+        "input_type_token": 6,
+        "assigned_hline": 1,
+        "plotshape": 7,
+        "runtime_error": 1
+      },
+      "example_files": [
+        "set01/indicators/126_ind_return_on_investment_roi.pine",
+        "set03/indicators/0760_ind_mtf_wavetrend_tide_wave_ripple.pine",
+        "set03/indicators/0878_ind_countdown_timer.pine",
+        "set05/indicators/8194_ind_d_w_m_vwaps.pine",
+        "set06/indicators/13831_ind_pinescript_range_filter_buy_and_sell_5min_indicator.pine"
+      ]
+    },
+    {
+      "line": 9236,
+      "site": "visit_BinOp",
+      "label": "BinOp with a stringy operand",
+      "family": "string",
+      "count": 11,
+      "pct": 0.5,
+      "per_population": {
+        "input_type_token": 3,
+        "plotshape": 7,
+        "assigned_hline": 1,
+        "runtime_error": 2
+      },
+      "example_files": [
+        "set05/indicators/8116_ind_any_screener.pine",
+        "set05/indicators/8134_ind_ict_retracement_to_order_block_with_screener.pine",
+        "set05/indicators/8135_ind_ict_retracement_to_order_block_with_screener_2.pine",
+        "set06/indicators/13696_ind_market_sentiment_technicals.pine",
+        "set06/indicators/13950_ind_bollinger_bands_stochastic_rsi_extreme_signal.pine"
+      ]
+    },
+    {
+      "line": 1952,
+      "site": "visit_TypeDef",
+      "label": "UDT type declaration",
+      "family": "udt",
+      "count": 9,
+      "pct": 0.4,
+      "per_population": {
+        "plotshape": 7,
+        "input_type_token": 2,
+        "runtime_error": 1,
+        "assigned_hline": 1
+      },
+      "example_files": [
+        "set01/indicators/236_ind_bollinger_bands_signals_2.pine",
+        "set03/indicators/0688_ind_confluence_of_alerts_v2.pine",
+        "set05/indicators/8147_ind_ict_external_and_internal_range_liquidity_multi_timeframe.pine",
+        "set05/indicators/8148_ind_ict_external_and_internal_range_liquidity_multi_timeframe_2.pine",
+        "set05/indicators/9125_ind_to_method_v1_8.pine"
+      ]
+    },
+    {
+      "line": 2877,
+      "site": "visit_Assign",
+      "label": "var drawing/collection handle declared na",
+      "family": "drawing",
+      "count": 8,
+      "pct": 0.3,
+      "per_population": {
+        "plotshape": 6,
+        "input_type_token": 2
+      },
+      "example_files": [
+        "set01/indicators/249_ind_ema_strategy.pine",
+        "set06/indicators/13892_ind_rsi_swing_indicator.pine",
+        "set06/indicators/14179_ind_total_divergence_plus.pine",
+        "set06/indicators/1643_ind_fibonacci_auto_buy_sell_signals.pine",
+        "set06/indicators/1907_ind_trend_and_momentum_analysis.pine"
+      ]
+    },
+    {
+      "line": 4739,
+      "site": "visit_Name",
+      "label": "bare linestyle identifier",
+      "family": "namespace",
+      "count": 7,
+      "pct": 0.3,
+      "per_population": {
+        "assigned_hline": 7
+      },
+      "example_files": [
+        "set05/indicators/8766_ind_trend_intensity_index.pine",
+        "set05/indicators/8790_ind_intraday_momentum_index.pine",
+        "set05/indicators/9077_ind_rsi_buy.pine",
+        "set05/indicators/9078_ind_rsi_buy_huobi_30m.pine",
+        "set05/indicators/9079_ind_rsi_sell.pine"
+      ]
+    },
+    {
+      "line": 5955,
+      "site": "visit_Call",
+      "label": "array/matrix method call (method form)",
+      "family": "array",
+      "count": 6,
+      "pct": 0.3,
+      "per_population": {
+        "runtime_error": 6
+      },
+      "example_files": [
+        "set04/indicators/0608_ind_reducing_loop_calculations_demo.pine",
+        "set04/indicators/0609_ind_reducing_loop_calculations_demo_2.pine",
+        "set05/indicators/7647_ind_reducing_loop_calculations_demo.pine",
+        "set05/indicators/7648_ind_reducing_loop_calculations_demo_2.pine",
+        "set06/indicators/2637_ind_reducing_loop_calculations_demo.pine"
+      ]
+    },
+    {
+      "line": 5694,
+      "site": "_emit_strategy_attr",
+      "label": "strategy.* series attr (equity, openprofit, \u2026)",
+      "family": "strategy",
+      "count": 6,
+      "pct": 0.3,
+      "per_population": {
+        "plotshape": 5,
+        "input_type_token": 2,
+        "assigned_hline": 2
+      },
+      "example_files": [
+        "set06/strategies/1291_str_claudehedge_master_timezone_arbitrage.pine",
+        "set06/strategies/1385_str_rsi_vwap_indicator.pine",
+        "set06/strategies/1391_str_bollinger_band_with_rsi.pine",
+        "set06/strategies/1434_str_dmi_modify.pine",
+        "set06/strategies/1435_str_dmi.pine"
+      ]
+    },
+    {
+      "line": 3108,
+      "site": "visit_Assign",
+      "label": "safe_float/safe_int-wrapped RHS (cast hides object value)",
+      "family": "coercion",
+      "count": 4,
+      "pct": 0.2,
+      "per_population": {
+        "plotshape": 4
+      },
+      "example_files": [
+        "set01/indicators/234_ind_machine_learning_knn_based_strategy.pine",
+        "set01/indicators/235_ind_machine_learning_knn_based_strategy_2.pine",
+        "set03/indicators/0827_ind_y_n_senaryo_3.pine",
+        "set06/indicators/11915_ind_machine_learning_knn_based_strategy.pine"
+      ]
+    },
+    {
+      "line": 7910,
+      "site": "visit_Call",
+      "label": "math.round unsafe (or already object_mode)",
+      "family": "math",
+      "count": 4,
+      "pct": 0.2,
+      "per_population": {
+        "runtime_error": 2,
+        "input_type_token": 2,
+        "plotshape": 1
+      },
+      "example_files": [
+        "set04/indicators/0259_ind_continuous_wavelet_transform_cwt.pine",
+        "set04/indicators/0260_ind_continuous_wavelet_transform_cwt_2.pine",
+        "set06/indicators/13934_ind_redk_slow_smooth_wma.pine",
+        "set06/indicators/14409_ind_anti_volume_stop_loss.pine"
+      ]
+    },
+    {
+      "line": 5774,
+      "site": "_syminfo_compile_expr",
+      "label": "syminfo.prefix",
+      "family": "syminfo",
+      "count": 4,
+      "pct": 0.2,
+      "per_population": {
+        "input_type_token": 1,
+        "plotshape": 4
+      },
+      "example_files": [
+        "set05/indicators/8190_ind_rsi_div_at_dvwap_stdev.pine",
+        "set05/indicators/8865_ind_mfi_with_bb.pine",
+        "set05/indicators/8871_ind_chaikin_oscillator.pine",
+        "set05/indicators/8878_ind_demarker_2.pine"
+      ]
+    },
+    {
+      "line": 1977,
+      "site": "visit_EnumDef",
+      "label": "enum declaration",
+      "family": "enum",
+      "count": 4,
+      "pct": 0.2,
+      "per_population": {
+        "runtime_error": 1,
+        "plotshape": 3
+      },
+      "example_files": [
+        "set06/indicators/2444_ind_smart_money_concepts_advanced.pine",
+        "set06/indicators/2449_ind_chanlun_core.pine",
+        "set06/indicators/2561_ind_alternating_states.pine",
+        "set06/indicators/2670_ind_enum_input_demo.pine"
+      ]
+    },
+    {
+      "line": 6657,
+      "site": "visit_Call",
+      "label": "color.new literal fold failed",
+      "family": "color",
+      "count": 3,
+      "pct": 0.1,
+      "per_population": {
+        "assigned_hline": 1,
+        "plotshape": 2
+      },
+      "example_files": [
+        "set05/indicators/6829_ind_toggle_hline_using_na_values.pine",
+        "set06/indicators/13777_ind_obv_plus_dmi.pine",
+        "set06/indicators/4267_ind_candlestickinsidebar.pine"
+      ]
+    },
+    {
+      "line": 5768,
+      "site": "_syminfo_compile_expr",
+      "label": "syminfo.ticker",
+      "family": "syminfo",
+      "count": 3,
+      "pct": 0.1,
+      "per_population": {
+        "plotshape": 3,
+        "input_type_token": 2,
+        "runtime_error": 2
+      },
+      "example_files": [
+        "set05/indicators/7481_ind_gravity_points.pine",
+        "set06/indicators/13750_ind_diy_custom_strategy_builder_v1.pine",
+        "set06/indicators/13862_ind_diy_custom_strategy_builder_v1_2.pine"
+      ]
+    },
+    {
+      "line": 5792,
+      "site": "_syminfo_compile_expr",
+      "label": "syminfo string/chart stub attr",
+      "family": "syminfo",
+      "count": 3,
+      "pct": 0.1,
+      "per_population": {
+        "runtime_error": 1,
+        "plotshape": 1,
+        "input_type_token": 1
+      },
+      "example_files": [
+        "set05/indicators/7523_ind_currency_conversion.pine",
+        "set06/indicators/13622_ind_ichimoku_cloud_5.pine",
+        "set06/indicators/14019_ind_ticker_3.pine"
+      ]
+    },
+    {
+      "line": 4665,
+      "site": "visit_Name",
+      "label": "bare `tickerid`/`ticker` builtin",
+      "family": "namespace",
+      "count": 3,
+      "pct": 0.1,
+      "per_population": {
+        "plotshape": 3
+      },
+      "example_files": [
+        "set05/indicators/8872_ind_vwap_cd_v2.pine",
+        "set06/indicators/14183_ind_heiken_ashi_zero_lag_ema_v1_1_by_justunclel.pine",
+        "set06/indicators/14373_ind_price_action_doji_harami_v0_2_by_justunclel.pine"
+      ]
+    },
+    {
+      "line": 2919,
+      "site": "visit_Assign",
+      "label": "RHS is sequence/list (series position)",
+      "family": "array",
+      "count": 2,
+      "pct": 0.1,
+      "per_population": {
+        "plotshape": 2,
+        "runtime_error": 1
+      },
+      "example_files": [
+        "set02/indicators/244_ind_adaptive_arithmetic_candles_plus_quality_score.pine",
+        "set06/indicators/1623_ind_coverage_math_str_misc.pine"
+      ]
+    },
+    {
+      "line": 6572,
+      "site": "visit_Call",
+      "label": "map.* call",
+      "family": "map",
+      "count": 2,
+      "pct": 0.1,
+      "per_population": {
+        "runtime_error": 2
+      },
+      "example_files": [
+        "set04/indicators/0383_ind_mode.pine",
+        "set04/indicators/0384_ind_mode_2.pine"
+      ]
+    },
+    {
+      "line": 4883,
+      "site": "visit_Attribute",
+      "label": "alert.freq_* attribute",
+      "family": "misc",
+      "count": 2,
+      "pct": 0.1,
+      "per_population": {
+        "plotshape": 2,
+        "assigned_hline": 1
+      },
+      "example_files": [
+        "set05/indicators/8119_ind_the_pirate_compass_crypto_stocks_commodities.pine",
+        "set06/indicators/1568_ind_test_argument_ordering.pine"
+      ]
+    },
+    {
+      "line": 2816,
+      "site": "visit_Assign",
+      "label": "typed declaration: collection/UDT/chart.point/map/stringy",
+      "family": "misc",
+      "count": 2,
+      "pct": 0.1,
+      "per_population": {
+        "input_type_token": 2
+      },
+      "example_files": [
+        "set05/indicators/8366_ind_zigzag_percent_reversal_helper_draw_patterns_part_1.pine",
+        "set06/indicators/13901_ind_centralpivotrange.pine"
+      ]
+    },
+    {
+      "line": 2867,
+      "site": "visit_Assign",
+      "label": "assignment target shadows a UDF (local rename)",
+      "family": "udf",
+      "count": 2,
+      "pct": 0.1,
+      "per_population": {
+        "assigned_hline": 1,
+        "plotshape": 1
+      },
+      "example_files": [
+        "set06/indicators/1787_ind_commodity_channel_index.pine",
+        "set06/indicators/3675_ind_therkut_9.pine"
+      ]
+    },
+    {
+      "line": 8077,
+      "site": "visit_Call",
+      "label": "unknown call \u2192 object-mode stub",
+      "family": "library",
+      "count": 2,
+      "pct": 0.1,
+      "per_population": {
+        "plotshape": 1,
+        "runtime_error": 1
+      },
+      "example_files": [
+        "set06/indicators/2549_ind_calendar_changes_demo.pine",
+        "set06/indicators/4521_ind_log_runtime_noop.pine"
+      ]
+    },
+    {
+      "line": 6471,
+      "site": "visit_Call",
+      "label": "plot() of string/UDT series",
+      "family": "plot",
+      "count": 1,
+      "pct": 0.0,
+      "per_population": {
+        "assigned_hline": 1
+      },
+      "example_files": [
+        "set03/indicators/0829_ind_rescaling_and_normalizing_values.pine"
+      ]
+    },
+    {
+      "line": 6815,
+      "site": "visit_Call",
+      "label": "str.repeat",
+      "family": "string",
+      "count": 1,
+      "pct": 0.0,
+      "per_population": {
+        "runtime_error": 1
+      },
+      "example_files": [
+        "set03/indicators/0901_ind_repeating_sequences_demo.pine"
+      ]
+    },
+    {
+      "line": 8041,
+      "site": "visit_Call",
+      "label": "math.todegrees unsafe",
+      "family": "math",
+      "count": 1,
+      "pct": 0.0,
+      "per_population": {
+        "input_type_token": 1
+      },
+      "example_files": [
+        "set06/indicators/14112_ind_triple_ema_plus_sloping_trend.pine"
+      ]
+    },
+    {
+      "line": 6930,
+      "site": "visit_Call",
+      "label": "timeframe() unparseable argument",
+      "family": "timeframe",
+      "count": 1,
+      "pct": 0.0,
+      "per_population": {
+        "plotshape": 1
+      },
+      "example_files": [
+        "set06/indicators/2441_ind_quantum_structure_jjart.pine"
+      ]
+    },
+    {
+      "line": 10007,
+      "site": "_case_value_expr",
+      "label": "switch with multi-statement arms",
+      "family": "switch-if",
+      "count": 1,
+      "pct": 0.0,
+      "per_population": {
+        "runtime_error": 1
+      },
+      "example_files": [
+        "set06/indicators/8702_ind_runtime_err.pine"
+      ]
+    }
+  ],
+  "families": [
+    {
+      "family": "input",
+      "count": 421,
+      "pct": 17.9
+    },
+    {
+      "family": "string",
+      "count": 415,
+      "pct": 17.6
+    },
+    {
+      "family": "strategy",
+      "count": 391,
+      "pct": 16.6
+    },
+    {
+      "family": "array",
+      "count": 308,
+      "pct": 13.1
+    },
+    {
+      "family": "misc",
+      "count": 201,
+      "pct": 8.5
+    },
+    {
+      "family": "library",
+      "count": 154,
+      "pct": 6.5
+    },
+    {
+      "family": "color",
+      "count": 115,
+      "pct": 4.9
+    },
+    {
+      "family": "drawing",
+      "count": 111,
+      "pct": 4.7
+    },
+    {
+      "family": "namespace",
+      "count": 109,
+      "pct": 4.6
+    },
+    {
+      "family": "coercion",
+      "count": 63,
+      "pct": 2.7
+    },
+    {
+      "family": "syminfo",
+      "count": 33,
+      "pct": 1.4
+    },
+    {
+      "family": "timeframe",
+      "count": 12,
+      "pct": 0.5
+    },
+    {
+      "family": "udt",
+      "count": 9,
+      "pct": 0.4
+    },
+    {
+      "family": "math",
+      "count": 5,
+      "pct": 0.2
+    },
+    {
+      "family": "enum",
+      "count": 4,
+      "pct": 0.2
+    },
+    {
+      "family": "map",
+      "count": 2,
+      "pct": 0.1
+    },
+    {
+      "family": "udf",
+      "count": 2,
+      "pct": 0.1
+    },
+    {
+      "family": "plot",
+      "count": 1,
+      "pct": 0.0
+    },
+    {
+      "family": "switch-if",
+      "count": 1,
+      "pct": 0.0
+    }
+  ],
+  "color": {
+    "first_site_is_color": 115,
+    "first_site_is_color_pct": 4.9,
+    "first_site_is_input_stringy": 421,
+    "first_site_is_input_stringy_pct": 17.9,
+    "files_containing_color_token": 2068,
+    "files_containing_color_token_pct": 87.7,
+    "color_first_files": [
+      "set01/indicators/194_ind_stochastic_connors_rsi.pine",
+      "set01/indicators/247_ind_williams_vix_fix_paired_with_supertrend_heatmap.pine",
+      "set02/indicators/207_ind_bollinger_band_squeeze_detector.pine",
+      "set02/indicators/217_ind_order_blocks_simple.pine",
+      "set03/indicators/0528_ind_gann_high_low_activator.pine",
+      "set03/indicators/0529_ind_gann_high_low_activator_2.pine",
+      "set03/indicators/0559_ind_ttm_trend.pine",
+      "set03/indicators/0560_ind_ttm_trend_2.pine",
+      "set03/indicators/0561_ind_ttm_trend_3.pine",
+      "set03/indicators/0685_ind_liquidity_zones_ict.pine",
+      "set03/indicators/0689_ind_trend_line_plot_indicator.pine",
+      "set03/indicators/0690_ind_dynamic_support_and_resistance.pine",
+      "set03/indicators/0945_ind_plotting_and_coloring_conditions_demo.pine",
+      "set05/indicators/6829_ind_toggle_hline_using_na_values.pine",
+      "set05/indicators/7358_ind_fartcloud.pine",
+      "set05/indicators/7360_ind_temp.pine",
+      "set05/indicators/7383_ind_stochtaker.pine",
+      "set05/indicators/7422_ind_abnormal_volume_scanner.pine",
+      "set05/indicators/7669_ind_conditional_shapes_demo.pine",
+      "set05/indicators/7702_ind_conditional_shapes_demo_3.pine",
+      "set05/indicators/8104_ind_obs.pine",
+      "set05/indicators/8105_ind_obs_2.pine",
+      "set05/indicators/8106_ind_super_orderblock_fvg_bos_tools_by_makuchaku_and_efe.pine",
+      "set05/indicators/8163_ind_insane_oscillator_2.pine",
+      "set05/indicators/8192_ind_volume_profile_visible_range.pine",
+      "set05/indicators/8286_ind_super_supertrend.pine",
+      "set05/indicators/8333_ind_5_8_13.pine",
+      "set05/indicators/8337_ind_sharkwavetrend.pine",
+      "set05/indicators/8383_ind_triple_supertrend_simplified_v1_2.pine",
+      "set05/indicators/8415_ind_trampoline.pine",
+      "set05/indicators/8462_ind_greenhulk.pine",
+      "set05/indicators/8641_ind_renko_intensity.pine",
+      "set05/indicators/8681_ind_sharkwavetrend_2.pine",
+      "set05/indicators/8683_ind_the_one_renko.pine",
+      "set05/indicators/8689_ind_the_one_renko_1_1.pine",
+      "set05/indicators/8693_ind_the_one_renko_1_3.pine",
+      "set05/indicators/8707_ind_a_plus_b.pine",
+      "set05/indicators/8720_ind_divergence.pine",
+      "set05/indicators/8732_ind_stochastic_connors_rsi.pine",
+      "set05/indicators/8768_ind_equilibrium.pine",
+      "set05/indicators/8798_ind_deusnext.pine",
+      "set05/indicators/8933_ind_ema_boll_cross_signals.pine",
+      "set05/indicators/9007_ind_to_method_v2_0.pine",
+      "set05/indicators/9016_ind_rsi_plus_stoch_rsi_plus_mfi_overlay_by_deca.pine",
+      "set05/indicators/9035_ind_multirsi.pine",
+      "set05/indicators/9047_ind_kdj.pine",
+      "set05/indicators/9074_ind_the_system_no_1.pine",
+      "set05/indicators/9084_ind_williams21ema13_bitstamp.pine",
+      "set05/indicators/9087_ind_williams21ema13.pine",
+      "set05/indicators/9088_ind_williams21ema13_btce.pine",
+      "set06/indicators/13554_ind_mtf_penta_rsi.pine",
+      "set06/indicators/13585_ind_super_orderblock_fvg_bos_tools_by_makuchaku_and_efe.pine",
+      "set06/indicators/13652_ind_tops_and_bottoms_day_of_week.pine",
+      "set06/indicators/13663_ind_tops_and_bottoms_time_of_day_report.pine",
+      "set06/indicators/13739_ind_strong_demands_and_supplies_plus_liquidity_zonas_de_compra_e_venda.pine",
+      "set06/indicators/13777_ind_obv_plus_dmi.pine",
+      "set06/indicators/13786_ind_linus_sammlung.pine",
+      "set06/indicators/13902_ind_2ma_cross.pine",
+      "set06/indicators/13916_ind_deconstructed_fmas_plus_crosses.pine",
+      "set06/indicators/13947_ind_buying_selling_volume.pine",
+      "set06/indicators/13948_ind_faith_indicator.pine",
+      "set06/indicators/13977_ind_triple_ema_2.pine",
+      "set06/indicators/14003_ind_t3_ma.pine",
+      "set06/indicators/14017_ind_trading_abc.pine",
+      "set06/indicators/14038_ind_vp_period.pine",
+      "set06/indicators/14078_ind_tv_community_algo.pine",
+      "set06/indicators/14100_ind_two.pine",
+      "set06/indicators/14178_ind_auto_fib_retracement_plus_extension.pine",
+      "set06/indicators/14184_ind_vwap_mvwap_ema_crossover.pine",
+      "set06/indicators/14189_ind_hf_test_bot.pine",
+      "set06/indicators/14190_ind_engulfing_candles.pine",
+      "set06/indicators/14206_ind_market_cipher_a_free_version_1_1.pine",
+      "set06/indicators/14207_ind_sma_bot.pine",
+      "set06/indicators/14358_ind_st_2.pine",
+      "set06/indicators/14360_ind_scalp_pro.pine",
+      "set06/indicators/14374_ind_price_action_trading_system_v0_3_by_justunclel.pine",
+      "set06/indicators/14388_ind_chaikin_money_flow_2.pine",
+      "set06/indicators/14414_ind_bollinger_bands_and_ichimoku_strategy.pine",
+      "set06/indicators/14420_ind_bollinger_bands_5.pine",
+      "set06/indicators/14439_ind_fractals.pine",
+      "set06/indicators/14441_ind_rsi_divergence_10.pine",
+      "set06/indicators/14454_ind_entry_points.pine",
+      "set06/indicators/14459_ind_macd_divergence_multitimeframe.pine",
+      "set06/indicators/14466_ind_slow_stochastic.pine",
+      "set06/indicators/14467_ind_stoch_vx3.pine",
+      "set06/indicators/14469_ind_tonyux_ema_scalper_buy_sell.pine",
+      "set06/indicators/14471_ind_vdub_binary_pro_3_v2_final_plus_strategy.pine",
+      "set06/indicators/14495_ind_candlestick_detector.pine",
+      "set06/indicators/1555_ind_capital41_liquidity_sweep_simple.pine",
+      "set06/indicators/1558_ind_ema_gold_trader_2026.pine",
+      "set06/indicators/1559_ind_liquidity_location_detector.pine",
+      "set06/indicators/1595_ind_bollinger_bands_example.pine",
+      "set06/indicators/1600_ind_capital41_structure_swings_v3.pine",
+      "set06/indicators/1606_ind_macd_moving_average_convergence_divergence.pine",
+      "set06/indicators/1629_ind_luckyfx_rbtrader_strategy.pine",
+      "set06/indicators/1648_ind_rsi_relative_strength_index.pine",
+      "set06/indicators/1661_ind_volumatic_support_resistance_levels.pine",
+      "set06/indicators/1731_ind_liquidity_sweep_plus_close_back_confirmation.pine",
+      "set06/indicators/1741_ind_accumulation_distribution.pine",
+      "set06/indicators/1750_ind_golden_death_cross.pine",
+      "set06/indicators/1830_ind_rsi_ob_os.pine",
+      "set06/indicators/1997_ind_trading_toolkit_micha_l_van_de_poppe.pine",
+      "set06/indicators/2316_ind_capital41_divergence_detector_v2.pine",
+      "set06/indicators/3057_ind_reset_sum_on_condition_example.pine",
+      "set06/indicators/3648_ind_wavetrend_and_supertrend.pine",
+      "set06/indicators/3673_ind_therkut_8.pine",
+      "set06/indicators/3678_ind_therkut_9_2.pine",
+      "set06/indicators/3781_ind_liquidity_pools.pine",
+      "set06/indicators/3808_ind_l3_banker_fund_flow_trend_oscillator.pine",
+      "set06/indicators/3846_ind_follow_line.pine",
+      "set06/indicators/3868_ind_envelope_rsi.pine",
+      "set06/indicators/3869_ind_envelope_rsi_buy_sell_signals.pine",
+      "set06/indicators/3884_ind_intraday_buy_sell.pine",
+      "set06/indicators/4267_ind_candlestickinsidebar.pine",
+      "set06/indicators/4309_ind_stochastic_slow_momentum_oscillator.pine"
+    ],
+    "per_population": {
+      "assigned_hline": {
+        "traced": 255,
+        "color_first": 19,
+        "color_token": 192
+      },
+      "input_type_token": {
+        "traced": 642,
+        "color_first": 16,
+        "color_token": 582
+      },
+      "plotshape": {
+        "traced": 1170,
+        "color_first": 83,
+        "color_token": 1034
+      },
+      "runtime_error": {
+        "traced": 628,
+        "color_first": 9,
+        "color_token": 574
+      }
+    }
+  },
+  "unknown_bucket_lines": [
+    3127,
+    5151,
+    8077,
+    1445
+  ],
+  "unknown_bucket_count": 84,
+  "unknown_bucket_examples": [
+    "set01/indicators/165_ind_t3_moving_average.pine",
+    "set01/indicators/199_ind_ttm_squeeze_plus_macd_line.pine",
+    "set01/indicators/215_ind_kdj.pine",
+    "set01/indicators/224_ind_chop_and_explode_ps5.pine",
+    "set01/indicators/226_ind_chop_and_explode_ps5_v_2.pine",
+    "set01/indicators/250_ind_similarity_search_karobein_and_seasonal_random_index.pine",
+    "set02/indicators/200_ind_ehlers_reverse_ema_reverseema.pine",
+    "set02/indicators/243_ind_predictability_regime_index.pine",
+    "set03/indicators/0285_ind_ehlers_reverse_ema_reverseema.pine",
+    "set03/indicators/0338_ind_one_euro_filter_oneeuro.pine"
+  ],
+  "population_totals_traced": {
+    "plotshape": 1170,
+    "input_type_token": 642,
+    "assigned_hline": 255,
+    "runtime_error": 628
+  }
+}

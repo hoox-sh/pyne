@@ -1,0 +1,244 @@
+{
+  "card": "pyne-re-measure-numeric-mode-inv-423e9330 (mirror of local re-measure-numeric-mode-inventor-ea84d331)",
+  "date": "2026-11-17",
+  "repo_head": "9ce574722876e3729b2a0e04c913f3b6f739c506",
+  "method_bgcolor": "transpile-only scan via pynescript.compiler.engine._transpile_once over tests/data/<set>/**/*.pine where source matches /bgcolor/ (same harness as .oo/proof/bgcolor-2026-11-17; reconstructed scanner at .oo/proof/numeric-mode-remeasure-2026-11-17/scan_numeric_mode.py, validated by reproducing the 354-file set01-04 selection and 65 errors exactly)",
+  "bgcolor": {
+    "set01_04_recheck": {
+      "scope": "tests/data/set01+set02+set03+set04, scripts matching /bgcolor/",
+      "match": "bgcolor",
+      "sets": [
+        "set01",
+        "set02",
+        "set03",
+        "set04"
+      ],
+      "total": 354,
+      "numeric": 11,
+      "object": 278,
+      "error": 65,
+      "timeout": 0,
+      "files": "354 files"
+    },
+    "set05_06": {
+      "scope": "tests/data/set05+set06, scripts matching /bgcolor/",
+      "match": "bgcolor",
+      "sets": [
+        "set05",
+        "set06"
+      ],
+      "total": 2315,
+      "numeric": 18,
+      "object": 1238,
+      "error": 1059,
+      "timeout": 0,
+      "files": "2315 files"
+    },
+    "per_set": {
+      "set01": {
+        "total": 27,
+        "numeric": 0,
+        "object": 27,
+        "error": 0
+      },
+      "set02": {
+        "total": 61,
+        "numeric": 0,
+        "object": 58,
+        "error": 3
+      },
+      "set03": {
+        "total": 175,
+        "numeric": 2,
+        "object": 135,
+        "error": 38
+      },
+      "set04": {
+        "total": 91,
+        "numeric": 9,
+        "object": 58,
+        "error": 24
+      },
+      "set05": {
+        "total": 1290,
+        "numeric": 11,
+        "object": 256,
+        "error": 1023
+      },
+      "set06": {
+        "total": 1025,
+        "numeric": 7,
+        "object": 982,
+        "error": 36
+      },
+      "set01_04": {
+        "total": 354,
+        "numeric": 11,
+        "object": 278,
+        "error": 65
+      },
+      "set05_06": {
+        "total": 2315,
+        "numeric": 18,
+        "object": 1238,
+        "error": 1059
+      },
+      "all_six": {
+        "total": 2669,
+        "numeric": 29,
+        "object": 1516,
+        "error": 1124
+      }
+    },
+    "note": "set01-04 recheck on HEAD 9ce57472 gives 11 numeric vs 10 in the 2026-11-17 artifact; delta is set04/indicators/0873_ind_day_and_direction_change.pine flipping object->numeric because HEAD now includes constant-condition plotshape numeric synthesis (915b65ba). Errors unchanged at 65; 3 error-message texts differ cosmetically.",
+    "scan_set05_06_sha256": "c00df61fede68c7cd36c8937499e1d826ab2ccbeceb56c05f761b9c2a4fa0eb6",
+    "scan_set01_04_recheck_sha256": "02ceb9ad4095e2780fb707c5fa749d1cb6ebd6380a01c0d029b693221218efcf"
+  },
+  "file_counts_sha256": "9b1fed1429e043934f66ab18196f7c2df0c9ee8385aa5eafc0bd2b7a4868e1c1",
+  "four_figures": {
+    "plotshape_359": {
+      "set01_04": 359,
+      "set05_06": 2875,
+      "all_six": 3234,
+      "status": "re-sourced: set01-04 file count matches exactly; card estimate confirmed as set01-04 'files containing plotshape', not a corpus-wide or blocked-count figure"
+    },
+    "input_type_token_115": {
+      "set01_04": 115,
+      "set05_06": 1878,
+      "all_six": 1993,
+      "status": "re-sourced exactly via 2026-11-14 proof regex type\\s*=\\s*input\\."
+    },
+    "runtime_error_563": {
+      "set01_04": 553,
+      "set05_06": 199,
+      "all_six": 752,
+      "status": "NOT REPRODUCIBLE at 563 under any tried regex/scope; corpus unchanged since 2026-11-14; treat 563 as unsourced. Reproducible figure: 553 (set01-04) / 752 (all six)"
+    },
+    "assigned_hline_48": {
+      "set01_04": 48,
+      "set05_06": 479,
+      "all_six": 527,
+      "status": "re-sourced exactly via 2026-11-14 proof regex =\\s*hline\\s*\\( (multiline-aware); line-oriented grep gives 475 for set05+06"
+    }
+  },
+  "corpus_run": {
+    "command": "pyne corpus run set05 set06 --workers 4 --rich --mode {parse|interpret|compile|auto} --out .oo/proof/numeric-mode-remeasure-2026-11-17/corpus-<mode>.csv",
+    "pyne_version": "0.7.2",
+    "cwd": "/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript",
+    "started": "2026-11-17T17:35:15+01:00",
+    "finished": "2026-11-18T09:57:49+01:00",
+    "note": "--strict is on by default; all four modes exited 1 because residual FAIL/PARSE/RUN/TIMEOUT > 0, which is expected for this corpus (docs-scraped set05). Exit 1 here means 'residual failures exist', not 'the runner crashed'.",
+    "modes": {
+      "parse": {
+        "exit": 1,
+        "processed": 23651,
+        "ok": 23510,
+        "fail": 135,
+        "timeout": 6,
+        "rate": "99.40%",
+        "elapsed_s": 3566.2,
+        "set05": {
+          "ok": 9055,
+          "fail": 56,
+          "timeout": 3,
+          "total": 9114
+        },
+        "set06": {
+          "ok": 14455,
+          "fail": 79,
+          "timeout": 3,
+          "total": 14537
+        }
+      },
+      "interpret": {
+        "exit": 1,
+        "processed": 23651,
+        "ok": 23334,
+        "parse_fail": 139,
+        "run_fail": 157,
+        "timeout": 21,
+        "rate": "98.66%",
+        "elapsed_s": 3287.7,
+        "set05": {
+          "ok": 9013,
+          "parse_fail": 56,
+          "run_fail": 33,
+          "timeout": 12,
+          "total": 9114
+        },
+        "set06": {
+          "ok": 14321,
+          "parse_fail": 83,
+          "run_fail": 124,
+          "timeout": 9,
+          "total": 14537
+        }
+      },
+      "compile": {
+        "exit": 1,
+        "processed": 23651,
+        "ok": 23393,
+        "parse_fail": 136,
+        "run_fail": 108,
+        "timeout": 14,
+        "rate": "98.91%",
+        "elapsed_s": 6564.9,
+        "set05": {
+          "ok": 9028,
+          "parse_fail": 50,
+          "run_fail": 30,
+          "timeout": 6,
+          "total": 9114
+        },
+        "set06": {
+          "ok": 14365,
+          "parse_fail": 86,
+          "run_fail": 78,
+          "timeout": 8,
+          "total": 14537
+        }
+      },
+      "auto": {
+        "exit": 1,
+        "processed": 23651,
+        "ok": 23448,
+        "parse_fail": 134,
+        "run_fail": 53,
+        "timeout": 16,
+        "rate": "99.14%",
+        "elapsed_s": 4786.8,
+        "set05": {
+          "ok": 9041,
+          "parse_fail": 53,
+          "run_fail": 12,
+          "timeout": 8,
+          "total": 9114
+        },
+        "set06": {
+          "ok": 14407,
+          "parse_fail": 81,
+          "run_fail": 41,
+          "timeout": 8,
+          "total": 14537
+        }
+      }
+    },
+    "crosscheck": "CSV row counts verified against *_summary.txt per mode (23651 rows each; status tallies match exactly).",
+    "artifacts": [
+      "corpus-parse.log",
+      "corpus-interpret.log",
+      "corpus-compile.log",
+      "corpus-auto.log",
+      "corpus-parse.csv",
+      "corpus-interpret.csv",
+      "corpus-compile.csv",
+      "corpus-auto.csv",
+      "corpus-parse_summary.txt",
+      "corpus-interpret_summary.txt",
+      "corpus-compile_summary.txt",
+      "corpus-auto_summary.txt",
+      "status.txt"
+    ]
+  },
+  "done_at_utc": "2026-11-18T08:00:00Z (approx)"
+}

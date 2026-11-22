@@ -1,0 +1,17 @@
+Checker re-gate — runtime.error no-arg parity (2026-11-16)
+Card: pyne-runtime-error-numeric-suppo-22cc06b1
+HEAD: 885dc745 + uncommitted slice
+
+No-arg reachable:
+  interpret: "...: RuntimeError" (empty message)
+  compile:   "Compiled Runtime Error: RuntimeError" (empty message)
+  both error_kind=runtime; compile object_mode=False, njit.
+Literal reachable/unreachable still exact; dynamic/error_code/ternary stay
+object; multi-arg first-arg-only is separately carded Todo 5ecc7bb7.
+Cache: engine _DISK_META_VERSION 56 -> 57 (runtime.error codegen changed).
+Only compiler.py + engine.py + numba_builtins.py + test + plan changed.
+
+Counts: 4 named, 217 numba, 516 targeted.
+Full verify.sh: 5 passed, 0 skipped (278.2s, single final run).
+Note: plan Results line still says verify "pending"; proof transcript and this
+run are 5/5.

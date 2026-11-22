@@ -1,0 +1,99 @@
+
+OpenOrchestrate · all · pyne
+────────────────────────────────────────────────────────────
+
+▸ Format     ruff format --check src/ tests/ backend/
+  ✔ 0.0s
+▸ Lint       ruff check src/ tests/ backend/
+  ✔ 0.0s
+▸ Typecheck  bun run check
+  ✔ 0.1s
+▸ OKF        okn --no-telemetry validate --spec 0.2 okf
+  ✔ 0.1s
+▸ Tests      pytest
+  ✖ 286.4s
+    ... 319 lines omitted; showing last 80
+    E        +  where True = CompiledScript(source='//@version=5\nindicator("x")\nplotshape(close > open, title="bull", color=color.new(color.green...fe4741c6fb0>, plot_titles=['c'], plot_kinds=['plot'], plot_attrs=[{}], object_mode=True, nopython_fallback_reason=None).object_mode
+    
+    tests/test_compiler_plotshape_numeric.py:132: AssertionError
+    ____________ test_plotshape_ternary_numeric_condition_stays_numeric ____________
+    
+        def test_plotshape_ternary_numeric_condition_stays_numeric() -> None:
+            """``cond ? price : na`` is truthy only when the price is non-NaN."""
+            src = """//@version=5
+        indicator("x")
+        plotshape(close > open ? close : na, title="bull", location=location.belowbar, color=color.green)
+        plot(close, "c")
+        """
+            compiled = compile_script(src, use_cache=False)
+    >       assert compiled.object_mode is False, "ternary numeric plotshape must stay numeric"
+    E       AssertionError: ternary numeric plotshape must stay numeric
+    E       assert True is False
+    E        +  where True = CompiledScript(source='//@version=5\nindicator("x")\nplotshape(close > open ? close : na, title="bull", location=locat...fe4741c6e50>, plot_titles=['c'], plot_kinds=['plot'], plot_attrs=[{}], object_mode=True, nopython_fallback_reason=None).object_mode
+    
+    tests/test_compiler_plotshape_numeric.py:149: AssertionError
+    _______________ test_plotshape_text_size_meta_matches_interpret ________________
+    
+        def test_plotshape_text_size_meta_matches_interpret() -> None:
+            """``text=`` / ``size=`` are constant metadata, not object-mode triggers."""
+            src = """//@version=5
+        indicator("x")
+        plotshape(close > open, title="bull", style=shape.labelup, location=location.belowbar, color=color.green, text="BUY", size=size.small)
+        plot(close, "c")
+        """
+            compiled = compile_script(src, use_cache=False)
+    >       assert compiled.object_mode is False, "text/size plotshape must stay numeric"
+    E       AssertionError: text/size plotshape must stay numeric
+    E       assert True is False
+    E        +  where True = CompiledScript(source='//@version=5\nindicator("x")\nplotshape(close > open, title="bull", style=shape.labelup, locati...fe4741c6770>, plot_titles=['c'], plot_kinds=['plot'], plot_attrs=[{}], object_mode=True, nopython_fallback_reason=None).object_mode
+    
+    tests/test_compiler_plotshape_numeric.py:163: AssertionError
+    _________________ test_plotshape_positional_attrs_stay_numeric _________________
+    
+        def test_plotshape_positional_attrs_stay_numeric() -> None:
+            """Positional title/style/location/color slots stay numeric + parity."""
+            src = """//@version=5
+        indicator("x")
+        plotshape(close > open, "bull", shape.triangleup, location.belowbar, color.green)
+        plot(close, "c")
+        """
+            compiled = compile_script(src, use_cache=False)
+    >       assert compiled.object_mode is False, "positional plotshape must stay numeric"
+    E       AssertionError: positional plotshape must stay numeric
+    E       assert True is False
+    E        +  where True = CompiledScript(source='//@version=5\nindicator("x")\nplotshape(close > open, "bull", shape.triangleup, location.belowb...fe4741c5a60>, plot_titles=['c'], plot_kinds=['plot'], plot_attrs=[{}], object_mode=True, nopython_fallback_reason=None).object_mode
+    
+    tests/test_compiler_plotshape_numeric.py:178: AssertionError
+    =============================== warnings summary ===============================
+    tests/test_backend_services_coverage.py::TestChartRenderer::test_line_empty_list
+    tests/test_backend_services_coverage.py::TestChartRenderer::test_line_all_none
+    tests/test_backend_services_coverage.py::TestChartRenderer::test_equity_empty
+    tests/test_backend_services_coverage.py::TestChartRenderer::test_ohlcv_empty_dict
+    tests/test_backend_services_coverage.py::TestChartRenderer::test_ohlcv_empty_close
+      /mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/backend/services/chart_renderer.py:264: UserWarning: Tight layout not applied. The left and right margins cannot be made large enough to accommodate all Axes decorations.
+        fig.tight_layout()
+    
+    tests/test_backend_services_coverage.py::TestChartRenderer::test_line_volume_and_ohlcv
+      /mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/backend/services/chart_renderer.py:107: UserWarning: Tight layout not applied. The left and right margins cannot be made large enough to accommodate all Axes decorations.
+        fig.tight_layout()
+    
+    tests/test_langserver_extras_coverage.py::TestAstMain::test_help
+    tests/test_langserver_extras_coverage.py::TestAstMain::test_main_prints_dump
+    tests/test_langserver_extras_coverage.py::TestAstMain::test_main_eval_mode_attrs
+      /mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/src/pynescript/ast/__main__.py:40: PendingDeprecationWarning: FileType is deprecated. Simply open files after parsing arguments.
+        type=argparse.FileType(mode="rb"),
+    
+    -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+    =========================== short test summary info ============================
+    FAILED tests/test_compiler_plotshape_numeric.py::test_plotshape_numeric_condition_stays_numeric
+    FAILED tests/test_compiler_plotshape_numeric.py::test_plotshape_constant_true_stays_numeric
+    FAILED tests/test_compiler_plotshape_numeric.py::test_plotshape_series_keyword_stays_numeric
+    FAILED tests/test_compiler_plotshape_numeric.py::test_plotshape_constant_color_new_stays_numeric
+    FAILED tests/test_compiler_plotshape_numeric.py::test_plotshape_ternary_numeric_condition_stays_numeric
+    FAILED tests/test_compiler_plotshape_numeric.py::test_plotshape_text_size_meta_matches_interpret
+    FAILED tests/test_compiler_plotshape_numeric.py::test_plotshape_positional_attrs_stay_numeric
+    = 7 failed, 5406 passed, 4 skipped, 1 xfailed, 9 warnings in 274.63s (0:04:34) =
+
+────────────────────────────────────────────────────────────
+✖ all failed (1 failed, 4 passed, 0 skipped)
+Bypass once with: git commit --no-verify

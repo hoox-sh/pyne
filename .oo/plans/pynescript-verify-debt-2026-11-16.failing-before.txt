@@ -1,0 +1,58 @@
+# Failing-before — verify red after 0.7.1 (baseline, before this slice)
+
+## A. ./scripts/verify.sh (HEAD e2d160ee) -> 2 failed / 3 passed
+# Format: REVIEW.md needs formatting; Tests: four 0.7.0-era failures.
+
+OpenOrchestrate · all · pyne
+────────────────────────────────────────────────────────────
+
+▸ Format     bun fmt --check
+  ✖ 0.1s
+    REVIEW.md
+    1 file needs formatting. Run bun fmt to fix it.
+▸ Lint       ruff check src/ tests/ backend/
+  ✔ 0.0s
+▸ Typecheck  bun run check
+  ✔ 0.2s
+▸ OKF        okn --no-telemetry validate --spec 0.2 okf
+  ✔ 0.1s
+▸ Tests      pytest
+  ✖ 349.5s
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.10, pytest-9.0.3, pluggy-1.6.0
+    rootdir: /mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript
+    configfile: pyproject.toml
+...
+────────────────────────────────────────────────────────────
+✖ all failed (2 failed, 3 passed, 0 skipped)
+Bypass once with: git commit --no-verify
+EXIT=1
+
+## B. The four failing tests (reproduced with HEAD src)
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+E   assert 0 != 0
+     +  where 0 = <Result okay>.exit_code
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_cli_util_coverage.py:431: assert 0 != 0
+E   AssertionError: assert '0.7.1' == '0.7.0'
+      
+      - 0.7.0
+      ?     ^
+      + 0.7.1
+      ?     ^
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_langserver_server_coverage.py:193: AssertionError: assert '0.7.1' == '0.7.0'
+E   AssertionError: assert '0.7.1' == '0.7.0'
+      
+      - 0.7.0
+      ?     ^
+      + 0.7.1
+      ?     ^
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_langserver_server_coverage.py:209: AssertionError: assert '0.7.1' == '0.7.0'
+E   assert True is False
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_mcp_ops_low_coverage.py:58: assert True is False
+=========================== short test summary info ============================
+FAILED tests/test_cli_util_coverage.py::test_download_builtins_removed - asse...
+FAILED tests/test_langserver_server_coverage.py::TestLifecycle::test_pygls_initialize_advertises_semantic_token_legend
+FAILED tests/test_langserver_server_coverage.py::TestLifecycle::test_pyne_lsp_version_flag
+FAILED tests/test_mcp_ops_low_coverage.py::test_list_facade_templates_removed
+4 failed in 1.30s

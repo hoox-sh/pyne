@@ -1,0 +1,9 @@
+pynescript HEAD: f77f054fc7d66fc72aeb2d71e6c888cc58c8ea36
+HQ HEAD: ae25ed442b2275430d7c876fa6a660081291422c
+--- git status --short ---
+ M .openorchestrate/board.md
+ M src/pynescript/compiler/compiler.py
+ M src/pynescript/compiler/engine.py
+?? .openorchestrate/plans/
+?? .openorchestrate/proof/
+?? tests/test_compiler_color_fold.py

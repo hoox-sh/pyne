@@ -1,0 +1,17 @@
+object-mode files examined: 628
+  contains runtime_error_any: 628 (100.0%)
+  contains color_token: 574 (91.4%)
+  contains array_map_matrix: 390 (62.1%)
+  contains string_ops: 98 (15.6%)
+  contains switch: 95 (15.1%)
+  contains drawing: 86 (13.7%)
+  contains security: 71 (11.3%)
+  contains library_import: 51 (8.1%)
+  contains table: 35 (5.6%)
+  contains udt_type: 21 (3.3%)
+  contains stringy_input: 16 (2.5%)
+  contains strategy_call: 9 (1.4%)
+  contains iff_dynamic: 2 (0.3%)
+  contains varip: 1 (0.2%)
+runtime.error call shape among object-mode files: {'other': 59, 'literal_single': 569}
+object-mode files matching NO known family: 0

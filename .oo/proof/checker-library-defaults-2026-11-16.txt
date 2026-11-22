@@ -1,0 +1,22 @@
+Checker evidence — exported library default args (2026-11-16)
+Card: pyne-exported-library-function-w-e2d1bfbd
+HEAD: 7cb4f961 + uncommitted compiler/test slice
+
+Named tests: direct lib.helper(close) and cross b.twice(close) pass; compiled
+series == interpret [201,203,205,207].
+Failing-before (isolated HEAD compiler.py 7463f562...): 2 failed, direct and
+cross both TypeError missing 'k'.
+
+Edge probes:
+  caller supplies k=3.0: compile == interpret [301.5,304.5,307.5,310.5]
+  missing required k: compile TypeError missing 'k'
+  required b before default k: compile TypeError missing 'b' and 'k'
+  keyword lib.helper(close,k=2.0): compile fail-closed (CompileEmitError)
+  negative default k=-2.0: compile == interpret [-201,-203,-205,-207]
+  non-library plot(close*2): compile [201,203,205,207]
+
+Suites: 2 named, 64 library, 501 compiler/library targeted.
+Full verify.sh: 5 passed, 0 skipped (341.0s).
+Note: pynescript .openorchestrate was migrated to .oo by a concurrent agent
+after this run; owner artifact records 262b5c81/43e23f6a/ce8455cc still point
+at the old paths and fail path resolution. Content hashes match under .oo.

@@ -1,0 +1,34 @@
+Azure VM diagnostics — 172.174.232.254 — 2026-11-18 (UTC) — PARTIAL / BLOCKED
+
+Mode: READ-ONLY. No mutations performed (no NSG edits, no VM start/stop,
+no firewall/VNet changes, no new resources, no az flags that write).
+
+Step 1 (az account show): FAILS — az reports not logged in.
+  azureProfile.json contains only installationId (no subscription profile
+  was ever written by `az login`); az.json = {}. az CLI reports
+  "Please run 'az login'" and `az account list` returns [].
+  Login process (PID 476090, `az login --use-device-code`) is gone; its
+  MSAL token cache WAS written at 2026-11-18T19:16:53Z.
+
+Token-cache facts (claims only, token value never printed):
+  - acquired 2026-11-18T19:16:53Z, expires 2026-11-18T21:32:21Z
+  - account: jan.goischke@gmail.com, authority organizations,
+    grant device_code, issuer/tenant = f8cdef31-a31e-4b4a-93e4-5f571e91255a
+    (NOT the user's Default Directory)
+  - scope: management.core.windows.net//.default
+
+Read-only ARM GETs made with that cached token (no writes):
+  GET /subscriptions -> value=[]  (0 subscriptions visible in tenant f8cdef31-...)
+  GET /tenants       -> one entry: a933872e-0012-4a90-8c1f-e5cabc6c122e
+                        "Default Directory" (AAD, DE)
+
+Conclusion: the device-code login authenticated against tenant f8cdef31...
+where the account sees ZERO subscriptions. The VM cannot be enumerated from
+this session. Default Directory a933872e-... is not reachable with this
+token (tenant is baked into the JWT). az CLI itself is unusable until a
+login against a tenant with subscriptions completes and writes the profile.
+
+Steps 1-8 of the requested checklist: NOT COMPLETED (blocked at step 1/2).
+No conclusion about the VM, NSG, or 172.174.232.254 can be drawn yet.
+Operator action required: re-run `az login --use-device-code --tenant <tenant-with-subscription>`
+(operator's browser; not something this agent may do unattended).

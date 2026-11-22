@@ -1,0 +1,18 @@
+Checker bgcolor gate summary (2026-11-17)
+Card: pyne-constant-condition-bgcolor--8074788e
+HEAD: bc3e3012 + uncommitted slice
+
+Counts: 9 bgcolor, 227 numba, 526 compiler+library, 78 plot-wire regression.
+Failing-before positional title (isolated src, compiler title gate reverted):
+  1 failed, 226 deselected, plot_titles ['0','c']; interpret ['bgcolor','c'].
+Corpus set01-04 bgcolor: numeric 0 -> 10, object 289 -> 279,
+  errors 65 -> 65 (no new/fixed), regressions 0; summary 41aa622d...
+Title rule: keyword-first; 2nd positional string only; numeric offsets/5th
+  positional never title; compile and interpret match on both blocker calls.
+Dynamic colors/conditions stay object; no silent na; IR meta 61; numeric
+  bgcolor 0/1 codes mapped host-side to color/None; object mixed duplicate
+  plot key dropped.
+Owner verify transcript: .oo/proof/verify-bgcolor-positional-2026-11-17.txt
+  sha256 825ffc79..., 278.7s, 5/5. Old verify-bgcolor-2026-11-17.txt
+  (baa42fab..., 275.2s) is pre-fix/superseded.
+Checker full verify: 5/5, 283.0s (checker transcript below).

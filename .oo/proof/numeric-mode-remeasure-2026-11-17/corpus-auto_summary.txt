@@ -1,0 +1,74 @@
+runtime=pynescript.runtime mode=auto total_corpus=23651 processed=23651 skipped_resume=0 OK=23448 EXPECTED_FAIL=0 PARSE_FAIL=134 RUN_FAIL=53 FAIL=203 TIMEOUT=16 rate=99.14% (excl. EXPECTED_FAIL) elapsed_s=4786.8
+by_set:
+  set05: OK=9041 EXPECTED_FAIL=0 PARSE_FAIL=53 RUN_FAIL=12 TIMEOUT=8 FAIL=0 total=9114
+  set06: OK=14407 EXPECTED_FAIL=0 PARSE_FAIL=81 RUN_FAIL=41 TIMEOUT=8 FAIL=0 total=14537
+top_errors:
+     16  exceeded 20s
+      6  Runtime Error at bar 1000000.0 (index 0): RuntimeError: The input timestamps must follow this condit
+      4  Parse Error: SyntaxError: mismatched input '<INDENT>' expecting <EOF>
+  File "<unknown>", line 8
+   
+      4  Parse Error: SyntaxError: extraneous input 'b' expecting {'=', NEWLINE}
+  File "<unknown>", line 10
+
+      4  Parse Error: SyntaxError: no viable alternative at input 'label.new(bar index'
+  File "<unknown>", l
+      3  Runtime Error at bar 1000000.0 (index 0): ValueError: array.first takes non-empty array
+      2  Runtime Error at bar 1000000.0 (index 0): RuntimeError: Chart timeframe must be less than 1D.
+      2  Runtime Error at bar 1000000.0 (index 0): RuntimeError: The 'Timeframe' input is smaller than the ch
+      2  Parse Error: RecursionError: maximum recursion depth exceeded
+      2  Parse Error: SyntaxError: no viable alternative at input 'to choose correct'
+  File "<unknown>", lin
+      2  Runtime Error at bar 4234600000.0 (index 49): ValueError: could not convert string to float: 'close'
+      2  Parse Error: SyntaxError: token recognition error at: '$'
+  File "<unknown>", line 7
+    study($)
+  
+      2  Parse Error: SyntaxError: extraneous input 'strategy' expecting {INDENT, NEWLINE}
+  File "<unknown>"
+      2  Parse Error: SyntaxError: mismatched input 'in' expecting <EOF>
+  File "<unknown>", line 13
+    in =
+      2  Parse Error: SyntaxError: no viable alternative at input 'strategy.entry("Buy", strategy.long)\n    
+      2  Parse Error: SyntaxError: no viable alternative at input 'tradeState := tradeState==0 ?   buy==1 and
+      2  Parse Error: SyntaxError: no viable alternative at input 'tradeState := tradeState==INACTIVE ?   buy
+      2  Runtime Error at bar 1000000.0 (index 0): RuntimeError: The report can not compute data on the chart
+      2  Runtime Error at bar 4234600000.0 (index 49): ValueError: Invalid timeframe format: <PINEIMPORTSTUB 
+      2  Parse Error: SyntaxError: extraneous input 'fist_smooth' expecting {INDENT, NEWLINE}
+  File "<unknow
+      2  Parse Error: SyntaxError: no viable alternative at input 'plotColor = currMacd > 0 ? currMacd > prev
+      2  Parse Error: SyntaxError: no viable alternative at input 'const simple int d'
+  File "<unknown>", li
+      2  Runtime Error at bar 4234600000.0 (index 49): RuntimeError: Nedostatek dat pro výpočet Auto Fib Retr
+      2  Runtime Error at bar 1000000.0 (index 0): ValueError: Unsupported reassignment target: <class 'pynes
+      2  Parse Error: SyntaxError: mismatched input '<INDENT>' expecting <EOF>
+  File "<unknown>", line 14
+  
+      2  Parse Error: SyntaxError: mismatched input '<INDENT>' expecting <EOF>
+  File "<unknown>", line 63
+  
+      2  Parse Error: SyntaxError: no viable alternative at input 'strategy(title, shorttitle, overlay, forma
+      1  Parse Error: SyntaxError: no viable alternative at input 'string timezoneInput    = input.string("De
+      1  Parse Error: SyntaxError: no viable alternative at input 'sCandleType = title='
+  File "<unknown>", 
+      1  Parse Error: SyntaxError: mismatched input '<INDENT>' expecting <EOF>
+  File "<unknown>", line 104
+ 
+      1  Parse Error: SyntaxError: no viable alternative at input 'label.set_yloc(l,yloc.belowbar)\n     stra
+      1  Runtime Error at bar 1000000.0 (index 0): RuntimeError: The requested timeframe is smaller than the 
+      1  Parse Error: SyntaxError: no viable alternative at input 'import TSR\n\n'
+  File "<unknown>", line 6
+      1  Parse Error: SyntaxError: no viable alternative at input 'deleted 07'
+  File "<unknown>", line 10
+  
+      1  Parse Error: SyntaxError: no viable alternative at input 'study(“Example 2'
+  File "<unknown>", line
+      1  Parse Error: SyntaxError: no viable alternative at input 'ema21 = ema(close, 21)a'
+  File "<unknown>
+      1  Parse Error: SyntaxError: no viable alternative at input 'up = change(high)/var/folders/v9/pvjgwpm11
+      1  Parse Error: SyntaxError: mismatched input '/' expecting <EOF>
+  File "<unknown>", line 185
+    /plo
+      1  Parse Error: SyntaxError: no viable alternative at input 'ratio=((h-l)/HL*volume/MV*c/o\naa'
+  File 
+      1  Parse Error: SyntaxError: no viable alternative at input 'indicator(),\nlibrary(),\nplot(),\nplotbar

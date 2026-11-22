@@ -1,0 +1,337 @@
+diff --git a/.prettierignore b/.prettierignore
+index 9c707952..2d5377c7 100644
+--- a/.prettierignore
++++ b/.prettierignore
+@@ -1,2 +1,3 @@
+ # OpenOrchestrate generated files
+ .openorchestrate/
++.oo/
+diff --git a/src/pynescript/compiler/compiler.py b/src/pynescript/compiler/compiler.py
+index 21692f84..3d23fde4 100644
+--- a/src/pynescript/compiler/compiler.py
++++ b/src/pynescript/compiler/compiler.py
+@@ -129,6 +129,18 @@ _PLOT_ATTR_SPECS: dict[str, tuple[str, ...]] = {
+ _PLOT_ATTR_FALLBACK_IDX: dict[str, int] = {"linewidth": 3, "style": 4}
+ _MAX_FOLD_EXPR_LEN = 128
+ 
++# Pine ``size.*`` tokens are integers in interpret plot_meta (base.py maps
++# size.small → 10). The compiler visits the token as its string suffix, so
++# numeric plotshape synthesis restores the same wire values.
++_PLOTSHAPE_SIZE_VALUES: dict[str, int | str] = {
++    "auto": "auto",
++    "tiny": 8,
++    "small": 10,
++    "normal": 12,
++    "large": 16,
++    "huge": 20,
++}
++
+ # Pine display.* constants — bitfield values.
+ _PINE_DISPLAY_CONSTANTS: dict[str, int] = {
+     "display.none": 0,
+@@ -2429,6 +2441,144 @@ class CompilerVisitor(NodeVisitor):
+         self._hline_fill_events.append(("bgcolor", list(args), draw_kwargs))
+         return f"plot_{idx}[__bar_idx] = (1.0 if {cond_expr} else 0.0)"
+ 
++    @staticmethod
++    def _plotshape_arg(
++        name: str,
++        index: int | None,
++        args: list[str],
++        kwargs: dict[str, str],
++    ) -> str | None:
++        """Kwarg-first plotshape arg resolution (``None`` when omitted)."""
++        if name in kwargs:
++            return kwargs[name]
++        if index is not None and len(args) > index:
++            return args[index]
++        return None
++
++    def _plotshape_const_str(self, expr: str | None) -> tuple[bool, str | None]:
++        """Resolve one constant string plotshape attr to ``(supported, value)``.
++
++        ``na`` is supported as an omitted attr; a dynamic expression returns
++        ``(False, None)`` so the call falls through to object mode instead of
++        emitting metadata that disagrees with interpret.
++        """
++        if expr is None:
++            return True, None
++        s = expr.strip()
++        if s in ("None", "np.nan"):
++            return True, None
++        val = self._fold_const(s)
++        if isinstance(val, str) and val.strip():
++            return True, val.strip()
++        return False, None
++
++    def _plotshape_size_value(self, expr: str | None) -> tuple[bool, int | str | None]:
++        """Resolve ``size=`` to the integer wire value interpret exports."""
++        if expr is None:
++            return True, None
++        s = expr.strip()
++        if s in ("None", "np.nan"):
++            return True, None
++        val = self._fold_const(s)
++        if isinstance(val, bool):
++            return False, None
++        if isinstance(val, (int, float)):
++            return True, int(val)
++        if isinstance(val, str) and val in _PLOTSHAPE_SIZE_VALUES:
++            return True, _PLOTSHAPE_SIZE_VALUES[val]
++        return False, None
++
++    def _emit_numeric_plotshape(self, args: list[str], kwargs: dict[str, str], arg_nodes: list) -> str | None:
++        """Synthesize statement-form plotshape as a 1/0 numeric marker series.
++
++        Supported: a proven-numeric condition (including ternary numeric
++        expressions and series bools) and constant visual metadata — literal
++        title, constant style/location/color/text/size/display, and the
++        foldable offset/editable/show_last wire attrs. Dynamic visual metadata
++        falls through to object mode; the drawing event is still queued so a
++        mixed script that later flips object mode keeps the series key.
++        """
++        if self.object_mode or self.in_function or not getattr(self, "_stmt_expr", False):
++            return None
++        cond_expr = self._plotshape_arg("series", 0, args, kwargs)
++        if cond_expr is None:
++            return None
++        cond_expr = cond_expr.strip()
++        if cond_expr in ("None", "np.nan"):
++            cond_expr = "False"
++        if not (self._is_safe_numeric_expr(cond_expr) or self._is_numeric_or_bool_literal(cond_expr)):
++            return None
++
++        title_expr = self._plotshape_arg("title", 1, args, kwargs)
++        title = "shape"
++        if title_expr is not None:
++            if not self._is_quoted_string_expr(title_expr):
++                return None
++            title = self._literal_str(title_expr, default="shape") or "shape"
++        title = self._unique_plot_title(title)
++
++        attrs = self._collect_plot_attrs("plotshape", args, kwargs)
++        # _collect_plot_attrs silently skips dynamic expressions; the slice
++        # must fail closed when a wire attr is present but not constant.
++        for name in ("offset", "editable", "show_last"):
++            raw = self._plotshape_arg(name, param_index("plotshape", name), args, kwargs)
++            if raw is not None and self._fold_const(raw) is None:
++                return None
++
++        ok, style = self._plotshape_const_str(self._plotshape_arg("style", 2, args, kwargs))
++        if not ok:
++            return None
++        attrs["style"] = style if style is not None else "shape"
++
++        ok, location = self._plotshape_const_str(self._plotshape_arg("location", 3, args, kwargs))
++        if not ok:
++            return None
++        if location is not None:
++            attrs["location"] = location
++
++        ok, color = self._plotshape_const_str(self._plotshape_arg("color", 4, args, kwargs))
++        if not ok:
++            return None
++        if color is not None:
++            attrs["color"] = color
++
++        ok, text = self._plotshape_const_str(self._plotshape_arg("text", 6, args, kwargs))
++        if not ok:
++            return None
++        if text is not None:
++            attrs["text"] = text
++
++        # Interpret reads only the ``size=`` kwarg (positional text_size is
++        # ignored) and exports both size and text_size wire keys.
++        ok, size = self._plotshape_size_value(kwargs.get("size"))
++        if not ok:
++            return None
++        if size is not None:
++            attrs["size"] = size
++            attrs["text_size"] = size
++
++        display_expr = kwargs.get("display")
++        if display_expr is not None and display_expr.strip() not in ("None", "np.nan"):
++            display_val = self._fold_const(display_expr)
++            display = self._coerce_folded_attr("display", display_val) if display_val is not None else None
++            if display is None:
++                return None
++            attrs["display"] = display
++
++        entry: dict[str, Any] = {
++            "expr": cond_expr,
++            "title": title,
++            "kind": "plotshape",
++            "attrs": attrs,
++        }
++        self.plots.append(entry)
++        self._note_visual_series()
++        idx = len(self.plots) - 1
++        draw_kwargs = dict(kwargs)
++        draw_kwargs["title"] = repr(title)
++        self._hline_fill_events.append(("plotshape", list(args), draw_kwargs))
++        return f"numba_store(plot_{idx}, __bar_idx, (1.0 if pine_bool({cond_expr}) else 0.0))"
++
+     def visit_Assign(self, node: ast.Assign):
+         # Tuple unpack: [a, b, c] = ta.macd(...) / ta.bb(...)
+         if isinstance(node.target, ast.Tuple):
+@@ -5850,10 +6000,10 @@ class CompilerVisitor(NodeVisitor):
+         arg_nodes: list = []
+         prev_fold_literal_color = self._fold_literal_color
+         # Literal color metadata is foldable in numeric plot/fill/hline
+-        # argument positions and in bgcolor, whose constant-color forms are
+-        # synthesized as a numeric 0/1 code series. Object-only call sites
++        # argument positions and in bgcolor/plotshape, whose constant-color
++        # forms are synthesized as numeric series. Object-only call sites
+         # (drawings) keep the legacy pine_color_new helper and object mode.
+-        self._fold_literal_color = func_name in ("plot", "fill", "hline", "bgcolor")
++        self._fold_literal_color = func_name in ("plot", "fill", "hline", "bgcolor", "plotshape")
+         try:
+             for arg in node.args:
+                 if hasattr(arg, "value"):
+@@ -6346,6 +6496,11 @@ class CompilerVisitor(NodeVisitor):
+             if bg is not None:
+                 return bg
+ 
++        if func_name == "plotshape":
++            shape = self._emit_numeric_plotshape(args, kwargs, arg_nodes)
++            if shape is not None:
++                return shape
++
+         # Drawing surface → event list (object mode)
+         if func_name in _DRAWING_FUNCS or (
+             func_name.endswith("_new")
+diff --git a/src/pynescript/compiler/engine.py b/src/pynescript/compiler/engine.py
+index 72b3e179..b82dbda3 100644
+--- a/src/pynescript/compiler/engine.py
++++ b/src/pynescript/compiler/engine.py
+@@ -179,7 +179,7 @@ _BUILTINS_WARMED = False
+ # Bump when generated IR semantics change so source→IR disk index is invalidated
+ # (source hash alone is stable across compiler fixes, e.g. fill() series keys).
+ # v5: strategy series history + Pine na-aware ==/!=
+-_DISK_META_VERSION = 61  # v61: bgcolor positional title is string-only (numeric offset is not a title)
++_DISK_META_VERSION = 62  # v62: numeric plotshape synthesizes bool/None marker series
+ _NJIT_CACHE_FALSE = "@numba.njit(cache=False)"
+ _NJIT_CACHE_TRUE = "@numba.njit(cache=True)"
+ 
+@@ -870,23 +870,24 @@ class CompiledScript:
+             packed = _pack_plot_sequence(raw, self.plot_titles)
+             if not self.object_mode:
+                 _apply_bgcolor_series(packed, self.plot_titles, self.plot_kinds, self.plot_attrs)
++                _apply_plotshape_series(packed, self.plot_titles, self.plot_kinds)
+                 drawings = _synthesize_hline_fill_drawings(packed, self.plot_titles, self.plot_kinds, self.plot_attrs)
+                 if drawings:
+                     packed["__drawings"] = drawings
+             return packed
+         packed = _normalize_result(raw)
+         if "__drawings" in packed:
+-            # A numeric-synthesized bgcolor also has a plot array. In a mixed
+-            # script that flipped to object mode, the bgcolor drawing event is
++            # A numeric-synthesized bgcolor/plotshape also has a plot array. In
++            # a mixed script that flipped to object mode, the drawing event is
+             # the series source; drop the duplicate plot key so the host does
+             # not uniquify it to ``title_2``.
+             drawings = packed["__drawings"]
+             for i, kind in enumerate(self.plot_kinds):
+-                if kind != "bgcolor":
++                if kind not in ("bgcolor", "plotshape"):
+                     continue
+                 title = self.plot_titles[i] if i < len(self.plot_titles) else f"plot_{i}"
+                 if any(
+-                    isinstance(d, dict) and d.get("kind") == "bgcolor" and d.get("title") == title for d in drawings
++                    isinstance(d, dict) and d.get("kind") == kind and d.get("title") == title for d in drawings
+                 ):
+                     packed.pop(title, None)
+         if not self.object_mode and "__drawings" not in packed:
+@@ -1069,6 +1070,32 @@ def _apply_bgcolor_series(
+         packed[title] = out
+ 
+ 
++def _apply_plotshape_series(
++    packed: dict[str, Any],
++    titles: list[str],
++    kinds: list[str],
++) -> None:
++    """Map numeric plotshape 1/0 marker arrays to interpret-style True/None cells.
++
++    The numeric path stores a float64 marker series (1.0 where the condition
++    fired, 0.0 otherwise). Interpret exports a bool/None series: ``True`` on a
++    fired bar and ``None`` when no marker is drawn. This host-side pass
++    restores that contract; plot_meta style/location/text/size are stamped
++    separately from the compiler's folded plot_attrs.
++    """
++    for i, kind in enumerate(kinds):
++        if kind != "plotshape":
++            continue
++        title = titles[i] if i < len(titles) else f"plot_{i}"
++        series = packed.get(title)
++        if not isinstance(series, np.ndarray):
++            continue
++        out = np.empty(series.shape, dtype=object)
++        for j, val in enumerate(series):
++            out[j] = True if (val == val and float(val) != 0.0) else None
++        packed[title] = out
++
++
+ def _pack_plot_sequence(
+     raw: tuple[Any, ...] | list[Any],
+     plot_titles: list[str] | None,
+diff --git a/tests/test_bgcolor_plotshape_export.py b/tests/test_bgcolor_plotshape_export.py
+index 870f9de0..2d1d4e7e 100644
+--- a/tests/test_bgcolor_plotshape_export.py
++++ b/tests/test_bgcolor_plotshape_export.py
+@@ -221,7 +221,9 @@ plotshape(true, title="mark")
+ plot(close, "c")
+ """
+     bars = _bars(8)
+-    compiled = compile_script(src, use_cache=False)
++    # Statement-form plotshape with constant metadata is numeric now; force
++    # object mode so this helper still receives a drawing event.
++    compiled = compile_script(src, use_cache=False, force_object_mode=True)
+     close = np.array([b["close"] for b in bars], dtype=np.float64)
+     raw = compiled.run(close, close + 1, close - 1, close, np.ones(len(bars)))
+     series: dict = {}
+diff --git a/tests/test_compiler_numba.py b/tests/test_compiler_numba.py
+index 7fa032bd..7e93fe5d 100644
+--- a/tests/test_compiler_numba.py
++++ b/tests/test_compiler_numba.py
+@@ -453,7 +453,7 @@ plot(sma(close, 5), title="s")
+         assert abs(out["s"][-1] - expected) < 1e-6
+ 
+     def test_plotshape_enum_string_constants(self) -> None:
+-        """shape.*/size.*/location.* must emit string constants, not series names."""
++        """shape.*/size.*/location.* must fold to constants, not series names."""
+         src = """//@version=5
+ indicator("x")
+ plotshape(true, style=shape.triangleup, size=size.small, location=location.abovebar)
+@@ -462,11 +462,12 @@ plot(1.0, title="p")
+         code = transpile(src)
+         assert "shape_arr" not in code
+         assert "size_arr" not in code
+-        assert "'triangleup'" in code or '"triangleup"' in code
+-        assert "'small'" in code or '"small"' in code
+-        assert "'abovebar'" in code or '"abovebar"' in code
+         compiled = compile_script(src)
+-        assert compiled.object_mode
++        assert not compiled.object_mode
++        attrs = compiled.plot_attrs[0]
++        assert attrs["style"] == "triangleup"
++        assert attrs["size"] == 10
++        assert attrs["location"] == "abovebar"
+         o, h, l, c, v = _ohlcv(10)
+         out = compiled.run(o, h, l, c, v)
+         assert abs(out["p"][-1] - 1.0) < 1e-9
+diff --git a/tests/test_compiler_objects.py b/tests/test_compiler_objects.py
+index 7d320a4d..c9d83889 100644
+--- a/tests/test_compiler_objects.py
++++ b/tests/test_compiler_objects.py
+@@ -233,7 +233,9 @@ p2 = plot(open, title="b")
+ fill(p1, p2, color=color.blue)
+ plotshape(close > open, title="up")
+ """
+-        compiled = compile_script(src)
++        # Statement-form plotshape with constant metadata is numeric now; force
++        # object mode so the drawing-event contract under test still applies.
++        compiled = compile_script(src, force_object_mode=True)
+         o, h, l, c, v = _ohlcv(12)
+         out = compiled.run(o, h, l, c, v)
+         drawings = out.get("__drawings", [])

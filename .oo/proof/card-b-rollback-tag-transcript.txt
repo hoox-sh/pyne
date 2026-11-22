@@ -1,0 +1,12 @@
+# Card B rollback-tag transcript
+# host: pynescript.online (204.168.138.51)  captured: 2026-11-11T20:43:06Z
+
+$ docker images --digests | grep pynescript-api
+pynescript-api   latest                sha256:4537c056431d7c744fc7b3ecc76ab4f5a813b19489f7e6b65a2fcbe6bdfff182   4537c056431d   2 hours ago    970MB
+pynescript-api   rollback-2026-11-11   sha256:4537c056431d7c744fc7b3ecc76ab4f5a813b19489f7e6b65a2fcbe6bdfff182   4537c056431d   2 hours ago    970MB
+
+$ docker inspect pynescript-api-1 --format '{{.Image}} {{.State.StartedAt}} {{.RestartCount}}'
+sha256:4537c056431d7c744fc7b3ecc76ab4f5a813b19489f7e6b65a2fcbe6bdfff182 2026-11-11T19:02:35.133321068Z 0
+
+$ docker image inspect pynescript-api:rollback-2026-11-11 --format '{{.Id}} {{.Created}}'
+sha256:4537c056431d7c744fc7b3ecc76ab4f5a813b19489f7e6b65a2fcbe6bdfff182 2026-11-11T19:01:58.322701556Z

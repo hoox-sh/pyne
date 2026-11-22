@@ -1,0 +1,18 @@
+Checker evidence — compile object-mode intra-bar pending fills (2026-11-16)
+Card: pyne-compile-object-mode-intra-b-189acd98
+HEAD: 25043b53 + uncommitted slice
+
+Named tests: compile limit fills on tick 2 -> pos 1.0 == interpret;
+partial max_fill_per_bar=3 -> 3.0 (one budget per bar); tick exception ->
+error_kind=order. 3 passed.
+Failing-before (isolated HEAD compiler/broker/engine/host): 3 failed,
+compile [0,0,0,0,0] for fill and budget; no error_kind.
+
+Codegen order: tick pre-fill envelope -> unconfirmed snapshot -> tick
+process_pending_orders -> post-fill envelope -> body -> restore/re-apply.
+Budget copy-on-snapshot/restore; reset on bar change; shared bar-start+tick.
+IR cache v56; StrategyOrderError -> host ERROR_KIND_ORDER.
+
+Suites: 16 datafeed, 135 targeted, 217 numba+color-fold, 6 reverse,
+48 drawings/nested rollback, 486 full compiler.
+Full verify.sh: 5 passed, 0 skipped (290.4s).

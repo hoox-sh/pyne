@@ -38,6 +38,17 @@ TEST_CMD='pytest'
 # enrich --check (tracked files, no --walk) fails when the bundle does not match.
 OKF_CMD='okn --no-telemetry validate --spec 0.2 okf && bun scripts/okf/cli.ts enrich --check'
 # /oo:commands
+# oo:custom
+# Fail loudly when a different ruff is on PATH: the Format/Lint results are only
+# comparable under the pinned version. RUFF_PIN lives in the commands block.
+if command -v ruff >/dev/null 2>&1; then
+  actual="$(ruff --version 2>/dev/null | awk '{print $2}')"
+  if [ "$actual" != "$RUFF_PIN" ]; then
+    printf 'Ruff pin mismatch: found %s, need %s; install it with pip install "ruff==%s"\n' "$actual" "$RUFF_PIN" "$RUFF_PIN" >&2
+    exit 1
+  fi
+fi
+# /oo:custom
 # All checks detected.
 
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-dumb}" != "dumb" ]; then
@@ -158,31 +169,17 @@ run_step() {
   return 0
 }
 
-# Fail loudly when a different ruff is on PATH: the Format/Lint results below
-# are only comparable under the pinned version. If ruff is absent, leave it to
-# run_step (which skips unless OO_STRICT=1) so verify.sh still works without it.
-ruff_pin_check() {
-  command -v ruff >/dev/null 2>&1 || return 0
-  local actual
-  actual="$(ruff --version 2>/dev/null | awk '{print $2}')"
-  [ "$actual" = "$RUFF_PIN" ] && return 0
-  printf '%s %-10s %s\n' "${RED}${FAIL}${RESET}" "Ruff pin" \
-    "${DIM}found ${actual:-unknown}, need ${RUFF_PIN}; install it with pip install \"ruff==${RUFF_PIN}\"${RESET}"
-  return 1
-}
-
 PROJECT='pyne'
 printf '\n%s %s\n' "${CYAN}${BOLD}OpenOrchestrate${RESET}" "${DIM}· ${MODE} · ${PROJECT}${RESET}"
 printf '%s\n\n' "${DIM}${RULE}${RESET}"
 
-if ruff_pin_check; then
-  run_step format "Format" "$FORMAT_CMD"
-  run_step lint "Lint" "$LINT_CMD"
-else
-  FAILED=$((FAILED + 1))
-fi
+run_step format "Format" "$FORMAT_CMD"
+run_step lint "Lint" "$LINT_CMD"
 run_step typecheck "Typecheck" "$TYPECHECK_CMD"
 run_step okf "OKF" "$OKF_CMD"
+if [ -n "${ARTIFACT_CMD:-}" ]; then
+  run_step artifact "Artifact" "$ARTIFACT_CMD"
+fi
 
 if [ "$MODE" = "all" ] || [ "$MODE" = "pre-push" ]; then
   run_step test "Tests" "$TEST_CMD"
@@ -190,7 +187,7 @@ fi
 
 # A setup with no project checks looks green while proving nothing. Say so, and
 # fail under OO_STRICT so an umbrella or empty scaffold cannot pass silently.
-if [ -z "$FORMAT_CMD" ] && [ -z "$LINT_CMD" ] && [ -z "$TYPECHECK_CMD" ] && [ -z "$TEST_CMD" ]; then
+if [ -z "$FORMAT_CMD" ] && [ -z "$LINT_CMD" ] && [ -z "$TYPECHECK_CMD" ] && [ -z "$TEST_CMD" ] && [ -z "${ARTIFACT_CMD:-}" ]; then
   printf '%s %-10s %s\n' "${YELLOW}!${RESET}" "Wiring" "${DIM}no project checks detected; only OKF runs${RESET}"
   if [ "${OO_STRICT:-0}" = "1" ]; then
     FAILED=$((FAILED + 1))

@@ -1,0 +1,53 @@
+FFFFFFF.....                                                             [100%]
+=================================== FAILURES ===================================
+________________ test_plotshape_numeric_condition_stays_numeric ________________
+tests/test_compiler_plotshape_numeric.py:79: in test_plotshape_numeric_condition_stays_numeric
+    assert compiled.object_mode is False, "numeric plotshape must stay numeric"
+E   AssertionError: numeric plotshape must stay numeric
+E   assert True is False
+E    +  where True = CompiledScript(source='//@version=5\nindicator("x")\nplotshape(close > open, title="bull", style=shape.triangleup, loc...f12a4d5fed0>, plot_titles=['c'], plot_kinds=['plot'], plot_attrs=[{}], object_mode=True, nopython_fallback_reason=None).object_mode
+__________________ test_plotshape_constant_true_stays_numeric __________________
+tests/test_compiler_plotshape_numeric.py:103: in test_plotshape_constant_true_stays_numeric
+    assert compiled.object_mode is False, "constant-true plotshape must stay numeric"
+E   AssertionError: constant-true plotshape must stay numeric
+E   assert True is False
+E    +  where True = CompiledScript(source='//@version=5\nindicator("x")\nplotshape(true, title="mark")\nplot(close, "c")\n', generated_cod...f128330c300>, plot_titles=['c'], plot_kinds=['plot'], plot_attrs=[{}], object_mode=True, nopython_fallback_reason=None).object_mode
+_________________ test_plotshape_series_keyword_stays_numeric __________________
+tests/test_compiler_plotshape_numeric.py:118: in test_plotshape_series_keyword_stays_numeric
+    assert compiled.object_mode is False, "series= plotshape must stay numeric"
+E   AssertionError: series= plotshape must stay numeric
+E   assert True is False
+E    +  where True = CompiledScript(source='//@version=5\nindicator("x")\nlongSignal = close > open\nplotshape(series=longSignal, title="bu...f128330dc70>, plot_titles=['c'], plot_kinds=['plot'], plot_attrs=[{}], object_mode=True, nopython_fallback_reason=None).object_mode
+_______________ test_plotshape_constant_color_new_stays_numeric ________________
+tests/test_compiler_plotshape_numeric.py:131: in test_plotshape_constant_color_new_stays_numeric
+    assert compiled.object_mode is False, "constant color.new plotshape must stay numeric"
+E   AssertionError: constant color.new plotshape must stay numeric
+E   assert True is False
+E    +  where True = CompiledScript(source='//@version=5\nindicator("x")\nplotshape(close > open, title="bull", color=color.new(color.green...f128330c1a0>, plot_titles=['c'], plot_kinds=['plot'], plot_attrs=[{}], object_mode=True, nopython_fallback_reason=None).object_mode
+____________ test_plotshape_ternary_numeric_condition_stays_numeric ____________
+tests/test_compiler_plotshape_numeric.py:148: in test_plotshape_ternary_numeric_condition_stays_numeric
+    assert compiled.object_mode is False, "ternary numeric plotshape must stay numeric"
+E   AssertionError: ternary numeric plotshape must stay numeric
+E   assert True is False
+E    +  where True = CompiledScript(source='//@version=5\nindicator("x")\nplotshape(close > open ? close : na, title="bull", location=locat...f128330df30>, plot_titles=['c'], plot_kinds=['plot'], plot_attrs=[{}], object_mode=True, nopython_fallback_reason=None).object_mode
+_______________ test_plotshape_text_size_meta_matches_interpret ________________
+tests/test_compiler_plotshape_numeric.py:162: in test_plotshape_text_size_meta_matches_interpret
+    assert compiled.object_mode is False, "text/size plotshape must stay numeric"
+E   AssertionError: text/size plotshape must stay numeric
+E   assert True is False
+E    +  where True = CompiledScript(source='//@version=5\nindicator("x")\nplotshape(close > open, title="bull", style=shape.labelup, locati...f128330e2a0>, plot_titles=['c'], plot_kinds=['plot'], plot_attrs=[{}], object_mode=True, nopython_fallback_reason=None).object_mode
+_________________ test_plotshape_positional_attrs_stay_numeric _________________
+tests/test_compiler_plotshape_numeric.py:177: in test_plotshape_positional_attrs_stay_numeric
+    assert compiled.object_mode is False, "positional plotshape must stay numeric"
+E   AssertionError: positional plotshape must stay numeric
+E   assert True is False
+E    +  where True = CompiledScript(source='//@version=5\nindicator("x")\nplotshape(close > open, "bull", shape.triangleup, location.belowb...f128330e770>, plot_titles=['c'], plot_kinds=['plot'], plot_attrs=[{}], object_mode=True, nopython_fallback_reason=None).object_mode
+=========================== short test summary info ============================
+FAILED tests/test_compiler_plotshape_numeric.py::test_plotshape_numeric_condition_stays_numeric
+FAILED tests/test_compiler_plotshape_numeric.py::test_plotshape_constant_true_stays_numeric
+FAILED tests/test_compiler_plotshape_numeric.py::test_plotshape_series_keyword_stays_numeric
+FAILED tests/test_compiler_plotshape_numeric.py::test_plotshape_constant_color_new_stays_numeric
+FAILED tests/test_compiler_plotshape_numeric.py::test_plotshape_ternary_numeric_condition_stays_numeric
+FAILED tests/test_compiler_plotshape_numeric.py::test_plotshape_text_size_meta_matches_interpret
+FAILED tests/test_compiler_plotshape_numeric.py::test_plotshape_positional_attrs_stay_numeric
+7 failed, 5 passed in 1.52s

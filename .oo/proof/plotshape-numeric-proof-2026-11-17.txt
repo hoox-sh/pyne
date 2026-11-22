@@ -1,0 +1,13 @@
+  PASS numeric_condition
+  PASS constant_true
+  PASS series_keyword
+  PASS constant_color_new
+  PASS ternary_numeric
+  PASS text_size
+  PASS positional_attrs
+  PASS dynamic_gradient_color (object)
+  PASS dynamic_color_ternary (object)
+  PASS dynamic_style (object)
+  PASS dynamic_title (object)
+  PASS assigned_handle (object)
+PLOTSHAPE_NUMERIC_OK positives=7 boundaries=5

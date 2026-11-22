@@ -1,0 +1,18 @@
+
+OpenOrchestrate · all · pyne
+────────────────────────────────────────────────────────────
+
+▸ Format     bun fmt --check
+  ✔ 0.0s
+▸ Lint       ruff check src/ tests/ backend/
+  ✔ 0.0s
+▸ Typecheck  bun run check
+  ✔ 0.1s
+▸ OKF        okn --no-telemetry validate --spec 0.2 okf
+  ✔ 0.0s
+▸ Tests      pytest
+  ✔ 331.3s
+
+────────────────────────────────────────────────────────────
+✔ all passed (5 passed, 0 skipped)
+EXIT=0

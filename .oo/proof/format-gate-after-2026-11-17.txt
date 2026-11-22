@@ -1,0 +1,50 @@
+
+OpenOrchestrate · pre-commit · pyne
+────────────────────────────────────────────────────────────
+
+▸ Format     ruff format --check src/ tests/ backend/
+  ✖ 0.1s
+    Would reformat: backend/api/live_ensure.py
+    Would reformat: backend/api/live_ws.py
+    Would reformat: src/pynescript/ast/evaluator/builtins/map.py
+    Would reformat: src/pynescript/compiler/compiler.py
+    Would reformat: src/pynescript/langserver/features/hover.py
+    Would reformat: tests/test_axb1.py
+    Would reformat: tests/test_cli_util_coverage.py
+    Would reformat: tests/test_compiler_library_inline.py
+    Would reformat: tests/test_mae_realtime_ticks.py
+    Would reformat: tests/test_realtime_datafeed_ticks.py
+    10 files would be reformatted, 421 files already formatted
+▸ Lint       ruff check src/ tests/ backend/
+  ✖ 0.0s
+    I001 [*] Import block is un-sorted or un-formatted
+      --> tests/test_compiler_plotshape_numeric.py:28:1
+       |
+    26 |   """
+    27 |
+    28 | / from __future__ import annotations
+    29 | |
+    30 | | import math
+    31 | |
+    32 | | import pytest
+    33 | |
+    34 | | from pynescript.compiler.engine import compile_script
+    35 | | from pynescript.compiler.engine import has_numba
+    36 | | from pynescript.compiler.engine import transpile
+    37 | | from pynescript.runtime import Runtime
+       | |______________________________________^
+    38 |
+    39 |   pytestmark = pytest.mark.skipif(not has_numba(), reason="numba not installed")
+       |
+    help: Organize imports
+    
+    Found 1 error.
+    [*] 1 fixable with the `--fix` option.
+▸ Typecheck  bun run check
+  ✔ 0.1s
+▸ OKF        okn --no-telemetry validate --spec 0.2 okf
+  ✔ 0.1s
+
+────────────────────────────────────────────────────────────
+✖ pre-commit failed (2 failed, 2 passed, 0 skipped)
+Bypass once with: git commit --no-verify

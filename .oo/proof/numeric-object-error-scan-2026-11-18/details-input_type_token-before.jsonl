@@ -1,0 +1,115 @@
+{"file": "set01/indicators/116_ind_us_treasury_yields.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "hline"], "ms": 4439.2}
+{"file": "set01/indicators/118_ind_gaps_pct_size_distribution.pine", "set": "set01", "outcome": "object", "kinds": [], "ms": 6957.2}
+{"file": "set01/indicators/119_ind_session_input_parser.pine", "set": "set01", "outcome": "object", "kinds": [], "ms": 5113.7}
+{"file": "set01/indicators/122_ind_year_to_date_ytd_pct_return.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "hline", "fill", "plot", "hline", "plot", "hline", "plot", "hline", "plot", "hline", "plot", "hline", "plot", "hline"], "ms": 3645.8}
+{"file": "set01/indicators/124_ind_spencer_21_point_moving_average.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 4951.1}
+{"file": "set01/indicators/125_ind_true_strength_index.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot", "hline", "hline", "hline", "hline", "hline", "fill", "fill", "fill", "fill"], "ms": 4128.5}
+{"file": "set01/indicators/126_ind_return_on_investment_roi.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "hline", "fill", "plot", "hline", "fill", "plot", "hline", "fill"], "ms": 3868.6}
+{"file": "set01/indicators/127_ind_adaptive_laguerre_filter.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 4994.6}
+{"file": "set01/indicators/129_ind_stochastic.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot", "hline", "hline", "hline", "hline", "hline", "fill", "fill", "fill", "fill"], "ms": 1276.5}
+{"file": "set01/indicators/130_ind_butterworth_filter.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 2439.3}
+{"file": "set01/indicators/131_ind_schaff_trend_cycle.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "hline", "plot", "fill", "fill", "fill"], "ms": 898.2}
+{"file": "set01/indicators/132_ind_money_flow_index.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot", "hline", "hline", "hline", "hline", "hline", "fill", "fill", "fill", "fill"], "ms": 440.1}
+{"file": "set01/indicators/133_ind_spencer_15_point_moving_average.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 1669.0}
+{"file": "set01/indicators/134_ind_gaussian_filter.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 2039.1}
+{"file": "set01/indicators/135_ind_asymmetrical_rsi.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "hline", "hline", "hline", "hline", "hline", "fill", "fill", "fill"], "ms": 882.0}
+{"file": "set01/indicators/136_ind_corrected_moving_average.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "fill"], "ms": 879.8}
+{"file": "set01/indicators/137_ind_henderson_weighted_moving_average.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 1015.5}
+{"file": "set01/indicators/138_ind_vortex_bands.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot", "fill"], "ms": 915.6}
+{"file": "set01/indicators/140_ind_finite_impulse_response_fir_filter.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 384.7}
+{"file": "set01/indicators/142_ind_ulcer_index.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "fill", "hline"], "ms": 124.7}
+{"file": "set01/indicators/144_ind_price_volume_trend.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "fill"], "ms": 51.5}
+{"file": "set01/indicators/149_ind_kaufman_adaptive_moving_average.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 184.5}
+{"file": "set01/indicators/151_ind_apirine_adaptive_moving_average.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 1538.4}
+{"file": "set01/indicators/152_ind_recursive_median_filter.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 512.5}
+{"file": "set01/indicators/153_ind_laguerre_filter.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 1630.5}
+{"file": "set01/indicators/154_ind_hampel_filter.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 1194.8}
+{"file": "set01/indicators/155_ind_moving_average_channel.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "fill"], "ms": 42.3}
+{"file": "set01/indicators/156_ind_sine_weighted_moving_average.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 147.8}
+{"file": "set01/indicators/157_ind_holt_exponential_moving_average.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 1213.6}
+{"file": "set01/indicators/158_ind_regularized_exponential_moving_average.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 1129.5}
+{"file": "set01/indicators/159_ind_sharp_modified_moving_average.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 1059.3}
+{"file": "set01/indicators/160_ind_derivative_oscillator.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot"], "ms": 87.8}
+{"file": "set01/indicators/162_ind_recursive_moving_trend_average.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 247.2}
+{"file": "set01/indicators/163_ind_mean_absolute_deviation_bands.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot", "fill"], "ms": 109.4}
+{"file": "set01/indicators/164_ind_infinite_impulse_response_iir_filter.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 244.3}
+{"file": "set01/indicators/165_ind_t3_moving_average.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 73.5}
+{"file": "set01/indicators/166_ind_trimean.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 55.6}
+{"file": "set01/indicators/167_ind_adaptive_rsi_moving_average.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 149.6}
+{"file": "set01/indicators/168_ind_elastic_volume_weighted_moving_average.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 332.6}
+{"file": "set01/indicators/169_ind_ahrens_moving_average.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 1157.0}
+{"file": "set01/indicators/170_ind_zero_lag_exponential_moving_average.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 226.8}
+{"file": "set01/indicators/171_ind_moving_median.pine", "set": "set01", "outcome": "object", "kinds": ["plot"], "ms": 34.6}
+{"file": "set01/indicators/204_ind_3_mtf_ema_sma.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot"], "ms": 181.2}
+{"file": "set01/indicators/213_ind_bollinger_bands_winner_ind.pine", "set": "set01", "outcome": "object", "kinds": [], "ms": 860.5}
+{"file": "set01/indicators/214_ind_bb_plus_3ema.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot", "fill", "plot", "plot", "plot", "plot"], "ms": 1283.3}
+{"file": "set01/indicators/215_ind_kdj.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot"], "ms": 739.2}
+{"file": "set01/indicators/217_ind_macd.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot"], "ms": 1030.0}
+{"file": "set01/indicators/219_ind_3_ma_plus_cross.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot", "plot"], "ms": 498.3}
+{"file": "set01/indicators/220_ind_directional_movement_index.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "hline"], "ms": 1634.5}
+{"file": "set01/strategies/035_str_omar_edited_wf.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot"], "ms": 2897.6}
+{"file": "set01/strategies/047_str_rsi_plus_ema.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot"], "ms": 660.9}
+{"file": "set01/strategies/051_str_mtf_rsi.pine", "set": "set01", "outcome": "object", "kinds": [], "ms": 264.1}
+{"file": "set01/strategies/052_str_alert_bb_plus_rsi.pine", "set": "set01", "outcome": "object", "kinds": [], "ms": 541.6}
+{"file": "set01/strategies/053_str_flawless_victory.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot", "plot"], "ms": 614.0}
+{"file": "set01/strategies/054_str_macdnew.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot"], "ms": 2258.9}
+{"file": "set01/strategies/055_str_mtf_plus_macd.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot", "plot", "plot", "plot", "plot"], "ms": 3620.2}
+{"file": "set01/strategies/056_str_3_ema_sma_plus_cross.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot", "plot", "plot", "plot"], "ms": 3138.2}
+{"file": "set01/strategies/057_str_stoch_rsi_crossover_strat_plus_ema_yt_trade_pro.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot"], "ms": 1764.4}
+{"file": "set01/strategies/058_str_mtf_bollindger_bands_strategy.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "fill", "plot", "plot"], "ms": 1404.0}
+{"file": "set01/strategies/059_str_pin_bar_magic_v1.pine", "set": "set01", "outcome": "object", "kinds": [], "ms": 1283.2}
+{"file": "set01/strategies/060_str_heikin_ashi_strategy_v2.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot"], "ms": 259.8}
+{"file": "set01/strategies/062_str_ma_cross_plus_dmi.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot"], "ms": 340.2}
+{"file": "set01/strategies/063_str_macd_plus_rsi.pine", "set": "set01", "outcome": "object", "kinds": [], "ms": 152.4}
+{"file": "set01/strategies/064_str_password_protected.pine", "set": "set01", "outcome": "object", "kinds": [], "ms": 558.6}
+{"file": "set01/strategies/065_str_williams_vix_fix_strategy.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot", "plot", "plot"], "ms": 1609.5}
+{"file": "set01/strategies/066_str_supertrend.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot"], "ms": 1211.3}
+{"file": "set01/strategies/067_str_bollinger_bands_divergence.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot", "plot", "plot", "fill"], "ms": 1594.6}
+{"file": "set01/strategies/068_str_bollinger_breakout.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot"], "ms": 718.8}
+{"file": "set01/strategies/069_str_2_ema_sma_plus_rsi_strategy.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot", "plot"], "ms": 1180.0}
+{"file": "set01/strategies/070_str_bollinger_bands_winner_lite.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot", "fill"], "ms": 452.1}
+{"file": "set01/strategies/071_str_multi_bb.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot", "plot", "plot", "plot", "fill", "fill"], "ms": 151.6}
+{"file": "set01/strategies/072_str_exceeded_candle.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "fill", "plot"], "ms": 525.4}
+{"file": "set01/strategies/073_str_stochrsi_plus_supertrend_strategy.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot"], "ms": 235.9}
+{"file": "set01/strategies/089_str_simple_long_term_strategy.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot", "plot", "plot", "fill"], "ms": 93.4}
+{"file": "set01/strategies/090_str_dualma.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot"], "ms": 150.5}
+{"file": "set01/strategies/091_str_my_strategy.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot", "plot", "plot", "fill"], "ms": 236.9}
+{"file": "set01/strategies/092_str_defaultstrategy.pine", "set": "set01", "outcome": "object", "kinds": [], "ms": 125.7}
+{"file": "set01/strategies/096_str_s_bayesian_supertrend_swing_pivot_2.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot"], "ms": 4528.1}
+{"file": "set01/strategies/101_str_instrument_z.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "fill", "plot", "plot", "plot", "plot", "plot"], "ms": 6706.6}
+{"file": "set01/strategies/105_str_s_888_bot_backtest.pine", "set": "set01", "outcome": "object", "kinds": ["plot", "plot", "plot", "plot", "fill", "plot", "plot", "plot", "plot", "plot", "fill", "plot", "plot"], "ms": 11612.4}
+{"file": "set02/indicators/142_ind_spearman_rank_correlation_spearman.pine", "set": "set02", "outcome": "object", "kinds": ["plot", "hline", "hline", "hline", "hline", "hline"], "ms": 4472.5}
+{"file": "set02/indicators/143_ind_spearman_rank_correlation_spearman_2.pine", "set": "set02", "outcome": "object", "kinds": ["plot", "hline", "hline", "hline", "hline", "hline"], "ms": 2955.4}
+{"file": "set02/indicators/208_ind_traditional_pivot_points.pine", "set": "set02", "outcome": "object", "kinds": [], "ms": 1792.6}
+{"file": "set02/indicators/211_ind_multi_timeframe_trend_alignment.pine", "set": "set02", "outcome": "object", "kinds": ["plot", "plot", "plot", "plot", "hline", "hline", "hline", "plot"], "ms": 1383.9}
+{"file": "set02/strategies/067_str_sick_sigma.pine", "set": "set02", "outcome": "object", "kinds": ["plot", "plot", "plot", "plot", "fill", "fill"], "ms": 9796.4}
+{"file": "set02/strategies/069_str_exit_orders.pine", "set": "set02", "outcome": "object", "kinds": ["plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "fill", "fill", "fill"], "ms": 11394.9}
+{"file": "set02/strategies/071_str_multi_vwap_crossover.pine", "set": "set02", "outcome": "object", "kinds": ["plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "plot", "fill", "fill", "fill"], "ms": 12082.3}
+{"file": "set02/strategies/086_str_engulfing_candlestick_strategy.pine", "set": "set02", "outcome": "error", "error": "CompileEmitError: parse failed: extraneous input '>' expecting {<EOF>, 'as', 'break', 'by', 'const', 'continue', 'enum', 'export', 'false', 'for', 'if', 'import', 'input', 'method', 'not', 'once', 'series', 'simple', 'switch', 'to', 'type', 'true', 'var', 'varip', 'while', '(', '[', '~', '+', '-', NAME, NUMBER, STRING, COLOR}\n  File \"<unknown>\", line 7\n    > Name\n    ^"}
+{"file": "set03/indicators/0289_ind_vwap_bands_vwapbands.pine", "set": "set03", "outcome": "object", "kinds": ["plot", "plot", "plot", "plot", "plot", "fill", "fill", "fill"], "ms": 461.0}
+{"file": "set03/indicators/0290_ind_vwap_bands_vwapbands_2.pine", "set": "set03", "outcome": "object", "kinds": ["plot", "plot", "plot", "plot", "plot", "fill", "fill", "fill"], "ms": 534.1}
+{"file": "set03/indicators/0344_ind_vwap_with_standard_deviation_bands.pine", "set": "set03", "outcome": "object", "kinds": ["plot", "plot", "plot", "plot", "plot", "fill"], "ms": 921.2}
+{"file": "set03/indicators/0345_ind_vwap_with_standard_deviation_bands_2.pine", "set": "set03", "outcome": "object", "kinds": ["plot", "plot", "plot", "plot", "plot", "fill"], "ms": 719.5}
+{"file": "set03/indicators/0413_ind_ma_envelope_mae.pine", "set": "set03", "outcome": "object", "kinds": ["plot", "plot", "plot", "fill"], "ms": 2329.5}
+{"file": "set03/indicators/0414_ind_ma_envelope_mae_2.pine", "set": "set03", "outcome": "object", "kinds": ["plot", "plot", "plot", "fill"], "ms": 2079.3}
+{"file": "set03/indicators/0507_ind_qstick_indicator.pine", "set": "set03", "outcome": "object", "kinds": ["plot", "hline"], "ms": 1336.8}
+{"file": "set03/indicators/0508_ind_qstick_indicator_2.pine", "set": "set03", "outcome": "object", "kinds": ["plot", "hline"], "ms": 376.7}
+{"file": "set03/indicators/0578_ind_volume_weighted_average_price_vwap.pine", "set": "set03", "outcome": "object", "kinds": ["plot"], "ms": 348.8}
+{"file": "set03/indicators/0579_ind_volume_weighted_average_price_vwap_2.pine", "set": "set03", "outcome": "object", "kinds": ["plot"], "ms": 130.6}
+{"file": "set03/indicators/0610_ind_time_weighted_average_price_twap.pine", "set": "set03", "outcome": "object", "kinds": ["plot"], "ms": 68.2}
+{"file": "set03/indicators/0611_ind_time_weighted_average_price_twap_2.pine", "set": "set03", "outcome": "object", "kinds": ["plot"], "ms": 222.3}
+{"file": "set03/indicators/0686_ind_volume_profile_session.pine", "set": "set03", "outcome": "object", "kinds": [], "ms": 2028.0}
+{"file": "set03/indicators/0702_ind_multi_timeframe_analysis_suite.pine", "set": "set03", "outcome": "object", "kinds": ["plot", "plot", "hline", "hline", "hline"], "ms": 6220.5}
+{"file": "set03/indicators/0730_ind_comprehensive_volume_profile.pine", "set": "set03", "outcome": "object", "kinds": ["plot", "plot"], "ms": 5369.5}
+{"file": "set03/strategies/0110_str_daily_ma_ribbon_plus_macd_crossover_with_buy_sell_signals.pine", "set": "set03", "outcome": "error", "error": "CompileEmitError: parse failed: mismatched input '>' expecting <EOF>\n  File \"<unknown>\", line 90\n    > Detail\n    ^"}
+{"file": "set03/strategies/0125_str_supertrend_strategy_with_adjustable_trailing_stop.pine", "set": "set03", "outcome": "error", "error": "CompileEmitError: parse failed: mismatched input '>' expecting <EOF>\n  File \"<unknown>\", line 87\n    > Detail\n    ^"}
+{"file": "set04/indicators/0269_ind_aberration_abber.pine", "set": "set04", "outcome": "object", "kinds": ["plot", "plot", "plot", "fill"], "ms": 320.4}
+{"file": "set04/indicators/0270_ind_aberration_aberr.pine", "set": "set04", "outcome": "object", "kinds": ["plot", "plot", "plot", "fill"], "ms": 277.6}
+{"file": "set04/indicators/0482_ind_volume_rate_of_change_vroc.pine", "set": "set04", "outcome": "object", "kinds": ["plot"], "ms": 1190.6}
+{"file": "set04/indicators/0502_ind_volume_rate_of_change_vroc_2.pine", "set": "set04", "outcome": "object", "kinds": ["plot"], "ms": 645.6}
+{"file": "set04/strategies/0018_str_dynamic_breakout_master_by_tradingbauhaus.pine", "set": "set04", "outcome": "error", "error": "CompileEmitError: parse failed: mismatched input '>' expecting <EOF>\n  File \"<unknown>\", line 177\n    > Detail\n    ^"}
+{"file": "set04/strategies/0058_str_engulfing_candlestick_strategy.pine", "set": "set04", "outcome": "error", "error": "CompileEmitError: parse failed: mismatched input '>' expecting <EOF>\n  File \"<unknown>\", line 54\n    > Detail\n    ^"}
+{"file": "set04/strategies/0088_str_daytrading_es_wick_length_strategy.pine", "set": "set04", "outcome": "error", "error": "CompileEmitError: parse failed: mismatched input '>' expecting <EOF>\n  File \"<unknown>\", line 50\n    > Detail\n    ^"}
+{"file": "set04/strategies/0221_str_forex_fire_ema_ma_rsi_strategy.pine", "set": "set04", "outcome": "error", "error": "CompileEmitError: parse failed: mismatched input '>' expecting <EOF>\n  File \"<unknown>\", line 241\n    > Detail\n    ^"}
+{"file": "set04/strategies/0228_str_multi_channel_adaptive_turtle_trading_strategy_with_dynamic_stop_loss_system.pine", "set": "set04", "outcome": "error", "error": "CompileEmitError: parse failed: mismatched input '>' expecting <EOF>\n  File \"<unknown>\", line 342\n    > Detail\n    ^"}
+{"file": "set04/strategies/0247_str_5_minute_ema_cross_strategy.pine", "set": "set04", "outcome": "error", "error": "CompileEmitError: parse failed: no viable alternative at input 'Expand (139 lines'\n  File \"<unknown>\", line 120\n    Expand (139 lines)\n                ^"}

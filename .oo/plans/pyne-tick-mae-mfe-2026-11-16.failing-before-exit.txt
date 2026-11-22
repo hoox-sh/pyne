@@ -1,0 +1,39 @@
+# Failing-before — exit tick MAE/MFE (D-03)
+# date: 2026-11-16
+# command: .venv/bin/python -m pytest tests/test_mae_realtime_ticks.py -q --tb=line -k 'exit_keeps_exit_tick'
+# pre-fix: a trade closed by the tick fill is gone before the post-fill envelope, so the exit tick is lost (18/8 instead of 20/10 or 20/20).
+
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+E   AssertionError: [0.0, 0.0, 18.0]
+    assert 18.0 == 20.0 ± 2.0e-05
+      
+      comparison failed
+      Obtained: 18.0
+      Expected: 20.0 ± 2.0e-05
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_mae_realtime_ticks.py:439: AssertionError: [0.0, 0.0, 18.0]
+E   AssertionError: [0.0, 0.0, 18.0]
+    assert 18.0 == 20.0 ± 2.0e-05
+      
+      comparison failed
+      Obtained: 18.0
+      Expected: 20.0 ± 2.0e-05
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_mae_realtime_ticks.py:454: AssertionError: [0.0, 0.0, 18.0]
+E   assert 18.0 == 20.0 ± 2.0e-05
+      
+      comparison failed
+      Obtained: 18.0
+      Expected: 20.0 ± 2.0e-05
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_mae_realtime_ticks.py:468: assert 18.0 == 20.0 ± 2.0e-05
+E   assert 18.0 == 20.0 ± 2.0e-05
+      
+      comparison failed
+      Obtained: 18.0
+      Expected: 20.0 ± 2.0e-05
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_mae_realtime_ticks.py:482: assert 18.0 == 20.0 ± 2.0e-05
+=========================== short test summary info ============================
+FAILED tests/test_mae_realtime_ticks.py::test_tick_limit_exit_keeps_exit_tick_extremes_interpret
+FAILED tests/test_mae_realtime_ticks.py::test_tick_stop_exit_keeps_exit_tick_extremes_interpret
+FAILED tests/test_mae_realtime_ticks.py::test_tick_limit_exit_keeps_exit_tick_extremes_session
+FAILED tests/test_mae_realtime_ticks.py::test_tick_stop_exit_keeps_exit_tick_extremes_session
+4 failed, 9 deselected in 1.35s

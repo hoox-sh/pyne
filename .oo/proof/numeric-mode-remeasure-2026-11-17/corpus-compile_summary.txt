@@ -1,0 +1,66 @@
+runtime=pynescript.runtime mode=compile total_corpus=23651 processed=23651 skipped_resume=0 OK=23393 EXPECTED_FAIL=0 PARSE_FAIL=136 RUN_FAIL=108 FAIL=258 TIMEOUT=14 rate=98.91% (excl. EXPECTED_FAIL) elapsed_s=6564.9
+by_set:
+  set05: OK=9028 EXPECTED_FAIL=0 PARSE_FAIL=50 RUN_FAIL=30 TIMEOUT=6 FAIL=0 total=9114
+  set06: OK=14365 EXPECTED_FAIL=0 PARSE_FAIL=86 RUN_FAIL=78 TIMEOUT=8 FAIL=0 total=14537
+top_errors:
+     16  Compiled Runtime Error: TypingError: Failed in nopython mode pipeline (step: nopython frontend)
+non-
+     14  exceeded 20s
+      6  Compiled Runtime Error: RuntimeError: The input timestamps must follow this condition: entryStartTim
+      5  Compiled Runtime Error: TypingError: Failed in nopython mode pipeline (step: nopython frontend)
+No i
+      5  Compiled Runtime Error: TypeError: update() missing 21 required positional arguments: 'lastP_arr', '
+      4  Parse Error: SyntaxError: mismatched input '<INDENT>' expecting <EOF>
+  File "<unknown>", line 8
+   
+      4  Parse Error: SyntaxError: extraneous input 'b' expecting {'=', NEWLINE}
+  File "<unknown>", line 10
+
+      4  Parse Error: SyntaxError: no viable alternative at input 'label.new(bar index'
+  File "<unknown>", l
+      3  Compiled Runtime Error: RuntimeError: No volume is provided by the data vendor.
+      3  Compiled Runtime Error: RuntimeError: The report can not compute data on the chart's timeframe. Plea
+      3  Compiled Runtime Error: TypeError: can only concatenate str (not "int") to str
+      3  Compiled Runtime Error: ValueError: could not convert string to float: '0930-09.045.0'
+      2  Compiled Runtime Error: RuntimeError: Chart timeframe must be less than 1D.
+      2  Compiled Runtime Error: TypeError: unsupported operand type(s) for *: 'NoneType' and 'NoneType'
+      2  Compiled Runtime Error: RuntimeError: The 'Timeframe' input is smaller than the chart's timeframe. C
+      2  Parse Error: RecursionError: maximum recursion depth exceeded
+      2  Parse Error: SyntaxError: no viable alternative at input 'to choose correct'
+  File "<unknown>", lin
+      2  Parse Error: SyntaxError: token recognition error at: '$'
+  File "<unknown>", line 7
+    study($)
+  
+      2  Parse Error: SyntaxError: mismatched input 'in' expecting <EOF>
+  File "<unknown>", line 13
+    in =
+      2  Compiled Runtime Error: ValueError: could not convert string to float: '19.90000000000000279.6000000
+      2  Parse Error: SyntaxError: no viable alternative at input 'strategy.entry("Buy", strategy.long)\n    
+      2  Parse Error: SyntaxError: no viable alternative at input 'tradeState := tradeState==0 ?   buy==1 and
+      2  Parse Error: SyntaxError: no viable alternative at input 'tradeState := tradeState==INACTIVE ?   buy
+      2  Compiled Runtime Error: TypeError: 'numpy.ndarray' object is not callable
+      2  Parse Error: SyntaxError: no viable alternative at input 'plotColor = currMacd > 0 ? currMacd > prev
+      2  Compiled Runtime Error: IndexError: tuple index out of range
+      2  Parse Error: SyntaxError: no viable alternative at input 'const simple int d'
+  File "<unknown>", li
+      2  Compiled Runtime Error: IndexError: list index out of range
+      2  Parse Error: SyntaxError: cannot assign to conditional expression here. Maybe you meant '==' instead
+      2  Compiled Runtime Error: TypeError: f_get_high() takes 14 positional arguments but 16 were given
+      2  Compiled Runtime Error: AttributeError: 'float' object has no attribute '__setitem__'
+      2  Compiled Runtime Error: TypeError: '>' not supported between instances of 'str' and 'int'
+      2  Parse Error: SyntaxError: mismatched input '<INDENT>' expecting <EOF>
+  File "<unknown>", line 14
+  
+      2  Parse Error: SyntaxError: mismatched input '<INDENT>' expecting <EOF>
+  File "<unknown>", line 63
+  
+      2  Parse Error: SyntaxError: no viable alternative at input 'strategy(title, shorttitle, overlay, forma
+      1  Parse Error: SyntaxError: no viable alternative at input 'string timezoneInput    = input.string("De
+      1  Compiled Runtime Error: ValueError: could not convert string to float: '23.000.0'
+      1  Compiled Runtime Error: RuntimeError: A suitable model could not be obtained from the provided data/
+      1  Parse Error: SyntaxError: no viable alternative at input 'sCandleType = title='
+  File "<unknown>", 
+      1  Parse Error: SyntaxError: mismatched input '<INDENT>' expecting <EOF>
+  File "<unknown>", line 104
+ 

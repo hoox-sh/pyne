@@ -1,0 +1,978 @@
+{
+  "card": "pyne-numeric-object-error-transp-fa4960d2",
+  "date": "2026-11-18",
+  "method": "transpile-only via pynescript.compiler.engine._transpile_once on every tests/data/setXX/**/*.pine matching the population regex; object_mode flag from CompilerVisitor; exceptions classified as 'error' (never folded into object/numeric); timeout=0 (no per-file timeout, same as 2026-11-17 scans).",
+  "populations": {
+    "plotshape": {
+      "pattern": "plotshape",
+      "pattern_origin": "files containing substring 'plotshape' (2026-11-17 re-source)",
+      "flags": 0,
+      "match": "plotshape",
+      "per_set": {
+        "set01": {
+          "total": 58,
+          "numeric": 0,
+          "object": 58,
+          "error": 0
+        },
+        "set02": {
+          "total": 61,
+          "numeric": 1,
+          "object": 46,
+          "error": 14
+        },
+        "set03": {
+          "total": 172,
+          "numeric": 1,
+          "object": 77,
+          "error": 94
+        },
+        "set04": {
+          "total": 68,
+          "numeric": 1,
+          "object": 12,
+          "error": 55
+        },
+        "set05": {
+          "total": 2122,
+          "numeric": 16,
+          "object": 289,
+          "error": 1817
+        },
+        "set06": {
+          "total": 753,
+          "numeric": 35,
+          "object": 688,
+          "error": 30
+        }
+      },
+      "scopes": {
+        "set01": {
+          "total": 58,
+          "numeric": 0,
+          "object": 58,
+          "error": 0
+        },
+        "set02": {
+          "total": 61,
+          "numeric": 1,
+          "object": 46,
+          "error": 14
+        },
+        "set03": {
+          "total": 172,
+          "numeric": 1,
+          "object": 77,
+          "error": 94
+        },
+        "set04": {
+          "total": 68,
+          "numeric": 1,
+          "object": 12,
+          "error": 55
+        },
+        "set05": {
+          "total": 2122,
+          "numeric": 16,
+          "object": 289,
+          "error": 1817
+        },
+        "set06": {
+          "total": 753,
+          "numeric": 35,
+          "object": 688,
+          "error": 30
+        },
+        "set01_04": {
+          "total": 359,
+          "numeric": 3,
+          "object": 193,
+          "error": 163
+        },
+        "set05_06": {
+          "total": 2875,
+          "numeric": 51,
+          "object": 977,
+          "error": 1847
+        },
+        "all_six": {
+          "total": 3234,
+          "numeric": 54,
+          "object": 1170,
+          "error": 2010
+        }
+      },
+      "total": 3234,
+      "numeric": 54,
+      "object": 1170,
+      "error": 2010,
+      "duration_s": 694.3,
+      "workers": 7,
+      "details": "details-plotshape.jsonl"
+    },
+    "input_type_token": {
+      "pattern": "type\\s*=\\s*input\\s*\\.",
+      "pattern_origin": "2026-11-14 proof PATS['input_type'] (re-verified 2026-11-17)",
+      "flags": 0,
+      "match": "type\\s*=\\s*input\\s*\\.",
+      "per_set": {
+        "set01": {
+          "total": 80,
+          "numeric": 2,
+          "object": 78,
+          "error": 0
+        },
+        "set02": {
+          "total": 8,
+          "numeric": 0,
+          "object": 7,
+          "error": 1
+        },
+        "set03": {
+          "total": 17,
+          "numeric": 0,
+          "object": 15,
+          "error": 2
+        },
+        "set04": {
+          "total": 10,
+          "numeric": 0,
+          "object": 4,
+          "error": 6
+        },
+        "set05": {
+          "total": 1541,
+          "numeric": 2,
+          "object": 219,
+          "error": 1320
+        },
+        "set06": {
+          "total": 337,
+          "numeric": 10,
+          "object": 319,
+          "error": 8
+        }
+      },
+      "scopes": {
+        "set01": {
+          "total": 80,
+          "numeric": 2,
+          "object": 78,
+          "error": 0
+        },
+        "set02": {
+          "total": 8,
+          "numeric": 0,
+          "object": 7,
+          "error": 1
+        },
+        "set03": {
+          "total": 17,
+          "numeric": 0,
+          "object": 15,
+          "error": 2
+        },
+        "set04": {
+          "total": 10,
+          "numeric": 0,
+          "object": 4,
+          "error": 6
+        },
+        "set05": {
+          "total": 1541,
+          "numeric": 2,
+          "object": 219,
+          "error": 1320
+        },
+        "set06": {
+          "total": 337,
+          "numeric": 10,
+          "object": 319,
+          "error": 8
+        },
+        "set01_04": {
+          "total": 115,
+          "numeric": 2,
+          "object": 104,
+          "error": 9
+        },
+        "set05_06": {
+          "total": 1878,
+          "numeric": 12,
+          "object": 538,
+          "error": 1328
+        },
+        "all_six": {
+          "total": 1993,
+          "numeric": 14,
+          "object": 642,
+          "error": 1337
+        }
+      },
+      "total": 1993,
+      "numeric": 14,
+      "object": 642,
+      "error": 1337,
+      "duration_s": 370.3,
+      "workers": 7,
+      "details": "details-input_type_token.jsonl"
+    },
+    "runtime_error": {
+      "pattern": "runtime\\.error",
+      "pattern_origin": "task-specified, case-insensitive; 2026-11-17 re-source verified identical counts case-insensitively",
+      "flags": 2,
+      "match": "runtime\\.error",
+      "per_set": {
+        "set01": {
+          "total": 10,
+          "numeric": 0,
+          "object": 10,
+          "error": 0
+        },
+        "set02": {
+          "total": 83,
+          "numeric": 4,
+          "object": 79,
+          "error": 0
+        },
+        "set03": {
+          "total": 291,
+          "numeric": 20,
+          "object": 265,
+          "error": 6
+        },
+        "set04": {
+          "total": 169,
+          "numeric": 19,
+          "object": 148,
+          "error": 2
+        },
+        "set05": {
+          "total": 71,
+          "numeric": 0,
+          "object": 18,
+          "error": 53
+        },
+        "set06": {
+          "total": 128,
+          "numeric": 12,
+          "object": 108,
+          "error": 8
+        }
+      },
+      "scopes": {
+        "set01": {
+          "total": 10,
+          "numeric": 0,
+          "object": 10,
+          "error": 0
+        },
+        "set02": {
+          "total": 83,
+          "numeric": 4,
+          "object": 79,
+          "error": 0
+        },
+        "set03": {
+          "total": 291,
+          "numeric": 20,
+          "object": 265,
+          "error": 6
+        },
+        "set04": {
+          "total": 169,
+          "numeric": 19,
+          "object": 148,
+          "error": 2
+        },
+        "set05": {
+          "total": 71,
+          "numeric": 0,
+          "object": 18,
+          "error": 53
+        },
+        "set06": {
+          "total": 128,
+          "numeric": 12,
+          "object": 108,
+          "error": 8
+        },
+        "set01_04": {
+          "total": 553,
+          "numeric": 43,
+          "object": 502,
+          "error": 8
+        },
+        "set05_06": {
+          "total": 199,
+          "numeric": 12,
+          "object": 126,
+          "error": 61
+        },
+        "all_six": {
+          "total": 752,
+          "numeric": 55,
+          "object": 628,
+          "error": 69
+        }
+      },
+      "total": 752,
+      "numeric": 55,
+      "object": 628,
+      "error": 69,
+      "duration_s": 143.6,
+      "workers": 7,
+      "details": "details-runtime_error.jsonl"
+    },
+    "assigned_hline": {
+      "pattern": "=\\s*hline\\s*\\(",
+      "pattern_origin": "2026-11-14 proof PATS['hline'] (multiline; \\s spans newlines)",
+      "flags": 0,
+      "match": "=\\s*hline\\s*\\(",
+      "per_set": {
+        "set01": {
+          "total": 16,
+          "numeric": 0,
+          "object": 16,
+          "error": 0
+        },
+        "set02": {
+          "total": 5,
+          "numeric": 0,
+          "object": 5,
+          "error": 0
+        },
+        "set03": {
+          "total": 17,
+          "numeric": 0,
+          "object": 15,
+          "error": 2
+        },
+        "set04": {
+          "total": 10,
+          "numeric": 0,
+          "object": 6,
+          "error": 4
+        },
+        "set05": {
+          "total": 339,
+          "numeric": 5,
+          "object": 75,
+          "error": 259
+        },
+        "set06": {
+          "total": 140,
+          "numeric": 1,
+          "object": 138,
+          "error": 1
+        }
+      },
+      "scopes": {
+        "set01": {
+          "total": 16,
+          "numeric": 0,
+          "object": 16,
+          "error": 0
+        },
+        "set02": {
+          "total": 5,
+          "numeric": 0,
+          "object": 5,
+          "error": 0
+        },
+        "set03": {
+          "total": 17,
+          "numeric": 0,
+          "object": 15,
+          "error": 2
+        },
+        "set04": {
+          "total": 10,
+          "numeric": 0,
+          "object": 6,
+          "error": 4
+        },
+        "set05": {
+          "total": 339,
+          "numeric": 5,
+          "object": 75,
+          "error": 259
+        },
+        "set06": {
+          "total": 140,
+          "numeric": 1,
+          "object": 138,
+          "error": 1
+        },
+        "set01_04": {
+          "total": 48,
+          "numeric": 0,
+          "object": 42,
+          "error": 6
+        },
+        "set05_06": {
+          "total": 479,
+          "numeric": 6,
+          "object": 213,
+          "error": 260
+        },
+        "all_six": {
+          "total": 527,
+          "numeric": 6,
+          "object": 255,
+          "error": 266
+        }
+      },
+      "total": 527,
+      "numeric": 6,
+      "object": 255,
+      "error": 266,
+      "duration_s": 110.5,
+      "workers": 7,
+      "details": "details-assigned_hline.jsonl"
+    }
+  },
+  "before_after": {
+    "plotshape": {
+      "baseline_sha": "01a11897",
+      "baseline_full": {
+        "population": "plotshape",
+        "pattern": "plotshape",
+        "flags": 0,
+        "pattern_origin": "files containing substring 'plotshape' (2026-11-17 re-source)",
+        "label": "before:01a11897",
+        "src": "/tmp/opencode/oo-base-plotshape/src",
+        "data": "/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/data",
+        "sets": [
+          "set01",
+          "set02",
+          "set03",
+          "set04"
+        ],
+        "match": "plotshape",
+        "total": 359,
+        "numeric": 0,
+        "object": 196,
+        "error": 163,
+        "timeout": 0,
+        "per_set": {
+          "set01": {
+            "total": 58,
+            "numeric": 0,
+            "object": 58,
+            "error": 0
+          },
+          "set02": {
+            "total": 61,
+            "numeric": 0,
+            "object": 47,
+            "error": 14
+          },
+          "set03": {
+            "total": 172,
+            "numeric": 0,
+            "object": 78,
+            "error": 94
+          },
+          "set04": {
+            "total": 68,
+            "numeric": 0,
+            "object": 13,
+            "error": 55
+          }
+        },
+        "duration_s": 111.0,
+        "workers": 7,
+        "repo_head": "a85c6cb64e0b6a8992d3c7376cd62547897c1843"
+      },
+      "set01_04_before": {
+        "total": 359,
+        "numeric": 0,
+        "object": 196,
+        "error": 163
+      },
+      "set01_04_after": {
+        "total": 359,
+        "numeric": 3,
+        "object": 193,
+        "error": 163
+      },
+      "delta": {
+        "total": 0,
+        "numeric": 3,
+        "object": -3,
+        "error": 0
+      },
+      "flips": {
+        "object->numeric": 3
+      },
+      "changed_files": [
+        {
+          "file": "set02/indicators/118_ind_beta_distribution_cdf_betadist_2.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set03/indicators/0928_ind_highlow.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set04/indicators/0873_ind_day_and_direction_change.pine",
+          "before": "object",
+          "after": "numeric"
+        }
+      ]
+    },
+    "input_type_token": {
+      "baseline_sha": "98cc8e70",
+      "baseline_full": {
+        "population": "input_type_token",
+        "pattern": "type\\s*=\\s*input\\s*\\.",
+        "flags": 0,
+        "pattern_origin": "2026-11-14 proof PATS['input_type'] (re-verified 2026-11-17)",
+        "label": "before:98cc8e70",
+        "src": "/tmp/opencode/oo-base-input_type_token/src",
+        "data": "/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/data",
+        "sets": [
+          "set01",
+          "set02",
+          "set03",
+          "set04"
+        ],
+        "match": "type\\s*=\\s*input\\s*\\.",
+        "total": 115,
+        "numeric": 0,
+        "object": 106,
+        "error": 9,
+        "timeout": 0,
+        "per_set": {
+          "set01": {
+            "total": 80,
+            "numeric": 0,
+            "object": 80,
+            "error": 0
+          },
+          "set02": {
+            "total": 8,
+            "numeric": 0,
+            "object": 7,
+            "error": 1
+          },
+          "set03": {
+            "total": 17,
+            "numeric": 0,
+            "object": 15,
+            "error": 2
+          },
+          "set04": {
+            "total": 10,
+            "numeric": 0,
+            "object": 4,
+            "error": 6
+          }
+        },
+        "duration_s": 32.3,
+        "workers": 7,
+        "repo_head": "a85c6cb64e0b6a8992d3c7376cd62547897c1843"
+      },
+      "set01_04_before": {
+        "total": 115,
+        "numeric": 0,
+        "object": 106,
+        "error": 9
+      },
+      "set01_04_after": {
+        "total": 115,
+        "numeric": 2,
+        "object": 104,
+        "error": 9
+      },
+      "delta": {
+        "total": 0,
+        "numeric": 2,
+        "object": -2,
+        "error": 0
+      },
+      "flips": {
+        "object->numeric": 2
+      },
+      "changed_files": [
+        {
+          "file": "set01/indicators/154_ind_hampel_filter.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set01/indicators/163_ind_mean_absolute_deviation_bands.pine",
+          "before": "object",
+          "after": "numeric"
+        }
+      ]
+    },
+    "runtime_error": {
+      "baseline_sha": "885dc745",
+      "baseline_full": {
+        "population": "runtime_error",
+        "pattern": "runtime\\.error",
+        "flags": 2,
+        "pattern_origin": "task-specified, case-insensitive; 2026-11-17 re-source verified identical counts case-insensitively",
+        "label": "before:885dc745",
+        "src": "/tmp/opencode/oo-base-runtime_error/src",
+        "data": "/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/data",
+        "sets": [
+          "set01",
+          "set02",
+          "set03",
+          "set04"
+        ],
+        "match": "runtime\\.error",
+        "total": 553,
+        "numeric": 0,
+        "object": 545,
+        "error": 8,
+        "timeout": 0,
+        "per_set": {
+          "set01": {
+            "total": 10,
+            "numeric": 0,
+            "object": 10,
+            "error": 0
+          },
+          "set02": {
+            "total": 83,
+            "numeric": 0,
+            "object": 83,
+            "error": 0
+          },
+          "set03": {
+            "total": 291,
+            "numeric": 0,
+            "object": 285,
+            "error": 6
+          },
+          "set04": {
+            "total": 169,
+            "numeric": 0,
+            "object": 167,
+            "error": 2
+          }
+        },
+        "duration_s": 62.4,
+        "workers": 7,
+        "repo_head": "a85c6cb64e0b6a8992d3c7376cd62547897c1843"
+      },
+      "set01_04_before": {
+        "total": 553,
+        "numeric": 0,
+        "object": 545,
+        "error": 8
+      },
+      "set01_04_after": {
+        "total": 553,
+        "numeric": 43,
+        "object": 502,
+        "error": 8
+      },
+      "delta": {
+        "total": 0,
+        "numeric": 43,
+        "object": -43,
+        "error": 0
+      },
+      "flips": {
+        "object->numeric": 43
+      },
+      "changed_files": [
+        {
+          "file": "set02/indicators/125_ind_true_strength_index_tsi.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set02/indicators/126_ind_true_strength_index_tsi_2.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set02/indicators/154_ind_christiano_fitzgerald_band_pass_filter_cfitz.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set02/indicators/155_ind_christiano_fitzgerald_band_pass_filter_cfitz_2.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set03/indicators/0318_ind_percentage_price_oscillator_ppo.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set03/indicators/0319_ind_percentage_price_oscillator_ppo_2.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set03/indicators/0341_ind_normal_distribution_cdf_normdist.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set03/indicators/0342_ind_normal_distribution_cdf_normdist_2.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set03/indicators/0375_ind_moving_average_convergence_divergence_macd.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set03/indicators/0376_ind_moving_average_convergence_divergence_macd_2.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set03/indicators/0444_ind_log_normal_distribution_cdf_lognormdist.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set03/indicators/0445_ind_log_normal_distribution_cdf_lognormdist_2.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set03/indicators/0446_ind_percentage_volume_oscillator_pvo.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set03/indicators/0553_ind_inverse_fast_fourier_transform_ifft.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set03/indicators/0554_ind_inverse_fast_fourier_transform_ifft_2.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set03/indicators/0574_ind_nw_nadaraya_watson_kernel_regression.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set03/indicators/0592_ind_nw_nadaraya_watson_kernel_regression_2.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set03/indicators/0598_ind_elder_ray_index_eri.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set03/indicators/0599_ind_elder_ray_index_eri_2.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set03/indicators/0632_ind_chande_kroll_stop_ckstop.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set03/indicators/0634_ind_ehlers_fisher_transform_fisher.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set03/indicators/0648_ind_arnaud_legoux_moving_average_alma.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set03/indicators/0649_ind_arnaud_legoux_moving_average_alma_2.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set03/indicators/0678_ind_fisher_transform.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set04/indicators/0273_ind_exponential_distribution_cdf_expdist.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set04/indicators/0274_ind_exponential_distribution_cdf_expdist_2.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set04/indicators/0309_ind_chandelier_exit_chandelier.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set04/indicators/0315_ind_inertia_oscillator_inertia.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set04/indicators/0319_ind_two_argument_arctangent_atan2.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set04/indicators/0329_ind_inertia.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set04/indicators/0447_ind_endpoint_moving_average_epma.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set04/indicators/0496_ind_center_of_gravity_cg.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set04/indicators/0499_ind_ehlers_center_of_gravity_cg.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set04/indicators/0511_ind_percentage_change_change.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set04/indicators/0512_ind_percentage_change_change_2.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set04/indicators/0528_ind_momentum_mom.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set04/indicators/0529_ind_momentum_mom_2.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set04/indicators/0532_ind_logarithmic_transformation_log.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set04/indicators/0533_ind_logarithmic_transformation_log_2.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set04/indicators/0536_ind_square_root_transformation_sqrt.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set04/indicators/0537_ind_square_root_transformation_sqrt_2.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set04/indicators/0551_ind_exponential_transformation_exp_2.pine",
+          "before": "object",
+          "after": "numeric"
+        },
+        {
+          "file": "set04/indicators/0552_ind_exponential_transformation_exp_3.pine",
+          "before": "object",
+          "after": "numeric"
+        }
+      ]
+    },
+    "assigned_hline": {
+      "baseline_sha": "a3c73539",
+      "baseline_full": {
+        "population": "assigned_hline",
+        "pattern": "=\\s*hline\\s*\\(",
+        "flags": 0,
+        "pattern_origin": "2026-11-14 proof PATS['hline'] (multiline; \\s spans newlines)",
+        "label": "before:a3c73539",
+        "src": "/tmp/opencode/oo-base-assigned_hline/src",
+        "data": "/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/data",
+        "sets": [
+          "set01",
+          "set02",
+          "set03",
+          "set04"
+        ],
+        "match": "=\\s*hline\\s*\\(",
+        "total": 48,
+        "numeric": 0,
+        "object": 42,
+        "error": 6,
+        "timeout": 0,
+        "per_set": {
+          "set01": {
+            "total": 16,
+            "numeric": 0,
+            "object": 16,
+            "error": 0
+          },
+          "set02": {
+            "total": 5,
+            "numeric": 0,
+            "object": 5,
+            "error": 0
+          },
+          "set03": {
+            "total": 17,
+            "numeric": 0,
+            "object": 15,
+            "error": 2
+          },
+          "set04": {
+            "total": 10,
+            "numeric": 0,
+            "object": 6,
+            "error": 4
+          }
+        },
+        "duration_s": 24.7,
+        "workers": 7,
+        "repo_head": "a85c6cb64e0b6a8992d3c7376cd62547897c1843"
+      },
+      "set01_04_before": {
+        "total": 48,
+        "numeric": 0,
+        "object": 42,
+        "error": 6
+      },
+      "set01_04_after": {
+        "total": 48,
+        "numeric": 0,
+        "object": 42,
+        "error": 6
+      },
+      "delta": {
+        "total": 0,
+        "numeric": 0,
+        "object": 0,
+        "error": 0
+      },
+      "flips": {},
+      "changed_files": []
+    }
+  }
+}

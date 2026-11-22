@@ -1,0 +1,20 @@
+Checker evidence — historical MAE/MFE gate (2026-11-16)
+Card: pyne-interpret-historical-bars-n-40170970
+HEAD: 67a7936a + uncommitted slice
+
+Held trade (5 bars): current interpret ru/dd [0,2,3,4,5] == compile; pristine interpret [0,0,0,0,0].
+Entry bar (stop entry 105, bar high 110/low 90): current interpret 5/15 == compile; pristine 0/0.
+Exit bar (stop 90, bar high 110/low 85): current interpret cru/cdd 10/15 == compile; pristine 0/0.
+Session append_bars: [0,2,3,4,5] == full run.
+Multi-leg held: per-leg [0,2,3,4] == compile.
+Multi-leg close: closed [3,3], remaining open [3,4] == compile.
+
+Same-bar open+close edge (not in acceptance criteria):
+- entry long limit 95 + short order limit 105 both fill on bar high 106/low 94:
+  compile closed long cru/cdd 11/1; interpret closed 0/0.
+  Hosts also diverge on position (compile reverses to short; interpret flat) for this
+  pre-placed strategy.order close, a pre-existing order-semantics divergence.
+- Same-bar partial variant: compile closes 2/opens short 1; interpret covers 1/keeps long 1;
+  compile closed 22/2 vs interpret closed 0/0.
+Conclusion: held/entry/exit/multi-leg parity is proven; same-bar entry+exit closed-leg
+extremes still differ and are not documented/tested.

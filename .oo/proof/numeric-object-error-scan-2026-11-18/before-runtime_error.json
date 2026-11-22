@@ -1,0 +1,50 @@
+{
+  "population": "runtime_error",
+  "pattern": "runtime\\.error",
+  "flags": 2,
+  "pattern_origin": "task-specified, case-insensitive; 2026-11-17 re-source verified identical counts case-insensitively",
+  "label": "before:885dc745",
+  "src": "/tmp/opencode/oo-base-runtime_error/src",
+  "data": "/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/data",
+  "sets": [
+    "set01",
+    "set02",
+    "set03",
+    "set04"
+  ],
+  "match": "runtime\\.error",
+  "total": 553,
+  "numeric": 0,
+  "object": 545,
+  "error": 8,
+  "timeout": 0,
+  "per_set": {
+    "set01": {
+      "total": 10,
+      "numeric": 0,
+      "object": 10,
+      "error": 0
+    },
+    "set02": {
+      "total": 83,
+      "numeric": 0,
+      "object": 83,
+      "error": 0
+    },
+    "set03": {
+      "total": 291,
+      "numeric": 0,
+      "object": 285,
+      "error": 6
+    },
+    "set04": {
+      "total": 169,
+      "numeric": 0,
+      "object": 167,
+      "error": 2
+    }
+  },
+  "duration_s": 62.4,
+  "workers": 7,
+  "repo_head": "a85c6cb64e0b6a8992d3c7376cd62547897c1843"
+}

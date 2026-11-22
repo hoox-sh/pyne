@@ -1,0 +1,20 @@
+Checker evidence — reverse-order card (2026-11-16)
+Card: pyne-reverse-order-position-sema-aa6b29e7
+HEAD: 6c0bfef6 + uncommitted slice
+
+Pine v6 docs (Strategies → Order placement → strategy.order()): resulting
+position is the net sum; strategy.order does not automatically reverse;
+strategy.entry reverses. Net-order fix matches that on +1/0/-1.
+
+REGRESSION — raw strategy.order bypasses compile risk gate:
+Source: strategy.risk.allow_entry_in(strategy.long); bar 0 places
+strategy.order("S", strategy.short, qty=1); fills bar 1.
+  interpret: ps [0,0,0], events include risk_blocked -> blocked.
+  current compile: ps [0,-1,-1], opens short 1 -> NOT blocked.
+  pristine HEAD compile: ps [0,0,0], risk_blocked -> blocked.
+Root cause: strategy.order is now is_entry=False; _apply_fill non-entry branch
+calls _open_or_add without _risk_allows_entry. Interpret gates raw-order opens
+and leftover excess; compile no longer does.
+
+Entry reverse still works: long 1 then entry short 2 -> -2 on both hosts.
+Full verify.sh: 5 passed, 0 skipped (386.2s), but no raw-order risk test.

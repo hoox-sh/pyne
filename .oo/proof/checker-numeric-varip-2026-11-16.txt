@@ -1,0 +1,19 @@
+Checker evidence — numeric varip routing (2026-11-16)
+Card: pyne-numeric-varip-parity-numeri-8745bc87
+HEAD: 36d84120 + uncommitted slice
+
+Routing:
+  top-level varip: object_mode=True, no @numba.njit, tick loop present
+  nested if varip: object_mode=True, no njit, tick loop
+  UDF varip: object_mode=True, no njit, tick loop
+  non-varip numeric: object_mode=False, @numba.njit, no tick loop
+Generated varip code: vip_arr[__bar_idx] = 0 if (__bar_idx == 0 or __isrealtime)
+  else vip_arr[__bar_idx-1] -> per-tick re-init in object mode.
+Historical varip == interpret; realtime varip vip=1, var=n (4 varip tests).
+Failing-before (isolated HEAD compiler.py 79890028...): 2 failed, 2 passed;
+  object_mode=False for the varip script.
+
+Suites: 4 varip, 17 realtime, 234 targeted, 16 runtime package.
+Full verify.sh: 5 passed, 0 skipped (288.4s).
+Note: owner verify-transcript hash 428a609f records 8aa7548c; current
+transcript was overwritten at 17:12 and hashes 531077ef.

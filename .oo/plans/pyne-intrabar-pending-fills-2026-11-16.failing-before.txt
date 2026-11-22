@@ -1,0 +1,32 @@
+# Failing-before transcript — intra-bar blockers vs previous-round tree
+# (no session update_last_bar/_confirm calls, no per-bar fill budget, unguarded ticks)
+# command: PYTHONPATH=<pre-fix src copy> .venv/bin/python -m pytest tests/test_runtime_session.py tests/test_realtime_datafeed_ticks.py -q --tb=line -k '...'
+# 6 failed: session update 0.0; survival 0.0; confirm 0.0; partial 6.0 both; tick error escapes.
+
+FFFFFF                                                                   [100%]
+=================================== FAILURES ===================================
+E   AssertionError: [0.0, 0.0, 0.0, 0.0]
+    assert 0.0 == 1.0
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_runtime_session.py:359: AssertionError: [0.0, 0.0, 0.0, 0.0]
+E   AssertionError: [0.0, 0.0, 0.0, 0.0, 0.0]
+    assert 0.0 == 1.0
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_runtime_session.py:380: AssertionError: [0.0, 0.0, 0.0, 0.0, 0.0]
+E   AssertionError: [0.0, 0.0, 0.0, 0.0]
+    assert 0.0 == 1.0
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_runtime_session.py:389: AssertionError: [0.0, 0.0, 0.0, 0.0]
+E   AssertionError: (3, [0.0, 0.0, 0.0, 0.0, 6.0])
+    assert 6.0 == 3.0
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_realtime_datafeed_ticks.py:134: AssertionError: (3, [0.0, 0.0, 0.0, 0.0, 6.0])
+E   AssertionError: [0.0, 0.0, 0.0, 0.0, 6.0]
+    assert 6.0 == 3.0
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_realtime_datafeed_ticks.py:153: AssertionError: [0.0, 0.0, 0.0, 0.0, 6.0]
+E   RuntimeError: tick fill boom
+/mnt/data/home/jango/Git/hoox-open-trading-stack/pynescript/tests/test_realtime_datafeed_ticks.py:164: RuntimeError: tick fill boom
+=========================== short test summary info ============================
+FAILED tests/test_runtime_session.py::test_session_update_last_bar_fills_pending_limit
+FAILED tests/test_runtime_session.py::test_session_update_last_bar_keeps_append_tick_fill
+FAILED tests/test_runtime_session.py::test_session_confirm_keeps_update_last_bar_fill
+FAILED tests/test_realtime_datafeed_ticks.py::test_partial_fill_budget_consumed_once_per_bar_no_feed
+FAILED tests/test_realtime_datafeed_ticks.py::test_partial_fill_budget_consumed_once_per_bar_with_feed
+FAILED tests/test_realtime_datafeed_ticks.py::test_tick_order_fill_error_returns_order_kind
+6 failed, 22 deselected in 1.86s

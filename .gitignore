@@ -173,4 +173,15 @@ src/pynescript/ast/grammar/antlr4/generated/src/
 .tmp/
 
 # OpenOrchestrate runtime state
-.oo/
+# Runtime only. Do not ignore the whole .oo/ directory: board, plans,
+# proof, tests, artifacts, handoff, and ownership stay tracked.
+.oo/state.db
+.oo/state.db-*
+.oo/state/state.db
+.oo/state/state.db-*
+.oo/state/*.json
+.oo/logs/
+.oo/memory/
+.oo/approvals/
+.oo/proof-env.txt
+.oo/companion.token

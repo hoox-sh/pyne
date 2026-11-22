@@ -1,0 +1,27 @@
+object-mode files examined: 642
+  contains color_token: 582 (90.7%)
+  contains stringy_input: 251 (39.1%)
+  contains strategy_call: 243 (37.9%)
+  contains drawing: 211 (32.9%)
+  contains array_map_matrix: 101 (15.7%)
+  contains string_ops: 68 (10.6%)
+  contains iff_dynamic: 61 (9.5%)
+  contains switch: 57 (8.9%)
+  contains security: 53 (8.3%)
+  contains table: 50 (7.8%)
+  contains library_import: 19 (3.0%)
+  contains udt_type: 18 (2.8%)
+  contains runtime_error_any: 18 (2.8%)
+  contains varip: 6 (0.9%)
+runtime.error call shape among object-mode files: {'none': 624, 'literal_single': 15, 'other': 3}
+object-mode files matching NO known family: 10
+    residual: set05/indicators/8270_ind_hardcoded_moving_averages.pine
+    residual: set05/indicators/8273_ind_stoch.pine
+    residual: set05/indicators/8297_ind_macd.pine
+    residual: set05/indicators/8444_ind_ehlers_laguerre_rsi_v1.pine
+    residual: set05/indicators/8474_ind_ehlers_laguerre_filter_v1.pine
+    residual: set05/indicators/8632_ind_example_5_2.pine
+    residual: set06/indicators/13807_ind_06_input_functions.pine
+    residual: set06/indicators/13903_ind_fisher_transform_indicator.pine
+    residual: set06/indicators/13956_ind_hull_suite_by_insilico.pine
+    residual: set06/indicators/14148_ind_script6.pine
