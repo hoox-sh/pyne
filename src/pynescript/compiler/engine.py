@@ -114,6 +114,7 @@ from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -204,11 +205,14 @@ def clear_compile_cache() -> None:
     """Drop all **in-process** cached compiled scripts (tests / hot-reload).
 
     Does **not** remove the optional on-disk module cache — use
-    :func:`clear_disk_compile_cache` for that.
+    :func:`clear_disk_compile_cache` for that. Also drops the library-key
+    digest memo (:func:`_library_cache_key_digest`) so hot-reload releases
+    retained library source strings.
     """
     _COMPILE_CACHE.clear()
     _IR_CACHE.clear()
     _OBJECT_MODE_RT_CACHE.clear()
+    _library_cache_key_digest.cache_clear()
 
 
 def clear_disk_compile_cache() -> None:
@@ -476,13 +480,28 @@ def _library_cache_key(source: str, libraries: list[dict[str, Any]]) -> str:
     Like the plain path, the returned key is computed on the sanitized source;
     :func:`compile_script` additionally probes a raw-source key before
     sanitizing so warm hits skip the sanitizer.
+
+    The digest is a pure function of those canonical inputs, so identical
+    inputs reuse a bounded memo (:func:`_library_cache_key_digest`) instead of
+    re-hashing source text and rebuilding the JSON blob on every warm hit.
+    The memo is keyed by value (coerced fields), not by object identity: fresh
+    dicts with the same content hit, and in-place mutation of a library field
+    misses. It is not a compile-result cache.
     """
-    libs: list[dict[str, Any]] = []
+    return _library_cache_key_digest(_DISK_META_VERSION, source, _library_rows(libraries))
+
+
+def _library_rows(libraries: list[dict[str, Any]]) -> tuple[tuple[str, str, Any, str], ...]:
+    """Coerce libraries to the exact fields the digest hashes, in declared order.
+
+    Non-dict entries become ``("", "", 1, repr(item))``, matching the previous
+    JSON row (``n``/``m``/``v`` plus sha256 of ``repr``). Strings are stored by
+    reference; content equality, not ``id()``, decides a memo hit.
+    """
+    rows: list[tuple[str, str, Any, str]] = []
     for item in libraries:
         if not isinstance(item, dict):
-            # The compiler cannot consume non-dict entries either; key them
-            # deterministically instead of raising inside key derivation.
-            libs.append({"n": "", "m": "", "v": 1, "s": _sha256_text(repr(item))})
+            rows.append(("", "", 1, repr(item)))
             continue
         ns = str(item.get("namespace") or "")
         name = str(item.get("name") or "")
@@ -493,9 +512,22 @@ def _library_cache_key(source: str, libraries: list[dict[str, Any]]) -> str:
         except Exception:
             version = str(version_in)
         lib_source = str(item.get("source") or "")
-        libs.append({"n": ns, "m": name, "v": version, "s": _sha256_text(lib_source)})
+        rows.append((ns, name, version, lib_source))
+    return tuple(rows)
+
+
+@lru_cache(maxsize=_COMPILE_CACHE_MAX)
+def _library_cache_key_digest(
+    version: int,
+    source: str,
+    rows: tuple[tuple[str, str, Any, str], ...],
+) -> str:
+    """sha256 digest of canonical library-compile inputs. Memoized by value."""
+    libs: list[dict[str, Any]] = [
+        {"n": ns, "m": name, "v": ver, "s": _sha256_text(lib_source)} for ns, name, ver, lib_source in rows
+    ]
     blob = json.dumps(
-        {"v": _DISK_META_VERSION, "src": _sha256_text(source), "libs": libs},
+        {"v": version, "src": _sha256_text(source), "libs": libs},
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=True,
@@ -1884,8 +1916,9 @@ def compile_script(
     interpret) so docs chrome / Expand stubs do not fail compile-only paths.
     Calls with ``libraries=`` share the same in-memory caches under a
     library-aware key (script + ordered library identities; see
-    :func:`_library_cache_key`); the disk source index is not consulted on
-    that path.
+    :func:`_library_cache_key`). Identical inputs reuse the key digest, so a
+    warm hit does not re-hash library sources. The disk source index is not
+    consulted on that path.
     """
     raw_source = source
     raw_key = _sha256_text(raw_source)
