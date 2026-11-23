@@ -247,6 +247,9 @@ class BaseEvaluator(NodeVisitor):
         # Bar-loop call-site caches (pre-allocated so visit_Call avoids None checks).
         # Keyed by id(Call AST node); AST is stable for the script lifetime.
         self._call_site_cache: dict[int, tuple] = {}
+        # Nodes stamped with ``_pine_call_site`` this run. The parse cache
+        # scrubs only these instead of walking the whole tree on every hit.
+        self._pine_stamped_nodes: dict[int, Any] = {}
         # Stamped on bound ``_pine_call_site`` tuples (see expressions.visit_Call).
         self._eval_generation: int = next(_EVAL_GENERATION)
         # name → (tag, handler) for _call_builtin after first resolve

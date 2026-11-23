@@ -830,6 +830,13 @@ class StatementEvaluator:
         Args:
             node: Root ``Script`` with ``body`` statement list
         """
+        # Let the parse cache scrub only the Call nodes stamped this run
+        # instead of walking the entire tree on every cache hit. ``_pine_site_id``
+        # is an AST slot that is unused on a Script root (only Call nodes use it).
+        try:
+            object.__setattr__(node, "_pine_site_id", self._pine_stamped_nodes)
+        except (AttributeError, TypeError):
+            pass
         # Once per script: collect names used with history subscript so assigns
         # can track PineSeries across bars (``ma[barsback]``, ``x[1]``, …).
         if not self._history_names_scanned:

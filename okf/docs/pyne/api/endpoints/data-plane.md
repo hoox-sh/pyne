@@ -7,7 +7,7 @@ tags: [api, doc, docs, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-14T19:45:25Z
+  at: 2026-11-23T12:58:39Z
 sources:
   - id: tree
     resource: "docs/pyne/api/endpoints/data-plane.mdx"
@@ -32,6 +32,7 @@ Repo path `docs/pyne/api/endpoints/data-plane.mdx`.
   - POST /data/series/fetch
   - POST /data/session
   - POST /data/session/<sessionid/tick
+- Datafeed gateway
 - Storage
 - Failure modes
 - Internals (map)

@@ -91,7 +91,8 @@ Responses echo the normalized key text, e.g. `binance|spot|BTC/USDT|1h`.
 
 <Note>
     All `/data/*` routes require an **API key** (`Authorization: Bearer …`,
-    `X-API-Key`, or `?api_key=`). They move and persist user market data, so
+    `X-API-Key`). The legacy `?api_key=` fallback is opt-in only
+    (`ALLOW_API_KEY_QUERY=1`). They move and persist user market data, so
     they are not on the free path. Unauthenticated calls return `401
     UNAUTHORIZED`.
 </Note>
@@ -189,6 +190,10 @@ The response adds `appended`, `forming`, and `unchanged`:
 ```
 
 `409 SESSION_KEY_MISMATCH` guards a session bound to another series. Upstream failure is `502 UPSTREAM` and **keeps** the session.
+
+## Datafeed gateway
+
+`POST /datafeed/session` and `DELETE /datafeed/session` require an API key and bind credentials to that key's owner. Anonymous callers can still use `GET /datafeed/ohlcv` and `GET /datafeed/markets` with operator environment credentials, but they cannot read or mutate another caller's bound sessions. `GET /datafeed/health` reports only exchange names, never key material.
 
 ## Storage
 

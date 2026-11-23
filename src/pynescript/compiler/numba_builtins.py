@@ -63,10 +63,17 @@ Matrices are list-of-lists handles. ``na_num`` / ``safe_float`` map Pine
 
 from __future__ import annotations
 
+import os
 import re
 
 import numba
 import numpy as np
+
+
+# Sanity cap for ``array.set`` growth. Pine arrays are lists; a script that
+# sets index 999_999 in a loop can pin tens of MB per array before the runtime
+# timeout fires. Operators can raise this for legitimate large-array scripts.
+_ARRAY_MAX_GROW = int(os.environ.get("PYNE_ARRAY_MAX_GROW", "100000") or 100000)
 
 
 @numba.njit(cache=True)
@@ -2778,7 +2785,7 @@ def safe_list_set(arr, index, value):
     if idx < 0:
         return arr
     if idx >= len(arr):
-        if idx >= 1_000_000:
+        if idx >= _ARRAY_MAX_GROW:
             return arr
         arr.extend([None] * (idx + 1 - len(arr)))
     if idx < len(arr):

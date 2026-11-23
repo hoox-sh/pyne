@@ -212,7 +212,7 @@ def pop_udf_call_site(ev: Any, prev: Any) -> None:
     ev._pine_udf_site = prev
 
 
-def _store_call_site(node: Any, site: tuple) -> None:
+def _store_call_site(ev: Any, node: Any, site: tuple) -> None:
     """Attach resolved call-site tuple to *node* (safe across GC id reuse).
 
     Bound sites (``_SITE_QB`` / ``_SITE_BB``) must include the evaluator
@@ -221,6 +221,11 @@ def _store_call_site(node: Any, site: tuple) -> None:
     """
     try:
         object.__setattr__(node, "_pine_call_site", site)
+        stamped = getattr(ev, "_pine_stamped_nodes", None)
+        if stamped is None:
+            stamped = {}
+            ev._pine_stamped_nodes = stamped
+        stamped[id(node)] = node
     except (AttributeError, TypeError):
         pass
 
@@ -977,7 +982,7 @@ class ExpressionEvaluator:
                                     and _arg_plan_all_literal(plan)
                                     and (kwargs is _EMPTY_KW or not kwargs)
                                 ):
-                                    _store_call_site(node, (_SITE_CONST, result))
+                                    _store_call_site(self, node, (_SITE_CONST, result))
                                 return result
                             prev_site = push_udf_call_site(self, node)
                             try:
@@ -1017,7 +1022,7 @@ class ExpressionEvaluator:
                         and _arg_plan_all_literal(plan)
                         and (kwargs is _EMPTY_KW or not kwargs)
                     ):
-                        _store_call_site(node, (_SITE_CONST, result))
+                        _store_call_site(self, node, (_SITE_CONST, result))
                     return result
                 site = None
             elif kind == _SITE_CONST:
@@ -1025,7 +1030,7 @@ class ExpressionEvaluator:
 
         if site is None:
             site = self._resolve_call_site(node)
-            _store_call_site(node, site)
+            _store_call_site(self, node, site)
             kind = site[0]
 
         # Fast path: ta.*/strategy.*/math.* — resolve name once, then bind.
@@ -1041,11 +1046,12 @@ class ExpressionEvaluator:
                 and _arg_plan_all_literal(plan)
                 and (kwargs is _EMPTY_KW or not kwargs)
             ):
-                _store_call_site(node, (_SITE_CONST, result))
+                _store_call_site(self, node, (_SITE_CONST, result))
                 return result
             bound = self._lookup_bound_builtin(name)
             if bound is not None:
                 _store_call_site(
+                    self,
                     node,
                     (
                         _SITE_QB,
@@ -1099,11 +1105,12 @@ class ExpressionEvaluator:
                 and _arg_plan_all_literal(plan)
                 and (kwargs is _EMPTY_KW or not kwargs)
             ):
-                _store_call_site(node, (_SITE_CONST, result))
+                _store_call_site(self, node, (_SITE_CONST, result))
                 return result
             bound = self._lookup_bound_builtin(name)
             if bound is not None:
                 _store_call_site(
+                    self,
                     node,
                     (
                         _SITE_BB,

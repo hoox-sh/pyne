@@ -106,8 +106,10 @@ import json
 import logging
 import os
 import pickle
+import re
 import sys
 import tempfile
+import threading
 import time
 
 from collections import OrderedDict
@@ -174,6 +176,10 @@ _COMPILE_CACHE_MAX = 128
 # Secondary: generated-code sha256 → CompiledScript (share JIT across sources)
 _IR_CACHE: OrderedDict[str, Any] = OrderedDict()
 _IR_CACHE_MAX = 64
+# Library-key digest memo: bounded separately from the compile cache because
+# each key retains the full script + library source strings (a 5 MB request
+# body would otherwise pin ~640 MB at the compile-cache size).
+_LIBRARY_KEY_CACHE_MAX = 32
 # Tertiary: transient realtime object-mode re-emit (source sha256 → CompiledScript).
 # ``CompiledScript._object_mode_for_realtime`` re-emits a numeric script as object
 # mode for an active realtime window. The emit is pure and identical across ticks,
@@ -181,6 +187,9 @@ _IR_CACHE_MAX = 64
 # (reuses ``_IR_CACHE_MAX``) and separate from ``_COMPILE_CACHE`` so the numeric
 # entry stays numeric for historical runs.
 _OBJECT_MODE_RT_CACHE: OrderedDict[str, Any] = OrderedDict()
+# gthread workers compile concurrently; the LRU move/pop/set sequences are not
+# atomic across bytecodes. One lock covers all three process-local caches.
+_CACHE_LOCK = threading.RLock()
 _BUILTINS_WARMED = False
 
 # Disk index schema version (bump when metadata layout changes)
@@ -209,9 +218,10 @@ def clear_compile_cache() -> None:
     digest memo (:func:`_library_cache_key_digest`) so hot-reload releases
     retained library source strings.
     """
-    _COMPILE_CACHE.clear()
-    _IR_CACHE.clear()
-    _OBJECT_MODE_RT_CACHE.clear()
+    with _CACHE_LOCK:
+        _COMPILE_CACHE.clear()
+        _IR_CACHE.clear()
+        _OBJECT_MODE_RT_CACHE.clear()
     _library_cache_key_digest.cache_clear()
 
 
@@ -357,11 +367,16 @@ def _env_truthy(name: str, default: str = "1") -> bool:
 def compile_cache_stats() -> dict[str, Any]:
     """Return in-process cache sizes and prewarm / disk flags (diagnostics)."""
     disk_on = _disk_cache_enabled()
+    lib_info = _library_cache_key_digest.cache_info()
     return {
         "source_entries": len(_COMPILE_CACHE),
         "source_max": _COMPILE_CACHE_MAX,
         "ir_entries": len(_IR_CACHE),
         "ir_max": _IR_CACHE_MAX,
+        "library_key_entries": lib_info.currsize,
+        "library_key_max": _LIBRARY_KEY_CACHE_MAX,
+        "library_key_hits": lib_info.hits,
+        "library_key_misses": lib_info.misses,
         "builtins_warmed": _BUILTINS_WARMED,
         "disk_cache_enabled": disk_on,
         "disk_cache_dir": str(_disk_cache_dir()) if disk_on else None,
@@ -491,17 +506,32 @@ def _library_cache_key(source: str, libraries: list[dict[str, Any]]) -> str:
     return _library_cache_key_digest(_DISK_META_VERSION, source, _library_rows(libraries))
 
 
+def _non_dict_library_token(item: Any) -> str:
+    """Stable, bounded token for a non-dict library entry.
+
+    The compiler ignores non-dict entries, but the key derivation must still be
+    deterministic. A raw ``repr`` can embed a memory address and can be huge;
+    strip addresses and hash a bounded prefix instead.
+    """
+    try:
+        text = repr(item)
+    except Exception:
+        text = type(item).__name__
+    text = re.sub(r" at 0x[0-9a-fA-F]+", "", text)
+    return _sha256_text(text[:4096])
+
+
 def _library_rows(libraries: list[dict[str, Any]]) -> tuple[tuple[str, str, Any, str], ...]:
     """Coerce libraries to the exact fields the digest hashes, in declared order.
 
-    Non-dict entries become ``("", "", 1, repr(item))``, matching the previous
-    JSON row (``n``/``m``/``v`` plus sha256 of ``repr``). Strings are stored by
-    reference; content equality, not ``id()``, decides a memo hit.
+    Non-dict entries become ``("", "", 1, _non_dict_library_token(item))``.
+    Strings are stored by reference; content equality, not ``id()``, decides a
+    memo hit.
     """
     rows: list[tuple[str, str, Any, str]] = []
     for item in libraries:
         if not isinstance(item, dict):
-            rows.append(("", "", 1, repr(item)))
+            rows.append(("", "", 1, _non_dict_library_token(item)))
             continue
         ns = str(item.get("namespace") or "")
         name = str(item.get("name") or "")
@@ -516,7 +546,7 @@ def _library_rows(libraries: list[dict[str, Any]]) -> tuple[tuple[str, str, Any,
     return tuple(rows)
 
 
-@lru_cache(maxsize=_COMPILE_CACHE_MAX)
+@lru_cache(maxsize=_LIBRARY_KEY_CACHE_MAX)
 def _library_cache_key_digest(
     version: int,
     source: str,
@@ -788,6 +818,8 @@ class CompiledScript:
     plot_attrs: list[dict[str, Any]] = field(default_factory=list)
     object_mode: bool = False
     nopython_fallback_reason: str | None = None
+    # Realtime ticks reuse the same source; hash the cache key once per script.
+    _object_mode_rt_key_cache: str | None = field(default=None, init=False, repr=False, compare=False)
 
     def run(
         self,
@@ -908,10 +940,12 @@ class CompiledScript:
         re-initialized inside ``execute_script_compiled`` on every call, so
         reusing the cached instance does not leak state between runs.
         """
-        key = _object_mode_rt_key(self.source)
-        cached = _OBJECT_MODE_RT_CACHE.get(key)
+        key = self._object_mode_rt_key_cache
+        if key is None:
+            key = _object_mode_rt_key(self.source)
+            self._object_mode_rt_key_cache = key
+        cached = _cache_get(_OBJECT_MODE_RT_CACHE, key)
         if cached is not None:
-            _OBJECT_MODE_RT_CACHE.move_to_end(key)
             _dbg("object_mode_for_realtime: cache hit key=%s", key[:12])
             return cached
         code, titles, kinds, _, attrs = _transpile_once(self.source, force_object_mode=True)
@@ -1658,13 +1692,24 @@ def _compile_once(
 
 
 def _cache_put(cache: OrderedDict[str, Any], key: str, value: Any, maxsize: int) -> None:
-    if len(cache) >= maxsize and key not in cache:
+    with _CACHE_LOCK:
+        if len(cache) >= maxsize and key not in cache:
+            try:
+                cache.popitem(last=False)
+            except KeyError:
+                pass
+        cache[key] = value
+        cache.move_to_end(key)
+
+
+def _cache_get(cache: OrderedDict[str, Any], key: str) -> Any | None:
+    """Thread-safe LRU get. Returns ``None`` when another thread evicted *key*."""
+    with _CACHE_LOCK:
         try:
-            cache.popitem(last=False)
+            cache.move_to_end(key)
         except KeyError:
-            pass
-    cache[key] = value
-    cache.move_to_end(key)
+            return None
+        return cache[key]
 
 
 def _share_compiled(
@@ -1703,6 +1748,26 @@ def _share_compiled(
     )
 
 
+def _looks_clean_for_compile(source: str) -> bool:
+    """Cheap guard for API/editor scripts that need no corpus sanitization.
+
+    ``sanitize_corpus_source`` is deliberately thorough (line filters, prose
+    scoring, truncation repair) and costs ~1 s for a 350 KB script. Clean
+    scripts start with one version annotation and contain no markdown/HTML
+    scrape chrome, so they can skip that pass entirely.
+    """
+    head = source[:4096]
+    if "//@version" not in head:
+        return False
+    if source.count("//@version") != 1:
+        return False
+    if "```" in source or "Expand (" in source or "\n> " in source:
+        return False
+    if "<div" in source or "</" in source or "&nbsp;" in source:
+        return False
+    return bool(re.search(r"^(?:indicator|strategy|library)\s*\(", head, re.M))
+
+
 def _sanitize_source(source: str) -> str:
     """Best-effort corpus sanitize; keep raw source if sanitize fails.
 
@@ -1712,6 +1777,8 @@ def _sanitize_source(source: str) -> str:
     ``mode=compile``. Corpus tooling that wants the stub calls
     :func:`sanitize_corpus_source` directly.
     """
+    if _looks_clean_for_compile(source):
+        return source
     try:
         from pynescript.util.corpus_sanitize import _MINIMAL_STUB
         from pynescript.util.corpus_sanitize import sanitize_corpus_source
@@ -1729,10 +1796,7 @@ def _sanitize_source(source: str) -> str:
 
 
 def _memory_cache_get(key: str) -> CompiledScript | None:
-    if key not in _COMPILE_CACHE:
-        return None
-    _COMPILE_CACHE.move_to_end(key)
-    return _COMPILE_CACHE[key]
+    return _cache_get(_COMPILE_CACHE, key)
 
 
 def _memory_cache_store(keys: list[str], compiled: CompiledScript) -> None:
@@ -1829,17 +1893,17 @@ def _compile_via_disk_index(
     disk_meta = _read_disk_src_meta(san_key)
     if disk_meta is not None:
         ir_key_meta = str(disk_meta.get("ir_key") or "")
-        if ir_key_meta and ir_key_meta in _IR_CACHE:
+        cached_meta = _cache_get(_IR_CACHE, ir_key_meta) if ir_key_meta else None
+        if cached_meta is not None:
             shared = _share_compiled(
                 source,
-                _IR_CACHE[ir_key_meta],
+                cached_meta,
                 titles=[str(t) for t in (disk_meta.get("titles") or [])],
                 kinds=[str(k) for k in (disk_meta.get("kinds") or [])],
                 attrs=[dict(a or {}) for a in (disk_meta.get("attrs") or [])],
             )
             if shared is not None:
                 _memory_cache_store(cache_keys, shared)
-                _IR_CACHE.move_to_end(ir_key_meta)
                 # Ensure this source hash has a disk index entry too.
                 _disk_write_artifacts(
                     source_key=san_key,
@@ -1859,10 +1923,11 @@ def _compile_via_disk_index(
             # Another source may have already warmed this IR while we loaded
             # from disk (race-free in single-thread; still cheap to re-check).
             shared_d = None
-            if ir_key_d in _IR_CACHE:
+            cached_d = _cache_get(_IR_CACHE, ir_key_d)
+            if cached_d is not None:
                 shared_d = _share_compiled(
                     source,
-                    _IR_CACHE[ir_key_d],
+                    cached_d,
                     titles=disk_hit.plot_titles,
                     kinds=disk_hit.plot_kinds,
                     attrs=disk_hit.plot_attrs,
@@ -1921,7 +1986,6 @@ def compile_script(
     consulted on that path.
     """
     raw_source = source
-    raw_key = _sha256_text(raw_source)
     _t_compile0 = time.perf_counter()
     if force_object_mode:
         # Do not poison the numeric cache with a forced object-mode emit.
@@ -1935,7 +1999,7 @@ def compile_script(
         # stay unwired for this path (``ir_key=None`` below, no
         # ``_disk_write_artifacts``); that is a deliberate follow-up.
         lib_use_cache = use_cache and not force_object_mode
-        raw_lib_key = _library_cache_key(raw_source, libraries)
+        raw_lib_key = _library_cache_key(raw_source, libraries) if lib_use_cache else ""
         if lib_use_cache:
             hit = _memory_cache_get(raw_lib_key)
             if hit is not None:
@@ -1949,8 +2013,12 @@ def compile_script(
                 _stats.latency("compile_script.total", time.perf_counter() - _t_compile0)
                 return hit
         lib_source = _sanitize_source(raw_source)
-        lib_san_key = raw_lib_key if lib_source == raw_source else _library_cache_key(lib_source, libraries)
-        lib_cache_keys = [raw_lib_key] if lib_san_key == raw_lib_key else [raw_lib_key, lib_san_key]
+        if lib_use_cache:
+            lib_san_key = raw_lib_key if lib_source == raw_source else _library_cache_key(lib_source, libraries)
+            lib_cache_keys = [raw_lib_key] if lib_san_key == raw_lib_key else [raw_lib_key, lib_san_key]
+        else:
+            lib_san_key = ""
+            lib_cache_keys = []
         if lib_use_cache and lib_san_key != raw_lib_key:
             hit = _memory_cache_get(lib_san_key)
             if hit is not None:
@@ -1972,13 +2040,13 @@ def compile_script(
             libraries=libraries,
         )
         ir_key = _sha256_text(code)
-        if lib_use_cache and ir_key in _IR_CACHE:
+        cached_ir = _cache_get(_IR_CACHE, ir_key) if lib_use_cache else None
+        if cached_ir is not None:
             # Same IR sharing rules as the plain path: reuse the warm entry
             # only when wire metadata matches this compile's own meta.
-            shared = _share_compiled(source, _IR_CACHE[ir_key], titles=titles, kinds=kinds, attrs=attrs)
+            shared = _share_compiled(source, cached_ir, titles=titles, kinds=kinds, attrs=attrs)
             if shared is not None:
                 _memory_cache_store(lib_cache_keys, shared)
-                _IR_CACHE.move_to_end(ir_key)
                 _dbg(
                     "compile_script: IR SHARE HIT (library) ir_key=%s in %.1fms",
                     ir_key[:12],
@@ -2006,6 +2074,9 @@ def compile_script(
         _stats.latency("compile_script.total", time.perf_counter() - _t_compile0)
         return compiled
 
+    # The library path uses its own key and returns above; avoid hashing the
+    # whole source twice on that path (warm library hits included).
+    raw_key = _sha256_text(raw_source)
     if use_cache:
         hit = _memory_cache_get(raw_key)
         if hit is not None:
@@ -2020,9 +2091,11 @@ def compile_script(
             return hit
 
     source = _sanitize_source(raw_source)
-    san_key = _sha256_text(source)
-    cache_keys = [raw_key] if raw_key == san_key else [raw_key, san_key]
-    sanitized = san_key != raw_key
+    # Sanitization is usually a no-op; reuse the raw digest instead of hashing
+    # the same (possibly multi-MB) source a second time.
+    sanitized = source != raw_source
+    san_key = _sha256_text(source) if sanitized else raw_key
+    cache_keys = [raw_key] if not sanitized else [raw_key, san_key]
     if sanitized:
         _dbg("compile_script: source sanitized raw_key=%s san_key=%s", raw_key[:12], san_key[:12])
 
@@ -2067,11 +2140,11 @@ def compile_script(
     # when its wire metadata matches this source's freshly derived meta:
     # metadata-only divergence (same numeric IR, different titles/attrs) must
     # fall through to a fresh transpile instead of leaking the donor's meta.
-    if use_cache and ir_key in _IR_CACHE:
-        shared = _share_compiled(source, _IR_CACHE[ir_key], titles=titles, kinds=kinds, attrs=attrs)
+    cached_ir = _cache_get(_IR_CACHE, ir_key) if use_cache else None
+    if cached_ir is not None:
+        shared = _share_compiled(source, cached_ir, titles=titles, kinds=kinds, attrs=attrs)
         if shared is not None:
             _memory_cache_store(cache_keys, shared)
-            _IR_CACHE.move_to_end(ir_key)
             _disk_write_artifacts(
                 source_key=san_key,
                 ir_key=ir_key,

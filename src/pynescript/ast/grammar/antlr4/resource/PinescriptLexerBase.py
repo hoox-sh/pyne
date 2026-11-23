@@ -246,8 +246,16 @@ class PinescriptLexerBase(Lexer):
         self._pendingTokens.append(token)
 
     def _is_line_continuation_token(self, token_type: int) -> bool:
-        # Operator, call, subscript, or attribute — not a new statement.
-        return token_type in self._operators or token_type in {self.DOT, self.LPAR, self.LSQB}
+        # Operator, call, subscript, attribute, or a for-header keyword — not a
+        # new statement. ``to`` / ``by`` / ``in`` can end a wrapped for header.
+        return token_type in self._operators or token_type in {
+            self.DOT,
+            self.LPAR,
+            self.LSQB,
+            self.TO,
+            self.BY,
+            self.IN,
+        }
 
     def _hideAndAddPendingToken(self, token: CommonToken):
         token.channel = Token.HIDDEN_CHANNEL
@@ -267,6 +275,7 @@ class PinescriptLexerBase(Lexer):
             self._numOpens > 0
             or self._numSqBrackets > 0
             or self._lastPendingTokenTypeFromDefaultChannel in self._operators
+            or self._lastPendingTokenTypeFromDefaultChannel in {self.TO, self.BY, self.IN}
         ):
             self._hideAndAddPendingToken(self._currentToken)
             return

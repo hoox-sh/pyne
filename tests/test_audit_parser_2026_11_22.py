@@ -145,8 +145,6 @@ def test_switch_rejects_non_multiple_of_4_and_accepts_four() -> None:
         "1j",
         "1.0j",
         "1J",
-        "01",
-        "007",
     ],
 )
 def test_python_only_numbers_are_syntax_errors(literal: str) -> None:
@@ -173,9 +171,21 @@ def test_decimal_integers_and_floats_stay(literal: str, value: float) -> None:
     assert _const(literal) == value
 
 
-@pytest.mark.parametrize(("literal", "value"), [("0", 0), ("00", 0), ("000", 0), ("08", 8), ("008", 8)])
-def test_zero_padded_decimals_that_are_not_octal(literal: str, value: int) -> None:
-    """``00`` is integer 0. ``08`` is integer 8. ``01`` stays a syntax error."""
+@pytest.mark.parametrize(
+    ("literal", "value"),
+    [
+        ("0", 0),
+        ("00", 0),
+        ("000", 0),
+        ("01", 1),
+        ("007", 7),
+        ("02", 2),
+        ("08", 8),
+        ("008", 8),
+    ],
+)
+def test_zero_padded_decimals_are_decimal(literal: str, value: int) -> None:
+    """Pine accepts zero-padded decimals (e.g. ``timestamp(..., 02, 23)``)."""
     parsed = _const(literal)
     assert type(parsed) is int
     assert parsed == value

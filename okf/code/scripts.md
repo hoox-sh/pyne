@@ -1,13 +1,13 @@
 ---
 type: "Code Module"
 title: "scripts"
-description: "scripts contains bench_pipeline.py, changelog_release_notes.py, compare_interp_compile.py, and 7 more files."
+description: "scripts contains audit_pine_corpus.py, bench_pipeline.py, changelog_release_notes.py, and 8 more files."
 resource: "scripts"
 tags: [code, scripts]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-17T16:58:26Z
+  at: 2026-11-23T14:08:24Z
 sources:
   - id: tree
     resource: "scripts"
@@ -18,6 +18,7 @@ okf_lock: generated
 
 # Files
 
+- `audit_pine_corpus.py` — audit, main
 - `bench_pipeline.py` — bench_compile_execute, bench_interpret, bench_parse_unparse, fmt_table, main, pipeline_cost_breakdown, profile_interpret
 - `changelog_release_notes.py` — build_release_notes, extract_changelog_section, main, normalize_version
 - `compare_interp_compile.py` — compare_series_maps, default_workers, format_mismatch_detail, format_summary, is_constant_hline, is_expected_error_message, is_fill_background_key, is_fill_colour_series, main, make_bars, normalize_error, run_one_script

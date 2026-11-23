@@ -156,7 +156,14 @@ services:
       GUNICORN_MAX_REQUESTS: "0"
       GUNICORN_MAX_REQUESTS_JITTER: ${GUNICORN_MAX_REQUESTS_JITTER:-200}
       PYTHONPATH: /app/src:/app
-    volumes: !override []
+      # /datafeed/session requires an API key; share the API key store with
+      # the api service so the same keys validate in this process.
+      STORE_BACKEND: ${STORE_BACKEND:-sqlite}
+      API_KEY_STORE: /data/api_keys.json
+      API_KEY_STORE_SQLITE: /data/api_keys.db
+      REDIS_URL: ${REDIS_URL:-}
+    volumes: !override
+      - api_data:/data
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/datafeed/health"]
       interval: 30s

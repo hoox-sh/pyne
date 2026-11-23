@@ -47,7 +47,7 @@ def create_app() -> Flask:
             resp.headers["Vary"] = "Origin"
             resp.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS, HEAD"
             resp.headers["Access-Control-Allow-Headers"] = (
-                "Content-Type, Authorization, X-Admin-Token, X-Api-Key, X-AXIS-Client, Accept"
+                "Content-Type, Authorization, X-Admin-Token, X-Api-Key, X-AXIS-Client, X-AXIS-Token, Accept"
             )
             resp.headers["Access-Control-Max-Age"] = "86400"
         return resp

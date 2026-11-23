@@ -125,14 +125,16 @@ class TechnicalHelpers:
     def _ta_slot_token(self) -> Any:
         """Return ``(site_id, invocation)`` or the legacy order index."""
         sid = getattr(self, "_pine_current_call_site", None)
-        try:
-            i = self._ta_call_i
-        except AttributeError:
-            i = 0
-        if type(i) is not int:
-            i = int(i or 0)
-        self._ta_call_i = i + 1  # type: ignore[attr-defined]
         if sid is None:
+            # Legacy direct-helper path: one order counter per bar. AST call
+            # sites use (site_id, invocation) and do not need this counter.
+            try:
+                i = self._ta_call_i
+            except AttributeError:
+                i = 0
+            if type(i) is not int:
+                i = int(i or 0)
+            self._ta_call_i = i + 1  # type: ignore[attr-defined]
             return i
         ctx = getattr(self, "context", None)
         bar = ctx.get("bar_index") if isinstance(ctx, dict) else None

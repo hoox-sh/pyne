@@ -99,24 +99,15 @@ _GT = ast.Gt()
 _GT_E = ast.GtE()
 
 
-def _allowed_leading_zero(text: str) -> bool:
-    """``00`` is 0. ``08`` is decimal 8. ``01`` and ``007`` stay rejected.
-
-    A digit 8 or 9 cannot be an octal spelling, so a zero-padded hour such as
-    ``timestamp(..., 08, 00)`` is that integer. ``0x`` / ``0b`` / ``0o`` are
-    handled separately and are not all digits.
-    """
-    return bool(text) and text.isdigit() and (set(text) == {"0"} or any(ch in "89" for ch in text))
-
-
 def _reject_python_only_number(text: str) -> None:
-    """Pine numbers are decimal integers and plain floats, not Python literals."""
-    if (
-        "_" in text
-        or text.endswith(("j", "J"))
-        or (len(text) > 2 and text[0] == "0" and text[1] in "xXoObB")
-        or (len(text) > 1 and text[0] == "0" and text.isdigit() and not _allowed_leading_zero(text))
-    ):
+    """Pine numbers are decimal integers and plain floats, not Python literals.
+
+    Zero-padded decimal integers are valid Pine (``timestamp(2017, 02, 23, …)``
+    and ``timestamp(..., 01, 01)``), so they stay decimal rather than being
+    treated as Python octal. Python-only bases (``0x`` / ``0b`` / ``0o``),
+    digit separators, and imaginary suffixes are still rejected.
+    """
+    if "_" in text or text.endswith(("j", "J")) or (len(text) > 2 and text[0] == "0" and text[1] in "xXoObB"):
         raise PinescriptSyntaxError(f"invalid numeric literal: {text}")
 
 

@@ -56,6 +56,8 @@ A **session** keeps the parsed tree, its series, and its TA state alive between 
 
 Session init costs roughly 443 ms (parse + first walk), so a session breaks even after its **first** tick.
 
+When `FREE_TIER_LIMITS=1`, session create/tick/append share the per-IP rate limit, create also takes a concurrency slot, and create enforces the free bar/script caps (including library sources). Sessions remain capacity-bounded (`SESSION_MAX_SESSIONS`, default 64) with a 15-minute idle TTL.
+
 <Note>
     Sessions are **interpret only**. The compile path has no resumable evaluator
     state — the generated bar loop is a single `njit` function over the whole

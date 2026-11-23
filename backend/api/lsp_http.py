@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import logging
 
+from functools import wraps
 from typing import Any
 
 from flask import Blueprint
@@ -40,6 +41,39 @@ from pynescript.util.pine_convert import detect_version
 logger = logging.getLogger(__name__)
 
 bp = Blueprint("lsp_http", __name__)
+
+# Same 256 KiB free-script cap as the run path. The global 5 MB body limit is
+# still too large for repeated parse/lint calls from an untrusted browser.
+_MAX_SOURCE_CHARS = 256 * 1024
+
+
+def _lsp_guard(f: Any) -> Any:
+    """Rate-limit and size-cap every free LSP bridge request."""
+
+    @wraps(f)
+    def decorated(*args: Any, **kwargs: Any) -> Any:
+        from backend.middleware.free_limits import check_lsp_rate_limit
+
+        rate_err = check_lsp_rate_limit()
+        if rate_err is not None:
+            body, code = rate_err
+            return jsonify(body), code
+        data = request.get_json(silent=True) or {}
+        source = data.get("source") if data.get("source") is not None else data.get("text")
+        if isinstance(source, str) and len(source) > _MAX_SOURCE_CHARS:
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "code": "SOURCE_TOO_LARGE",
+                        "message": f"source exceeds {_MAX_SOURCE_CHARS} characters",
+                    }
+                ),
+                413,
+            )
+        return f(*args, **kwargs)
+
+    return decorated
 
 
 def _doc_value(doc: Any) -> str:
@@ -71,6 +105,7 @@ def _serialize_completion_item(item: Any) -> dict[str, Any] | None:
 
 
 @bp.post("/lsp/completion")
+@_lsp_guard
 def lsp_completion():
     """POST { source, line, character } → { items: [...] } (0-based position)."""
     data = request.get_json(silent=True) or {}
@@ -125,6 +160,7 @@ def lsp_completion():
 
 
 @bp.post("/lsp/hover")
+@_lsp_guard
 def lsp_hover():
     """POST { source, line, character } → { contents, range? } or null hover."""
     data = request.get_json(silent=True) or {}
@@ -203,6 +239,7 @@ def _line_end_col(source: str, line_1based: int, start_col: int) -> int:
 
 @bp.post("/lsp/diagnostics")
 @bp.post("/lsp/preevaluate")
+@_lsp_guard
 def lsp_diagnostics():
     """POST { source } → parse + lint diagnostics for AXIS pre-eval.
 
@@ -295,6 +332,7 @@ def lsp_diagnostics():
 
 
 @bp.post("/lsp/convert")
+@_lsp_guard
 def lsp_convert():
     """POST { source } → rewrite older Pine toward v6.
 

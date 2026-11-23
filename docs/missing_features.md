@@ -67,7 +67,7 @@ The compile path (`mode="compile"`) lowers the AST to Python/numpy source, optio
 
 The full v5/v6 language surface is implemented: variables and types, control flow (`if`/`for`/`while`/`switch`/`once`), functions and methods with type annotations, user-defined types (UDTs) with `.new`, libraries with `export`/`import`, enums, string interpolation, tuple unpacking, and method chaining. Series history access (`close[n]`) follows Pine semantics — out-of-bounds and negative indices return `na`.
 
-Line wrapping is supported at any indentation level inside parentheses and square brackets. The `table.new` constructor uses Pine's columns-then-rows argument order.
+Line wrapping is supported at any indentation level inside parentheses and square brackets, after `to` / `by` / `in` in `for` headers, and for leading `?` / `:` ternary continuations whose indent is not a multiple of four (TradingView's INV073/INV074 rule). Triple-quoted strings accept an escaped delimiter (`"""a \""" b"""`). The `table.new` constructor uses Pine's columns-then-rows argument order.
 
 ### Builtins and Technical Analysis
 

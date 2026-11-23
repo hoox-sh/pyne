@@ -41,11 +41,17 @@ Requests from the AXIS PWA / IDE carry ``Origin: https://axis.hoox.sh`` or
 authentication**: any caller can forge them. They only lift the bar/script/
 data-source caps and the concurrency slot. The per-IP sliding-window rate
 limit is deliberately *not* bypassed and remains the only brake on trusted
-traffic, so the total request budget is unchanged.
+traffic, so the total request budget is unchanged. Set ``AXIS_TRUST_TOKEN`` to
+require the shared-secret ``X-AXIS-Token`` header as well.
+
+Client IPs come from ``X-Real-IP`` (set by the bundled nginx) or the
+rightmost ``X-Forwarded-For`` hop. Never use the leftmost hop: nginx appends
+the peer to a client-supplied header, so the first entry is forgeable.
 """
 
 from __future__ import annotations
 
+import hmac
 import os
 import threading
 import time
@@ -91,15 +97,32 @@ _AXIS_TRUSTED_ORIGIN = "https://axis.hoox.sh"
 _AXIS_TRUSTED_CLIENTS = frozenset({"pwa", "ide"})
 
 
+def _trust_token_ok() -> bool:
+    """Optional shared-secret gate for the advisory AXIS trust signal.
+
+    When ``AXIS_TRUST_TOKEN`` is set, the caller must also send a matching
+    ``X-AXIS-Token``. When unset, the legacy advisory behaviour is preserved
+    for local/self-hosted AXIS setups. Public hosts should set the token.
+    """
+    expected = (os.environ.get("AXIS_TRUST_TOKEN") or "").strip()
+    if not expected:
+        return True
+    provided = (request.headers.get("X-AXIS-Token") or "").strip()
+    return bool(provided) and hmac.compare_digest(provided, expected)
+
+
 def is_trusted_client() -> bool:
     """True when the request looks like the AXIS PWA or IDE.
 
     Accepts an exact ``Origin: https://axis.hoox.sh`` or a trimmed,
     case-insensitive ``X-AXIS-Client: pwa|ide``. These headers are client
     controlled and **advisory only**; callers must not treat this as
-    authentication.
+    authentication. Set ``AXIS_TRUST_TOKEN`` to require the shared-secret
+    ``X-AXIS-Token`` header as well.
     """
     if not has_request_context():
+        return False
+    if not _trust_token_ok():
         return False
     origin = (request.headers.get("Origin") or "").strip()
     if origin == _AXIS_TRUSTED_ORIGIN:
@@ -183,8 +206,9 @@ class _IpRateLimiter:
         self._lock = threading.Lock()
         self._hits: dict[str, deque[float]] = defaultdict(deque)
 
-    def allow(self, ip: str) -> bool:
-        max_req, window = free_rate_limit()
+    def allow(self, ip: str, max_req: int | None = None, window: float | None = None) -> bool:
+        if max_req is None or window is None:
+            max_req, window = free_rate_limit()
         if max_req <= 0:
             return True  # disabled
         now = time.monotonic()
@@ -206,13 +230,45 @@ class _IpRateLimiter:
 
 _GATE = _ConcurrencyGate()
 _RATE = _IpRateLimiter()
+# Auth endpoints are always rate-limited: a random key costs one PBKDF2
+# evaluation (~55 ms) even when the key does not exist.
+_AUTH_RATE = _IpRateLimiter()
+# Editor bridge endpoints parse up to the global body cap; throttle them even
+# when the free-tier suite is off so a browser page cannot pin a worker.
+_LSP_RATE = _IpRateLimiter()
+
+
+def lsp_rate_limit() -> tuple[int, float]:
+    """Return ``(max_requests, window_seconds)`` for LSP bridge endpoints."""
+    return (
+        _env_int("LSP_RATE_LIMIT", 120),
+        float(_env_int("LSP_RATE_WINDOW_SEC", 60) or 60),
+    )
+
+
+def auth_rate_limit() -> tuple[int, float]:
+    """Return ``(max_requests, window_seconds)`` for auth endpoints."""
+    return (
+        _env_int("AUTH_RATE_LIMIT", 30),
+        float(_env_int("AUTH_RATE_WINDOW_SEC", 60) or 60),
+    )
 
 
 def client_ip() -> str:
-    """Best-effort client IP (honors first X-Forwarded-For hop when present)."""
+    """Best-effort client IP behind the bundled nginx proxy.
+
+    nginx appends the peer address to any client-supplied ``X-Forwarded-For``
+    (``$proxy_add_x_forwarded_for``), so the first hop is attacker-controlled.
+    Prefer nginx's ``X-Real-IP``, then the rightmost XFF hop, and only then the
+    socket peer. Deployments with multiple trusted proxies should set
+    ``X-Real-IP`` at the edge.
+    """
+    real = (request.headers.get("X-Real-IP") or "").strip()
+    if real:
+        return real
     xff = (request.headers.get("X-Forwarded-For") or "").strip()
     if xff:
-        return xff.split(",")[0].strip() or "unknown"
+        return xff.split(",")[-1].strip() or "unknown"
     return (request.remote_addr or "unknown").strip() or "unknown"
 
 
@@ -235,6 +291,42 @@ def check_free_rate_limit() -> tuple[dict[str, Any], int] | None:
             "message": (
                 f"Free-tier rate limit exceeded ({max_req} requests / {int(window)}s). Retry later or use an API key."
             ),
+        },
+        429,
+    )
+
+
+def check_auth_rate_limit() -> tuple[dict[str, Any], int] | None:
+    """Always-on rate limit for key validation/minting endpoints.
+
+    Independent of ``FREE_TIER_LIMITS`` so a public auth route cannot be used
+    to burn PBKDF2 CPU with random keys.
+    """
+    ip = client_ip()
+    max_req, window = auth_rate_limit()
+    if _AUTH_RATE.allow(ip, max_req=max_req, window=window):
+        return None
+    return (
+        {
+            "status": "error",
+            "code": "RATE_LIMITED",
+            "message": (f"Auth rate limit exceeded ({max_req} requests / {int(window)}s). Retry later."),
+        },
+        429,
+    )
+
+
+def check_lsp_rate_limit() -> tuple[dict[str, Any], int] | None:
+    """Always-on rate limit for ``/lsp/*`` editor bridge endpoints."""
+    ip = client_ip()
+    max_req, window = lsp_rate_limit()
+    if _LSP_RATE.allow(ip, max_req=max_req, window=window):
+        return None
+    return (
+        {
+            "status": "error",
+            "code": "RATE_LIMITED",
+            "message": (f"LSP rate limit exceeded ({max_req} requests / {int(window)}s). Retry later."),
         },
         429,
     )

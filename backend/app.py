@@ -278,7 +278,7 @@ def _apply_cors_headers(resp, origin: str | None = None):  # type: ignore[no-unt
         resp.headers["Vary"] = "Origin"
         resp.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS, HEAD"
         resp.headers["Access-Control-Allow-Headers"] = (
-            "Content-Type, Authorization, X-Admin-Token, X-Api-Key, X-AXIS-Client, Accept"
+            "Content-Type, Authorization, X-Admin-Token, X-Api-Key, X-AXIS-Client, X-AXIS-Token, Accept"
         )
         resp.headers["Access-Control-Max-Age"] = "86400"
     return resp
@@ -294,6 +294,7 @@ CORS(
         "X-Admin-Token",
         "X-Api-Key",
         "X-AXIS-Client",
+        "X-AXIS-Token",
         "Accept",
     ],
     expose_headers=["Content-Type"],
@@ -633,8 +634,10 @@ def _execute_run_payload_inner(
             "message": "No 'data' provided.",
         }, 400
 
+    libraries = _parse_run_libraries(validated.get("libraries"))
+    library_sources = [str(lib.get("source") or "") for lib in libraries]
     bounds_err = validate_free_run_bounds(
-        script=script if isinstance(script, str) else None,
+        scripts=[script, *library_sources] if isinstance(script, str) else library_sources or None,
         ohlcv=ohlcv if isinstance(ohlcv, list) else None,
         data_source=data_source if isinstance(data_source, str) else None,
     )
@@ -669,7 +672,6 @@ def _execute_run_payload_inner(
     if not isinstance(inputs, dict):
         inputs = {}
     profiler = bool(validated.get("profiler"))
-    libraries = _parse_run_libraries(validated.get("libraries"))
     timeout_kw = _timeout_seconds_kwarg(validated.get("timeout_seconds"))
     timeframe = _to_pine_period(validated.get("timeframe"))
 
@@ -1155,8 +1157,10 @@ def execute_optimize_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]
             return {"status": "error", "code": "NO_SCRIPT", "message": "No 'script' provided."}, 400
         if not ohlcv:
             return {"status": "error", "code": "NO_DATA", "message": "No 'data' provided."}, 400
+        libs = _parse_run_libraries(validated.get("libraries"))
+        library_sources = [str(lib.get("source") or "") for lib in libs]
         bounds_err = validate_free_run_bounds(
-            script=script if isinstance(script, str) else None,
+            scripts=[script, *library_sources] if isinstance(script, str) else library_sources or None,
             ohlcv=ohlcv if isinstance(ohlcv, list) else None,
         )
         if bounds_err is not None:
@@ -1198,7 +1202,6 @@ def execute_optimize_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]
                 "code": "INVALID_VALIDATION",
                 "message": "Invalid optimization parameters",
             }, 400
-        libs = _parse_run_libraries(validated.get("libraries"))
         raw_fixed = validated.get("fixed_inputs")
         fixed_inputs = raw_fixed if isinstance(raw_fixed, dict) else None
         study = run_study(
@@ -1422,9 +1425,32 @@ def create_session_route():
 
     Interpret only — ``compile`` has no resumable evaluator state. Callers then
     use ``/session/<id>/tick`` for the forming bar and ``/session/<id>/append``
-    for new closed bars.
+    for new closed bars. Free-tier gates apply when enabled; sessions hold
+    full OHLCV + evaluator state, so the concurrency slot is released as soon
+    as the session is registered.
     """
-    payload: dict[str, Any] = dict(request.get_json(silent=True) or {})
+    from backend.middleware.free_limits import acquire_free_slot
+    from backend.middleware.free_limits import check_free_rate_limit
+    from backend.middleware.free_limits import release_free_slot
+
+    rate_err = check_free_rate_limit()
+    if rate_err is not None:
+        body, code = rate_err
+        return jsonify(body), code
+    slot_err = acquire_free_slot()
+    if slot_err is not None:
+        body, code = slot_err
+        return jsonify(body), code
+    try:
+        return _create_session_inner(dict(request.get_json(silent=True) or {}))
+    finally:
+        release_free_slot()
+
+
+def _create_session_inner(payload: dict[str, Any]):
+    """Inner session-create body after the free-tier gates are held."""
+    from backend.middleware.free_limits import validate_free_run_bounds
+
     validated, err = validate(payload, SESSION_CREATE_SCHEMA)
     if err is not None:
         return _err_to_dict(err)
@@ -1446,9 +1472,17 @@ def create_session_route():
             }
         ), 400
 
+    libraries = _parse_run_libraries(validated.get("libraries")) or None
+    library_sources = [str(lib.get("source") or "") for lib in (libraries or [])]
+    bounds_err = validate_free_run_bounds(
+        scripts=[script, *library_sources],
+        ohlcv=ohlcv if isinstance(ohlcv, list) else None,
+    )
+    if bounds_err is not None:
+        return _err_to_dict(bounds_err)
+
     try:
         runtime = Runtime(symbol=str(validated.get("symbol") or "CHART"))
-        libraries = _parse_run_libraries(validated.get("libraries")) or None
         session = runtime.create_session(
             script,
             ohlcv,
@@ -1565,6 +1599,12 @@ def session_tick_route(session_id: str):
     ``var`` scope and TA windows roll back to bar-open on each call, so repeated
     ticks behave like intermediate realtime ticks.
     """
+    from backend.middleware.free_limits import check_free_rate_limit
+
+    rate_err = check_free_rate_limit()
+    if rate_err is not None:
+        body, code = rate_err
+        return jsonify(body), code
     session, missing = _load_session(session_id)
     if missing is not None:
         return jsonify(missing[0]), missing[1]
@@ -1613,6 +1653,12 @@ def session_append_route(session_id: str):
 
     ``bars`` is a list of OHLCV objects for bars that have just closed.
     """
+    from backend.middleware.free_limits import check_free_rate_limit
+
+    rate_err = check_free_rate_limit()
+    if rate_err is not None:
+        body, code = rate_err
+        return jsonify(body), code
     session, missing = _load_session(session_id)
     if missing is not None:
         return jsonify(missing[0]), missing[1]
@@ -2387,6 +2433,12 @@ def get_usage():
 @app.route("/auth/validate", methods=["POST"])
 def validate_api_key():
     """Validate an API key without consuming a call."""
+    from backend.middleware.free_limits import check_auth_rate_limit
+
+    rate_err = check_auth_rate_limit()
+    if rate_err is not None:
+        body, code = rate_err
+        return jsonify(body), code
     data, err = validate(request.get_json(silent=True) or {}, VALIDATE_KEY_SCHEMA)
     if err is not None:
         return err

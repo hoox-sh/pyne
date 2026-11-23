@@ -30,6 +30,10 @@ Mirrors the AXIS sidecar contract (`packages/datafeed`):
 
 Bars are ``{time, open, high, low, close, volume}`` with ``time`` in unix seconds
 from CCXT ``candle[0]`` (ms). AXIS DSM walk-back sends ``since`` in milliseconds.
+
+Credential binding (``POST/DELETE /datafeed/session``) requires an API key and
+is scoped to that key's owner. Public OHLCV/markets reads may use operator env
+credentials anonymously, but never another caller's bound session.
 """
 
 from __future__ import annotations
@@ -50,9 +54,12 @@ from datetime import timezone
 from typing import Any
 
 from flask import Blueprint
+from flask import g
 from flask import jsonify
 from flask import request
 
+from backend.middleware.auth import optional_api_key
+from backend.middleware.auth import require_api_key
 from pynescript import stats as _stats
 from pynescript.debug import scope_enabled as _debug_scope
 
@@ -94,8 +101,21 @@ _PERIOD_DAYS: dict[str, int] = {
     "2y": 730,
 }
 
-# RAM-only: exchange id and optional AXIS credentialId (``ccxt:<exchange>``)
-_sessions: dict[str, dict[str, str]] = {}
+# RAM-only: (owner key_id, exchange id or AXIS credentialId) -> credentials.
+# Owner scoping prevents one caller's bound exchange keys from being used by
+# another caller; anonymous public reads still fall back to env credentials.
+_sessions: dict[tuple[str, str], dict[str, str]] = {}
+
+
+def _session_owner() -> str:
+    """Key-store id of the authenticated caller, or ``anonymous``."""
+    api_key = getattr(g, "api_key", None)
+    return str(getattr(api_key, "key_id", "") or "anonymous")
+
+
+def _bound_exchange_names() -> set[str]:
+    """Exchange names with at least one bound session (never secrets)."""
+    return {exchange for (_owner, exchange) in _sessions if not exchange.startswith("ccxt:")}
 
 
 def _opt_int(raw: Any) -> int | None:
@@ -158,13 +178,14 @@ def _get_env_credentials(exchange: str) -> dict[str, str] | None:
     return creds if creds else None
 
 
-def _get_credentials(exchange: str) -> dict[str, str] | None:
-    if exchange in _sessions:
-        return _sessions[exchange]
+def _get_credentials(owner: str, exchange: str) -> dict[str, str] | None:
+    bound = _sessions.get((owner, exchange))
+    if bound is not None:
+        return bound
     return _get_env_credentials(exchange)
 
 
-def _resolve_session(exchange: str, cred: str) -> tuple[str, dict[str, str] | None]:
+def _resolve_session(owner: str, exchange: str, cred: str) -> tuple[str, dict[str, str] | None]:
     """Resolve exchange id + bound keys from ``exchange=`` and/or ``cred=ccxt:<ex>``."""
     exchange = (exchange or "").strip()
     cred = (cred or "").strip()
@@ -173,10 +194,10 @@ def _resolve_session(exchange: str, cred: str) -> tuple[str, dict[str, str] | No
     elif not exchange and cred:
         exchange = cred
     creds: dict[str, str] | None = None
-    if cred and cred in _sessions:
-        creds = _sessions[cred]
+    if cred:
+        creds = _sessions.get((owner, cred))
     if creds is None and exchange:
-        creds = _get_credentials(exchange)
+        creds = _get_credentials(owner, exchange)
     return exchange, creds
 
 
@@ -202,10 +223,10 @@ def _make_provider(
     )
 
 
-def _store_session(exchange: str, creds: dict[str, str], credential_id: str = "") -> None:
-    _sessions[exchange] = creds
+def _store_session(owner: str, exchange: str, creds: dict[str, str], credential_id: str = "") -> None:
+    _sessions[(owner, exchange)] = creds
     if credential_id:
-        _sessions[credential_id] = creds
+        _sessions[(owner, credential_id)] = creds
 
 
 # ---------------------------------------------------------------------------
@@ -214,14 +235,18 @@ def _store_session(exchange: str, creds: dict[str, str], credential_id: str = ""
 
 
 @datafeed_bp.route("/ohlcv", methods=["GET"])
+@optional_api_key
 def fetch_ohlcv():  # type: ignore[no-untyped-def]
     """Fetch historical OHLCV via CCXT ``fetch_ohlcv``.
 
     Query params (AXIS ``ccxt-rest``):
         exchange, symbol, timeframe, since (ms), limit, cred
     Legacy: period (1d/1w/1mo/…) derives ``since`` when ``since`` is omitted.
+    Authenticated callers may use their own bound credentials; anonymous
+    callers fall back to operator env credentials only.
     """
     exchange, credentials = _resolve_session(
+        _session_owner(),
         request.args.get("exchange", "").strip(),
         request.args.get("cred", "").strip(),
     )
@@ -308,9 +333,11 @@ def fetch_ohlcv():  # type: ignore[no-untyped-def]
 
 
 @datafeed_bp.route("/markets", methods=["GET"])
+@optional_api_key
 def fetch_markets():  # type: ignore[no-untyped-def]
     """List available markets for an exchange."""
     exchange, credentials = _resolve_session(
+        _session_owner(),
         request.args.get("exchange", "").strip(),
         request.args.get("cred", "").strip(),
     )
@@ -362,12 +389,15 @@ def fetch_markets():  # type: ignore[no-untyped-def]
 
 
 @datafeed_bp.route("/session", methods=["POST"])
+@require_api_key
 def bind_session():  # type: ignore[no-untyped-def]
-    """Bind RAM credentials.
+    """Bind RAM credentials for the authenticated caller.
 
     AXIS body: ``{exchange, credentialId, apiKey, secret, password?, uid?}``.
-    Operator fallback: ``{exchange}`` binds env vars.
+    Operator fallback: ``{exchange}`` binds env vars. Credentials are scoped to
+    the API-key owner; anonymous callers cannot bind or consume them.
     """
+    owner = _session_owner()
     body = request.get_json(silent=True) or {}
     exchange = str(body.get("exchange", "")).strip()
     if not exchange:
@@ -384,7 +414,7 @@ def bind_session():  # type: ignore[no-untyped-def]
             creds["password"] = password
         if uid:
             creds["uid"] = uid
-        _store_session(exchange, creds, credential_id)
+        _store_session(owner, exchange, creds, credential_id)
         # Never log key material — only whether each field was supplied.
         _dbg(
             "POST /datafeed/session bound exchange=%s credential_id=%s inline has_password=%s has_uid=%s",
@@ -394,10 +424,10 @@ def bind_session():  # type: ignore[no-untyped-def]
             bool(uid),
         )
         _stats.count("datafeed.session_binds", dim="inline")
-        _stats.set_gauge("datafeed.bound_sessions", len({k for k in _sessions if not k.startswith("ccxt:")}))
+        _stats.set_gauge("datafeed.bound_sessions", len(_bound_exchange_names()))
         return "", 204
 
-    credentials = _get_credentials(exchange) or _get_env_credentials(exchange)
+    credentials = _get_credentials(owner, exchange) or _get_env_credentials(exchange)
     if not credentials:
         _dbg("POST /datafeed/session 404 exchange=%s (no inline creds, no env vars)", exchange)
         _stats.count("datafeed.session_binds", dim="not_found")
@@ -406,14 +436,14 @@ def bind_session():  # type: ignore[no-untyped-def]
             404,
         )
 
-    _store_session(exchange, credentials, credential_id)
+    _store_session(owner, exchange, credentials, credential_id)
     _dbg(
         "POST /datafeed/session bound exchange=%s credential_id=%s source=env",
         exchange,
         credential_id or None,
     )
     _stats.count("datafeed.session_binds", dim="env")
-    _stats.set_gauge("datafeed.bound_sessions", len({k for k in _sessions if not k.startswith("ccxt:")}))
+    _stats.set_gauge("datafeed.bound_sessions", len(_bound_exchange_names()))
     return "", 204
 
 
@@ -423,8 +453,10 @@ def bind_session():  # type: ignore[no-untyped-def]
 
 
 @datafeed_bp.route("/session", methods=["DELETE"])
+@require_api_key
 def unbind_session():  # type: ignore[no-untyped-def]
-    """Remove bound credentials (``exchange=`` and/or AXIS ``cred=ccxt:<ex>``)."""
+    """Remove this caller's bound credentials."""
+    owner = _session_owner()
     exchange = request.args.get("exchange", "").strip()
     cred = request.args.get("cred", "").strip()
     if not exchange and cred.startswith("ccxt:"):
@@ -433,13 +465,13 @@ def unbind_session():  # type: ignore[no-untyped-def]
         return jsonify({"error": "exchange is required"}), 400
 
     if cred:
-        _sessions.pop(cred, None)
+        _sessions.pop((owner, cred), None)
     if exchange:
-        _sessions.pop(exchange, None)
-        _sessions.pop(f"ccxt:{exchange}", None)
+        _sessions.pop((owner, exchange), None)
+        _sessions.pop((owner, f"ccxt:{exchange}"), None)
     _dbg("DELETE /datafeed/session unbound exchange=%s cred=%s", exchange or None, cred or None)
     _stats.count("datafeed.session_unbinds")
-    _stats.set_gauge("datafeed.bound_sessions", len({k for k in _sessions if not k.startswith("ccxt:")}))
+    _stats.set_gauge("datafeed.bound_sessions", len(_bound_exchange_names()))
     return "", 204
 
 
@@ -458,7 +490,7 @@ def gateway_health():  # type: ignore[no-untyped-def]
         "status": "ok",
         "ccxt": has_ccxt,
         "exchanges": exchanges,
-        "active_sessions": sorted({k for k in _sessions if not k.startswith("ccxt:")}),
+        "active_sessions": sorted(_bound_exchange_names()),
     }
     if has_ccxt:
         try:
@@ -563,6 +595,7 @@ def register_watch_route(sock: Any) -> None:
     @sock.route("/datafeed/watch")
     def datafeed_watch(ws):  # type: ignore[no-untyped-def]
         exchange, credentials = _resolve_session(
+            _session_owner(),
             request.args.get("exchange", "").strip(),
             request.args.get("cred", "").strip(),
         )

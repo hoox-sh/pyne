@@ -104,14 +104,37 @@ def test_unary_max_second_call_does_not_rescan() -> None:
         ev._builtin_ta_max([src[: i + 1]])
     assert len(ev._ta_inc_state) == 1
     st = next(iter(ev._ta_inc_state.values()))
-    assert st["n"] == len(src)
+    assert st["seq"] == len(src)
     assert len(st["valid"]) < len(src)  # None / non-numeric are not stored
     window = st["valid"]
     ev._ta_call_i = 0
     ev._builtin_ta_max([src])
     assert st["valid"] is window
-    assert st["n"] == len(src) + 1
+    assert st["seq"] == len(src) + 1
     assert ev._ta_call_i == 0
+
+
+def test_unary_max_same_bar_tick_does_not_rebuild(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Realtime ticks use C-level max and defer the deque rebuild to a new bar."""
+    from pynescript.ast.evaluator.builtins.technical_submodules import basic
+
+    rebuilds: list[int] = []
+    real = basic._unary_max_rebuild
+
+    def spy(valid):
+        rebuilds.append(len(valid))
+        return real(valid)
+
+    monkeypatch.setattr(basic, "_unary_max_rebuild", spy)
+    ev = _BarTA()
+    ev.context["bar_index"] = 0
+    assert ev._builtin_ta_max([[1.0]]) == 1.0
+    assert rebuilds == []
+    assert ev._builtin_ta_max([[5.0]]) == 5.0
+    assert rebuilds == []
+    ev.context["bar_index"] = 1
+    assert ev._builtin_ta_max([[5.0, 2.0]]) == 5.0
+    assert rebuilds  # one lazy rebuild when the next bar arrives
 
 
 def test_unary_max_call_sites_are_independent() -> None:
@@ -141,5 +164,4 @@ def test_unary_max_same_bar_replaces_live_sample() -> None:
     got = ev._builtin_ta_max([[1.0, None]])
     assert got == 1.0
     st = next(iter(ev._ta_inc_state.values()))
-    assert st["n"] == 2
     assert st["seq"] == 2

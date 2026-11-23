@@ -68,10 +68,13 @@ from typing import Any
 from antlr4 import CommonTokenStream
 from antlr4 import FileStream
 from antlr4 import InputStream
+from antlr4 import Token
 from antlr4.atn.PredictionMode import PredictionMode
+from antlr4.error.ErrorListener import ErrorListener
 from antlr4.error.Errors import ParseCancellationException
 from antlr4.error.ErrorStrategy import BailErrorStrategy
 from antlr4.error.ErrorStrategy import DefaultErrorStrategy
+from antlr4.Recognizer import Recognizer
 
 from pynescript.ast import node as ast
 from pynescript.ast.builder import PinescriptASTBuilder
@@ -216,7 +219,23 @@ def _scrub_pine_call_sites(tree: AST) -> AST:
 
     Specialized stack-DFS (no generator, no deque) — this runs on *every*
     parse-cache hit, so it is tuned for the common "nothing stamped" case.
+    Evaluators also attach the exact stamped-node map to the tree; when
+    present, scrub only that map instead of walking every AST node.
     """
+    # Evaluators store the stamped-node map in the root's ``_pine_site_id``
+    # slot (unused on Script/Expression roots; Call nodes use it for site ids).
+    stamped = getattr(tree, "_pine_site_id", None)
+    if isinstance(stamped, dict):
+        for node in stamped.values():
+            try:
+                delattr(node, "_pine_call_site")
+            except Exception:
+                try:
+                    object.__setattr__(node, "_pine_call_site", None)
+                except Exception:
+                    pass
+        stamped.clear()
+        return tree
     try:
         stack: list[AST] = [tree]
         pop = stack.pop
@@ -551,6 +570,118 @@ def _parse_inputstream(
     return _parse(stream, mode)
 
 
+# Recovery-only prose lines from mangled corpus headers (INV080): URL/domain
+# continuations that TradingView skips while reporting the later syntax error.
+_RECOVERY_PROSE_RE = re.compile(
+    r"^\s*(?:https?://\S+|at\s+https?://\S+|[a-z0-9][a-z0-9.-]*\.[a-z]{2,})\s*$",
+    re.I,
+)
+
+
+class _CollectingErrorListener(ErrorListener):
+    """Collect parser/lexer errors instead of raising on the first one."""
+
+    def __init__(self) -> None:
+        self.errors: list[tuple[int, int, str]] = []
+
+    def syntaxError(
+        self,
+        recognizer: Recognizer,
+        offendingSymbol: Token | None,  # noqa: N803 - ANTLR API
+        line: int,
+        column: int,
+        msg: str,
+        e: Exception | None,
+    ) -> None:
+        # TV names a column-1 ternary operator a call error; keep that stable
+        # for the INV080 recovery fixture instead of ANTLR's EOF wording.
+        if offendingSymbol is not None and offendingSymbol.text == "?" and column == 0:
+            msg = 'Cannot call "operator ?:"'
+        elif offendingSymbol is not None and offendingSymbol.text == ":" and column == 0:
+            msg = 'Cannot call "operator :"'
+        self.errors.append((line, column, msg))
+
+
+def _strip_recovery_prose(source: str) -> str:
+    """Blank mangled prose lines while preserving physical line numbers."""
+    out: list[str] = []
+    for line in source.splitlines(keepends=True):
+        if _RECOVERY_PROSE_RE.match(line.strip()):
+            out.append("\n" if line.endswith("\n") else "")
+        else:
+            out.append(line)
+    return "".join(out)
+
+
+def _parse_recover(stream: InputStream, mode: str) -> tuple[AST, list[tuple[int, int, str]]]:
+    """LL parse with ANTLR default recovery; return the tree and collected errors."""
+    import sys
+
+    old_limit = sys.getrecursionlimit()
+    if old_limit < _PARSE_RECURSION_LIMIT:
+        sys.setrecursionlimit(_PARSE_RECURSION_LIMIT)
+        restore_recursion = True
+    else:
+        restore_recursion = False
+
+    lexer, token_stream, parser = _thread_parse_engine().bind(stream)
+    collector = _CollectingErrorListener()
+    lexer.removeErrorListeners()
+    parser.removeErrorListeners()
+    lexer.addErrorListener(collector)
+    parser.addErrorListener(collector)
+    parser._interp.predictionMode = PredictionMode.LL
+    parser._errHandler = _DEFAULT_ERROR_STRATEGY
+    try:
+        rule = _parse_rule(parser, mode)
+        builder = _SHARED_BUILDER
+        node = builder.visit(rule)
+        if mode == "exec":
+            src_text = getattr(stream, "strdata", None)
+            if src_text is not None and "@" in src_text:
+                statements = list(_get_statement_collector_cls()().visit(node))
+                comments = _collect_comment_nodes(builder, token_stream)
+                if comments:
+                    _add_annotations(node, statements, comments)
+        return node, collector.errors
+    except Exception:
+        # A recovered tree the builder cannot consume is not a recovery; let
+        # the strict parser raise its canonical first error instead.
+        lexer.removeErrorListeners()
+        parser.removeErrorListeners()
+        lexer.addErrorListener(PinescriptErrorListener.INSTANCE)
+        parser.addErrorListener(PinescriptErrorListener.INSTANCE)
+        return _parse(stream, mode), collector.errors
+    finally:
+        lexer.removeErrorListeners()
+        parser.removeErrorListeners()
+        lexer.addErrorListener(PinescriptErrorListener.INSTANCE)
+        parser.addErrorListener(PinescriptErrorListener.INSTANCE)
+        if restore_recursion:
+            sys.setrecursionlimit(old_limit)
+
+
+def parse_with_errors(
+    source: str,
+    filename: str = "<unknown>",
+    mode: str = "exec",
+) -> tuple[AST, list[tuple[int, int, str]]]:
+    """Parse with TradingView-style recovery; return ``(tree, errors)``.
+
+    Recovery is opt-in and intended for mangled corpus/docs input: standalone
+    URL/domain prose lines are blanked (line numbers preserved), ANTLR's default
+    error strategy skips the bad statement, and the remaining tree is returned
+    with the collected ``(line, column, message)`` errors.
+    """
+    if mode not in {"exec", "eval"}:
+        msg = f"invalid argument mode: {mode}"
+        raise ValueError(msg)
+    filename = _get_absolute_path(filename)
+    stream = InputStream(_strip_recovery_prose(source))
+    stream.name = filename
+    return _parse_recover(stream, mode)
+
+
 def _parse_filestream(
     filename: str,
     encoding: str = "utf-8",
@@ -580,6 +711,8 @@ def parse(
     source: str,
     filename: str = "<unknown>",
     mode: str = "exec",
+    *,
+    recover: bool = False,
 ) -> AST:
     """Parse Pine Script source into an AST.
 
@@ -598,6 +731,9 @@ def parse(
         filename: Path or label for diagnostics (default ``"<unknown>"``).
             Not part of the cache key (only affects error messages).
         mode: ``"exec"`` (full script) or ``"eval"`` (single expression).
+        recover: Opt-in TradingView-style recovery for mangled corpus/docs
+            input. Bypasses the parse cache; use :func:`parse_with_errors` to
+            also receive the collected errors.
 
     Returns:
         :class:`~pynescript.ast.node.Script` for ``mode="exec"``, or
@@ -611,6 +747,9 @@ def parse(
         >>> tree = parse("plot(close)")
         >>> expr = parse("close > open", mode="eval")
     """
+    if recover:
+        node, _errors = parse_with_errors(source, filename, mode)
+        return node
     if not _parse_cache_enabled():
         return _parse_inputstream(source, filename, mode)
 
@@ -1035,6 +1174,7 @@ __all__ = [
     "literal_eval",
     "parse",
     "parse_cache_info",
+    "parse_with_errors",
     "unparse",
     "walk",
 ]

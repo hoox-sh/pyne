@@ -198,6 +198,8 @@ services:
     volumes:
       - ./src:/app/src:ro
       - ./backend:/app/backend:ro
+      # Share the API key store so authenticated /datafeed/session works.
+      - api_data:/data
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/datafeed/health"]
       interval: 30s

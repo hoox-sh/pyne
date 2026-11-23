@@ -7,7 +7,7 @@ tags: [ast, code, pynescript]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-23T14:07:51Z
 sources:
   - id: tree
     resource: "src/pynescript/ast"
@@ -23,7 +23,7 @@ okf_lock: generated
 - `builder.py` — PinescriptASTBuilder, PinescriptASTLocator, PinescriptCommentParser
 - `collector.py` — StatementCollector
 - `error.py` — IndentationError, SyntaxError, SyntaxErrorDetails
-- `helper.py` — clear_parse_cache, copy_location, dump, fix_missing_locations, get_source_segment, increment_lineno, iter_child_nodes, iter_fields, literal_eval, parse, parse_cache_info, unparse
+- `helper.py` — clear_parse_cache, copy_location, dump, fix_missing_locations, get_source_segment, increment_lineno, iter_child_nodes, iter_fields, literal_eval, parse, parse_cache_info, parse_with_errors
 - `linter.py` — LintWarning, PineLinter, lint_file, lint_script
 - `node.py`
 - `transformer.py` — NodeTransformer

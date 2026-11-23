@@ -31,6 +31,7 @@ from flask.testing import FlaskClient
 
 from backend.api import datafeed as datafeed_mod
 from backend.app import app
+from backend.middleware.auth import reset_key_store
 
 
 @pytest.fixture
@@ -39,8 +40,25 @@ def client(tmp_path, monkeypatch) -> FlaskClient:
     monkeypatch.setenv("ADMIN_TOKEN", "test-datafeed-token")
     monkeypatch.setenv("STORE_BACKEND", "json")
     monkeypatch.setenv("API_KEY_STORE", str(tmp_path / "api_keys.json"))
+    reset_key_store()
     with app.test_client() as c:
         yield c
+    reset_key_store()
+
+
+@pytest.fixture
+def auth(client: FlaskClient) -> dict[str, str]:
+    """Mint a key for owner-scoped /datafeed/session tests."""
+    resp = client.post(
+        "/auth/create_key",
+        json={"tier": "pro"},
+        headers={"X-Admin-Token": "test-datafeed-token"},
+    )
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    return {
+        "headers": {"Authorization": f"Bearer {resp.json['api_key']}"},
+        "key_id": resp.json["key_id"],
+    }
 
 
 @pytest.fixture(autouse=True)
@@ -60,10 +78,15 @@ class TestHealth:
         assert "binance" in data["exchanges"]
         assert "ccxt" in data
 
-    def test_health_shows_active_sessions(self, client: FlaskClient, monkeypatch) -> None:
+    def test_health_shows_active_sessions(
+        self,
+        client: FlaskClient,
+        auth: dict[str, str],
+        monkeypatch,
+    ) -> None:
         monkeypatch.setenv("BINANCE_API_KEY", "k")
         monkeypatch.setenv("BINANCE_SECRET", "s")
-        client.post("/datafeed/session", json={"exchange": "binance"})
+        client.post("/datafeed/session", json={"exchange": "binance"}, headers=auth["headers"])
         resp = client.get("/datafeed/health")
         assert resp.status_code == 200
         assert "binance" in resp.json["active_sessions"]
@@ -146,35 +169,39 @@ class TestOhlcv:
 
 
 class TestSession:
-    def test_bind_missing_exchange(self, client: FlaskClient) -> None:
-        resp = client.post("/datafeed/session", json={})
+    def test_bind_requires_auth(self, client: FlaskClient) -> None:
+        resp = client.post("/datafeed/session", json={"exchange": "binance"})
+        assert resp.status_code == 401
+
+    def test_bind_missing_exchange(self, client: FlaskClient, auth: dict[str, str]) -> None:
+        resp = client.post("/datafeed/session", json={}, headers=auth["headers"])
         assert resp.status_code == 400
 
-    def test_bind_no_credentials(self, client: FlaskClient) -> None:
-        resp = client.post("/datafeed/session", json={"exchange": "unknown"})
+    def test_bind_no_credentials(self, client: FlaskClient, auth: dict[str, str]) -> None:
+        resp = client.post("/datafeed/session", json={"exchange": "unknown"}, headers=auth["headers"])
         assert resp.status_code == 404
 
-    def test_bind_and_unbind(self, client: FlaskClient, monkeypatch) -> None:
+    def test_bind_and_unbind(self, client: FlaskClient, auth: dict[str, str], monkeypatch) -> None:
         monkeypatch.setenv("BINANCE_API_KEY", "test-key")
         monkeypatch.setenv("BINANCE_SECRET", "test-secret")
 
-        resp = client.post("/datafeed/session", json={"exchange": "binance"})
+        resp = client.post("/datafeed/session", json={"exchange": "binance"}, headers=auth["headers"])
         assert resp.status_code == 204
 
         health = client.get("/datafeed/health")
         assert "binance" in health.json["active_sessions"]
 
-        resp = client.delete("/datafeed/session?exchange=binance")
+        resp = client.delete("/datafeed/session?exchange=binance", headers=auth["headers"])
         assert resp.status_code == 204
 
         health = client.get("/datafeed/health")
         assert "binance" not in health.json["active_sessions"]
 
-    def test_unbind_missing_exchange(self, client: FlaskClient) -> None:
-        resp = client.delete("/datafeed/session")
+    def test_unbind_missing_exchange(self, client: FlaskClient, auth: dict[str, str]) -> None:
+        resp = client.delete("/datafeed/session", headers=auth["headers"])
         assert resp.status_code == 400
 
-    def test_bind_axis_body_and_unbind_cred(self, client: FlaskClient) -> None:
+    def test_bind_axis_body_and_unbind_cred(self, client: FlaskClient, auth: dict[str, str]) -> None:
         resp = client.post(
             "/datafeed/session",
             json={
@@ -185,20 +212,27 @@ class TestSession:
                 "password": "pp",
                 "uid": "uid-1",
             },
+            headers=auth["headers"],
         )
         assert resp.status_code == 204
         health = client.get("/datafeed/health")
         assert "bybit" in health.json["active_sessions"]
-        assert datafeed_mod._sessions["bybit"]["password"] == "pp"
-        assert datafeed_mod._sessions["ccxt:bybit"]["uid"] == "uid-1"
+        owner = auth["key_id"]
+        assert datafeed_mod._sessions[(owner, "bybit")]["password"] == "pp"
+        assert datafeed_mod._sessions[(owner, "ccxt:bybit")]["uid"] == "uid-1"
 
-        resp = client.delete("/datafeed/session?cred=ccxt:bybit")
+        resp = client.delete("/datafeed/session?cred=ccxt:bybit", headers=auth["headers"])
         assert resp.status_code == 204
         health = client.get("/datafeed/health")
         assert "bybit" not in health.json["active_sessions"]
 
     @patch("pynescript.util.data.CCXTProvider")
-    def test_ohlcv_forwards_password_uid(self, mock_cls: MagicMock, client: FlaskClient) -> None:
+    def test_ohlcv_forwards_password_uid(
+        self,
+        mock_cls: MagicMock,
+        client: FlaskClient,
+        auth: dict[str, str],
+    ) -> None:
         mock_inst = MagicMock()
         mock_inst.fetch_ohlcv.return_value = []
         mock_cls.return_value = mock_inst
@@ -212,8 +246,12 @@ class TestSession:
                 "password": "passphrase",
                 "uid": "u1",
             },
+            headers=auth["headers"],
         )
-        resp = client.get("/datafeed/ohlcv?exchange=okx&symbol=BTC/USDT&cred=ccxt:okx&limit=1")
+        resp = client.get(
+            "/datafeed/ohlcv?exchange=okx&symbol=BTC/USDT&cred=ccxt:okx&limit=1",
+            headers=auth["headers"],
+        )
         assert resp.status_code == 200
         kwargs = mock_cls.call_args.kwargs
         assert kwargs["api_key"] == "k"

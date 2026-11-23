@@ -2901,8 +2901,8 @@ for i = 1 to 3
 plot(array.pop(a), title="p")
 """
         code = transpile(src)
-        assert "safe_list_set" in code
-        assert ".__setitem__" not in code or "safe_list_set" in code
+        assert "array_set_at" in code
+        assert "lambda __a" not in code
         compiled = compile_script(src)
         o, h, l, c, v = _ohlcv(50)
         out = compiled.run(o, h, l, c, v)

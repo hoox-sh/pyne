@@ -63,6 +63,30 @@ jobs:
         # Non-blocking until mypy debt is cleared; fails the step only on hard errors if any.
         run: mypy src/ --ignore-missing-imports || true
 
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Python advisory scan
+        run: |
+          pip install pip-audit
+          pip-audit -r backend/requirements.txt
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+
+      - name: JavaScript advisory scan
+        run: bun audit --production
+
   test:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest

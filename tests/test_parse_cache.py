@@ -244,6 +244,25 @@ def test_cached_tree_two_evaluators_independent_call_sites():
     assert calls[0]._pine_call_site[-1] == ev1._eval_generation
 
 
+def test_parse_cache_scrubs_only_stamped_nodes() -> None:
+    """The evaluator's stamped-node map avoids a full-tree scrub walk."""
+    from pynescript.ast.evaluator import NodeLiteralEvaluator
+    from pynescript.ast.helper import walk
+
+    src = '//@version=6\nindicator("t")\nplot(ta.sma(close, 3))\n'
+    tree = parse(src)
+    ev = NodeLiteralEvaluator({"close": [1, 2, 3, 4, 5]})
+    ev.visit(tree)
+    stamped = getattr(tree, "_pine_site_id", None)
+    assert isinstance(stamped, dict)
+    assert stamped
+    assert parse(src) is tree
+    assert stamped == {}
+    calls = [n for n in walk(tree) if type(n).__name__ == "Call"]
+    assert calls
+    assert all(getattr(call, "_pine_call_site", None) is None for call in calls)
+
+
 def test_parse_cache_two_runtimes_call_expr_history_independent() -> None:
     """Call-expr ``ta.sma(...)[1]`` must not leak across Runtime parse-cache hits."""
     from pynescript.ast.evaluator.expressions import pine_call_site_id

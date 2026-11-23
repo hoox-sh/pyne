@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 
 import numpy as np
 
@@ -76,7 +77,8 @@ def _manual_digest(source: str, libraries: list[dict[str, object]]) -> str:
     libs: list[dict[str, object]] = []
     for item in libraries:
         if not isinstance(item, dict):
-            digest = hashlib.sha256(repr(item).encode("utf-8")).hexdigest()
+            text = re.sub(r" at 0x[0-9a-fA-F]+", "", repr(item))
+            digest = hashlib.sha256(text[:4096].encode("utf-8")).hexdigest()
             libs.append({"n": "", "m": "", "v": 1, "s": digest})
             continue
         raw_version = item.get("version")
@@ -225,6 +227,72 @@ def test_warm_library_compile_hits_then_source_change_misses(monkeypatch) -> Non
     out_miss = changed.run(o, o, o, o, o)
     np.testing.assert_allclose(out_hit["sum"], o + 1.0)
     np.testing.assert_allclose(out_miss["sum"], o + 11.0)
+
+
+def test_warm_library_hit_does_not_hash_the_script(monkeypatch) -> None:
+    """The library path must not compute the unused plain-source key."""
+    compile_script(_SRC, libraries=_libs())
+    hashed: list[int] = []
+    real = engine._sha256_text
+
+    def spy(text: str) -> str:
+        hashed.append(len(text))
+        return real(text)
+
+    monkeypatch.setattr(engine, "_sha256_text", spy)
+    hit = compile_script(_SRC, libraries=_libs())
+    assert hit is not None
+    assert hashed == []
+
+
+def test_compile_miss_hashes_unsanitized_source_once(monkeypatch) -> None:
+    """A no-op sanitizer must not trigger a second full-source sha256."""
+    engine.clear_compile_cache()
+    calls: list[int] = []
+    real = engine._sha256_text
+
+    def spy(text: str) -> str:
+        calls.append(len(text))
+        return real(text)
+
+    monkeypatch.setattr(engine, "_sha256_text", spy)
+    compile_script(_SRC)
+    assert calls.count(len(_SRC)) == 1
+
+
+def test_clean_source_skips_corpus_sanitizer(monkeypatch) -> None:
+    """API/editor scripts must not pay the ~1 s corpus line-filter pass."""
+    from pynescript.util import corpus_sanitize
+
+    calls: list[int] = []
+    real = corpus_sanitize.sanitize_corpus_source
+
+    def spy(source: str) -> str:
+        calls.append(len(source))
+        return real(source)
+
+    monkeypatch.setattr(corpus_sanitize, "sanitize_corpus_source", spy)
+    assert engine._sanitize_source(_SRC) == _SRC
+    assert calls == []
+
+    dirty = "```\n" + _SRC + "```\n> Detail\nhttps://example.invalid\n"
+    engine._sanitize_source(dirty)
+    assert calls
+
+
+def test_object_mode_realtime_key_is_cached_per_script(monkeypatch) -> None:
+    compiled = compile_script(_SRC)
+    calls: list[int] = []
+    real = engine._object_mode_rt_key
+
+    def spy(source: str) -> str:
+        calls.append(len(source))
+        return real(source)
+
+    monkeypatch.setattr(engine, "_object_mode_rt_key", spy)
+    compiled._object_mode_for_realtime()
+    compiled._object_mode_for_realtime()
+    assert calls == [len(_SRC)]
 
 
 def test_in_place_mutation_recompiles(monkeypatch) -> None:

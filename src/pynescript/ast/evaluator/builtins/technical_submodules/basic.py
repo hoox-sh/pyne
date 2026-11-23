@@ -949,11 +949,16 @@ class BasicIndicators(TechnicalHelpers):
         return self._highest(series, period)
 
     def _max_unary_inc_update(self, source: Any) -> Any:
-        """O(1) 1-arg ``ta.max``. One new sample per call; same bar replaces it.
+        """1-arg ``ta.max`` with O(1) new-bar updates.
 
         The full path is ``max`` of ``_as_series`` (last ``_SERIES_MAX`` raw
         samples, ``None`` / non-numeric skipped, not coerced). A NaN that is
         the first kept sample in that window stays the result.
+
+        New bars append incrementally through a monotonic deque. Same-bar
+        ticks replace the newest sample; rebuilding the deque there is
+        O(_SERIES_MAX) in Python, so use C-level ``max`` over the bounded
+        window and rebuild the deque lazily on the next new bar.
         """
         sid = getattr(self, "_pine_current_call_site", None)
         if sid is None:
@@ -965,9 +970,18 @@ class BasicIndicators(TechnicalHelpers):
         bucket = self._ta_state_bucket()
         st = bucket.get(key)
         if st is None:
-            st = {"valid": deque(), "maxdq": deque(), "seq": 0, "n": 0, "bar": None}
+            st = {
+                "valid": deque(),
+                "maxdq": deque(),
+                "seq": 0,
+                "bar": None,
+                "maxdq_dirty": False,
+                "last_max": None,
+                "last_max_present": False,
+            }
             bucket[key] = st
         raw = self._series_last(source)
+        keep = _unary_max_keep(raw)
         ctx = getattr(self, "context", None)
         bar = ctx.get("bar_index") if isinstance(ctx, dict) else None
         cap = self._SERIES_MAX
@@ -975,29 +989,66 @@ class BasicIndicators(TechnicalHelpers):
         valid: deque[tuple[int, Any]] = st["valid"]
         if replacing:
             seq = int(st["seq"])
+            old = valid[-1][1] if valid and valid[-1][0] == seq else None
             if valid and valid[-1][0] == seq:
                 valid.pop()
-        else:
-            st["bar"] = bar
-            seq = int(st["seq"]) + 1
-            st["seq"] = seq
-            st["n"] = int(st["n"]) + 1
-            min_seq = seq - cap + 1
-            while valid and valid[0][0] < min_seq:
-                valid.popleft()
+            if keep:
+                valid.append((seq, raw))
+            if not valid:
+                st["maxdq_dirty"] = True
+                st["last_max"] = None
+                st["last_max_present"] = False
+                return None
+            first = valid[0][1]
+            if _unary_max_nan(first):
+                result: Any = first
+            elif st.get("last_max_present"):
+                prev = st["last_max"]
+                if _unary_max_nan(prev) or (old is not None and old == prev):
+                    # The replaced sample was the max (or a leading NaN);
+                    # another duplicate may remain, so recompute exactly.
+                    result = max(v for _, v in valid)
+                elif keep and not _unary_max_nan(raw) and raw > prev:
+                    result = raw
+                else:
+                    result = prev
+            else:
+                result = max(v for _, v in valid)
+            # The deque is only stale when the replaced sample was its newest
+            # entry or the new sample becomes the max. Otherwise keep it for
+            # the next new bar's O(1) append.
             maxdq: deque[tuple[int, Any]] = st["maxdq"]
-            while maxdq and maxdq[0][0] < min_seq:
-                maxdq.popleft()
-        if _unary_max_keep(raw):
+            if (
+                st.get("maxdq_dirty")
+                or (maxdq and maxdq[-1][0] == seq)
+                or (keep and not _unary_max_nan(raw) and (not maxdq or raw > maxdq[-1][1]))
+            ):
+                st["maxdq_dirty"] = True
+            st["last_max"] = result
+            st["last_max_present"] = True
+            return result
+
+        st["bar"] = bar
+        seq = int(st["seq"]) + 1
+        st["seq"] = seq
+        min_seq = seq - cap + 1
+        while valid and valid[0][0] < min_seq:
+            valid.popleft()
+        maxdq = st["maxdq"]
+        while maxdq and maxdq[0][0] < min_seq:
+            maxdq.popleft()
+        if keep:
             valid.append((seq, raw))
-        if replacing:
+        if st.pop("maxdq_dirty", False):
             st["maxdq"] = _unary_max_rebuild(valid)
-        elif _unary_max_keep(raw) and not _unary_max_nan(raw):
-            maxdq = st["maxdq"]
+        elif keep and not _unary_max_nan(raw):
             while maxdq and raw > maxdq[-1][1]:
                 maxdq.pop()
             maxdq.append((seq, raw))
-        return _unary_max_value(valid, st["maxdq"])
+        result = _unary_max_value(valid, st["maxdq"])
+        st["last_max"] = result
+        st["last_max_present"] = result is not None
+        return result
 
     def _builtin_ta_min(self, args: list[Any]) -> float | None:
         """Minimum value over a period (alias for ta.lowest).

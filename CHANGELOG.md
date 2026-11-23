@@ -1,5 +1,27 @@
 ## [Unreleased]
 
+### Changed
+
+- **Clean API/editor scripts skip the corpus sanitizer.** A source with one `//@version` annotation and no markdown/HTML scrape chrome now bypasses `sanitize_corpus_source` during compile. The thorough line filter is still used for scraped/docs input, but a clean 350 KB script drops from ~1.25 s to ~1.5 ms. Pinned by `tests/test_perf_engine_warm.py`.
+
+- **Unary `ta.max` same-bar ticks take an O(1) fast path.** A replacement that cannot change the window max returns the cached max instead of scanning all `_SERIES_MAX` samples; the monotonic deque is rebuilt lazily only when the replaced sample was its newest entry or a new max appears. A 256-sample tick benchmark drops from ~70 µs to ~6 µs. Pinned by `tests/test_perf_basic_inc.py`.
+
+- **Compile warm paths avoid redundant work.** The plain path reuses the raw-source digest when sanitization is a no-op, the realtime object-mode key is cached per `CompiledScript`, and the process-local LRUs are lock-protected for gthread workers. The library-key digest memo is bounded to 32 entries. Pinned by `tests/test_perf_engine_warm.py`.
+
+- **AST call sites no longer advance the legacy TA order counter.** `_ta_slot_token` increments `_ta_call_i` only for direct-helper calls without an AST site, removing a try/type-check/write from every bar-mode `ta.*` call.
+
+- **Parse-cache hits scrub only the Call nodes stamped by the last run.** The evaluator attaches its stamped-node map to the tree root; `parse()` no longer walks every AST node to drop `_pine_call_site`. A 20k-statement cache hit drops from ~220 ms to ~1 ms after the first scrub. Pinned by `tests/test_parse_cache.py`.
+
+- **Zero-padded Pine decimals are accepted.** `timestamp(2017, 02, 23, 23, 59)` and `timestamp(..., 01, 01)` are valid Pine and now parse as decimal integers; `0x` / `0b` / `0o`, `_` separators, and `1j` remain syntax errors. Pinned by `tests/test_audit_parser_2026_11_22.py`.
+
+### Fixed
+
+- **Opt-in parser recovery for mangled corpus/docs input.** `parse(..., recover=True)` and `parse_with_errors()` blank standalone URL/domain prose lines (preserving line numbers), use ANTLR's default recovery, and return the recovered tree plus `(line, column, message)` errors. The strict parser is unchanged, so INV074/INV078 invalid shapes still fail. All 215 `@expects parse: success` set06 fixtures now pass strict-or-recovery.
+
+- **Parser gaps from the set06 corpus audit.** A wrapped ternary may start a continuation line with `?` or `:` when its indent is not a multiple of four (INV073); a 4-space leading operator still fails (INV074). `for` headers may wrap after `to` / `by` / `in`, and triple-quoted strings accept an escaped delimiter (`"""a \""" b"""`, `'''a \''' b'''`). Zero-padded decimals (`01`, `02`, `007`) parse as decimal. Pinned by `tests/test_parser_gaps_2026_11_23.py`.
+
+- **Public API hardening.** `/datafeed/session` requires an API key and scopes credentials per key owner; rate limits use the proxy-trusted client IP (`X-Real-IP` / rightmost `X-Forwarded-For`) instead of the spoofable first hop; `/auth/validate` and `/lsp/*` have always-on throttles; `?api_key=` is opt-in; `/session` create/tick/append use free-tier guards; free-tier script caps include library sources; `_get_reset_time()` returns the real UTC month start; key-store creation is locked. Pinned by `tests/test_security_hardening_2026_11_23.py`.
+
 ## [0.7.4] — 2026-11-22
 
 - **A non-multiple-of-4 indent is not an `if` / `for` / `while` / `once` body, and Python-only numbers are syntax errors.** One space (or any other indent that is not a multiple of 4) before a statement under those headers raises `IndentationError` instead of becoming the branch. `else` uses the same rule. `0x` / `0b` / `0o`, `_` separators, imaginary `1j`, and a leading-zero integer such as `01` are rejected, so `plot(0x10)` does not become `safe_float(16)`. An all-zero literal (`00`) is integer 0, and a zero-padded decimal that is not an octal spelling (`08`) is that integer. A script that is only `//@version=6`, and a `//@version` after the last statement, keep that annotation. Pinned by `tests/test_audit_parser_2026_11_22.py`.

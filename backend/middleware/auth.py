@@ -34,10 +34,13 @@ import json
 import os
 import secrets
 import tempfile
+import threading
 import time
 
 from dataclasses import dataclass
 from dataclasses import field
+from datetime import datetime
+from datetime import timezone
 from functools import wraps
 from typing import Any
 from typing import Protocol
@@ -97,11 +100,10 @@ class APIKey:
         }
 
     def _get_reset_time(self) -> int:
-        now = int(time.time())
-        month_start = int(
-            time.mktime(time.struct_time((now // (32 * 86400) + 1, (now // 86400) % 32 + 1, 1, 0, 0, 0, 0, 0, -1)))
-        )
-        return month_start
+        """Epoch seconds for the start of the current UTC month."""
+        now = datetime.now(timezone.utc)
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        return int(month_start.timestamp())
 
     def increment_calls(self, count: int = 1) -> None:
         """Bump usage counters and persist via the owning store when set."""
@@ -395,6 +397,7 @@ class _KeyStoreHolder:
     """Process-local holder so we avoid module-level ``global`` assignments."""
 
     store: APIKeyStore | None = None
+    lock = threading.Lock()
 
 
 def reset_key_store() -> None:
@@ -447,8 +450,29 @@ def get_key_store() -> APIKeyStore:
     Cloud Run use ``redis`` (e.g. Memorystore).
     """
     if _KeyStoreHolder.store is None:
-        _KeyStoreHolder.store = _build_key_store()
+        with _KeyStoreHolder.lock:
+            if _KeyStoreHolder.store is None:
+                _KeyStoreHolder.store = _build_key_store()
     return _KeyStoreHolder.store
+
+
+def _env_truthy(name: str, default: str = "0") -> bool:
+    raw = os.environ.get(name, default)
+    return str(raw).strip().lower() not in {"0", "false", "no", "off", ""}
+
+
+def _request_api_key() -> str:
+    """Extract the API key from headers (query fallback is opt-in only)."""
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return auth_header[7:]
+    if auth_header.startswith("ApiKey "):
+        return auth_header[7:]
+    # Query-string keys leak through access logs, Referer and proxies. Keep the
+    # legacy fallback behind an explicit env flag for old self-hosted clients.
+    if _env_truthy("ALLOW_API_KEY_QUERY", "0"):
+        return request.args.get("api_key", "")
+    return ""
 
 
 def require_api_key(f):
@@ -456,14 +480,7 @@ def require_api_key(f):
 
     @wraps(f)
     def decorated(*args, **kwargs):
-        auth_header = request.headers.get("Authorization", "")
-
-        if auth_header.startswith("Bearer "):
-            raw_key = auth_header[7:]
-        elif auth_header.startswith("ApiKey "):
-            raw_key = auth_header[7:]
-        else:
-            raw_key = request.args.get("api_key", "")
+        raw_key = _request_api_key()
 
         store = get_key_store()
         api_key = store.validate_key(raw_key)
@@ -488,6 +505,25 @@ def require_api_key(f):
             ), 429
 
         g.api_key = api_key
+        return f(*args, **kwargs)
+
+    return decorated
+
+
+def optional_api_key(f):
+    """Populate ``g.api_key`` when a valid key is supplied; never reject.
+
+    Used by public data routes that may optionally consume owner-scoped
+    credentials. Invalid/missing keys fall through as anonymous access.
+    """
+
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        raw_key = _request_api_key()
+        if raw_key:
+            api_key = get_key_store().validate_key(raw_key)
+            if api_key is not None and not api_key.is_rate_limited():
+                g.api_key = api_key
         return f(*args, **kwargs)
 
     return decorated
