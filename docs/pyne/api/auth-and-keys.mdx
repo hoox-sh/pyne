@@ -44,7 +44,7 @@ description: "API key model, tiers, require_api_key / track_usage decorators, JS
 
 ## Abstract
 
-Pro routes authenticate with a **raw API key** presented as `Authorization: Bearer …` or `Authorization: ApiKey …`. The legacy `?api_key=` query fallback is disabled by default because keys in URLs leak through access logs, `Referer`, and proxies; set `ALLOW_API_KEY_QUERY=1` only for old self-hosted clients. Keys are minted as `pyn_` + url-safe secret; the store keeps a random 12-hex-character `key_id` and a PBKDF2-HMAC-SHA256 digest of the key (never the raw secret), and tracks usage against **monthly-ish call limits** by tier. Free `/run` does not require a key. `/auth/validate` is rate-limited independently of the free-tier switch (`AUTH_RATE_LIMIT` / `AUTH_RATE_WINDOW_SEC`).
+Pro routes authenticate with a **raw API key** presented as `Authorization: Bearer …` or `Authorization: ApiKey …`. The legacy `?api_key=` query fallback is disabled by default because keys in URLs leak through access logs, `Referer`, and proxies; set `ALLOW_API_KEY_QUERY=1` only for old self-hosted clients. New keys are minted as `pyn_v2_` + url-safe secret; legacy `pyn_` keys keep working. The store keeps a random 12-hex-character `key_id`, a SHA-256 fingerprint for fast invalid-key rejection, and a PBKDF2-HMAC-SHA256 verifier (never the raw secret), and tracks usage against **monthly-ish call limits** by tier. Free `/run` does not require a key. `/auth/validate` is rate-limited independently of the free-tier switch (`AUTH_RATE_LIMIT` / `AUTH_RATE_WINDOW_SEC`).
 
 ## Conceptual model
 

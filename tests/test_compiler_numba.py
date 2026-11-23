@@ -3361,6 +3361,7 @@ plot(ta.sma(close, 5), title="s")
 """
         out = prewarm_scripts([src])
         assert out["has_numba"] is True
+        assert out["parser_warmed"] is True
         assert out["scripts_ok"] == 1
         assert out["scripts_failed"] == 0
         assert out["errors"] == []

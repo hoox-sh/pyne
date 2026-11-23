@@ -661,6 +661,19 @@ def _parse_recover(stream: InputStream, mode: str) -> tuple[AST, list[tuple[int,
             sys.setrecursionlimit(old_limit)
 
 
+def prewarm_parser() -> bool:
+    """Load the ANTLR ATN once (first parse costs ~0.7 s per process).
+
+    Safe to call from a startup thread or a compile prewarm hook. Returns
+    ``True`` when the tiny warm-up script parsed.
+    """
+    try:
+        parse('//@version=6\nindicator("warmup")\nplot(close)\n')
+        return True
+    except Exception:
+        return False
+
+
 def parse_with_errors(
     source: str,
     filename: str = "<unknown>",
@@ -1175,6 +1188,7 @@ __all__ = [
     "parse",
     "parse_cache_info",
     "parse_with_errors",
+    "prewarm_parser",
     "unparse",
     "walk",
 ]

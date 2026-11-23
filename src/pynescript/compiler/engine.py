@@ -124,6 +124,7 @@ import numpy as np
 
 from pynescript import stats as _stats
 from pynescript.ast.helper import parse
+from pynescript.ast.helper import prewarm_parser
 from pynescript.compiler.compiler import CompilerVisitor
 from pynescript.debug import scoped_debug
 
@@ -703,6 +704,7 @@ def prewarm_scripts(
         _disk_cache_enabled(),
     )
     _stats.count("prewarm.scripts_calls")
+    parser_ok = prewarm_parser()
     numba_ok = prewarm_numba_builtins(force=force_builtins)
     ok = 0
     failed = 0
@@ -745,6 +747,7 @@ def prewarm_scripts(
     stats = compile_cache_stats()
     return {
         "has_numba": numba_ok,
+        "parser_warmed": parser_ok,
         "builtins_warmed": bool(stats.get("builtins_warmed")),
         "disk_cache_enabled": bool(stats.get("disk_cache_enabled")),
         "disk_cache_dir": stats.get("disk_cache_dir"),

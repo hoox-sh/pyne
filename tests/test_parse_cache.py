@@ -50,6 +50,12 @@ def _isolate_parse_cache(monkeypatch):
     clear_parse_cache()
 
 
+def test_prewarm_parser_returns_true() -> None:
+    from pynescript.ast.helper import prewarm_parser
+
+    assert prewarm_parser() is True
+
+
 def test_warm_hit_same_identity():
     a = parse(SRC_MIN)
     b = parse(SRC_MIN)

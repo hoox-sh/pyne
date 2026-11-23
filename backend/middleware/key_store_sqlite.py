@@ -24,6 +24,7 @@ backend with more than one gunicorn worker. Schema:
 
     CREATE TABLE api_keys (
         key_hash TEXT PRIMARY KEY,        -- v2: PBKDF2-HMAC-SHA256 of the raw key
+        key_fingerprint TEXT,             -- SHA-256(raw), invalid-key fast path
         key_id TEXT NOT NULL UNIQUE,
         tier TEXT NOT NULL,
         calls_used INTEGER NOT NULL DEFAULT 0,
@@ -52,13 +53,14 @@ from typing import Any
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS api_keys (
-    key_hash    TEXT PRIMARY KEY,
-    key_id      TEXT NOT NULL UNIQUE,
-    tier        TEXT NOT NULL,
-    calls_used  INTEGER NOT NULL DEFAULT 0,
-    calls_limit INTEGER NOT NULL DEFAULT 0,
-    created_at  REAL NOT NULL,
-    last_used   REAL NOT NULL DEFAULT 0
+    key_hash        TEXT PRIMARY KEY,
+    key_fingerprint TEXT,
+    key_id          TEXT NOT NULL UNIQUE,
+    tier            TEXT NOT NULL,
+    calls_used      INTEGER NOT NULL DEFAULT 0,
+    calls_limit     INTEGER NOT NULL DEFAULT 0,
+    created_at      REAL NOT NULL,
+    last_used       REAL NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_api_keys_key_id ON api_keys(key_id);
 """
@@ -81,6 +83,12 @@ class SQLiteKeyStore:
         self._lock = threading.Lock()
         with self._lock:
             self._conn.executescript(_SCHEMA)
+            # Additive migration for pre-fingerprint DBs.
+            try:
+                self._conn.execute("ALTER TABLE api_keys ADD COLUMN key_fingerprint TEXT")
+            except sqlite3.OperationalError:
+                pass
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_api_keys_fingerprint ON api_keys(key_fingerprint)")
             # WAL mode is a no-op for in-memory DBs; guard with the path.
             if self._path != ":memory:":
                 try:
@@ -90,54 +98,67 @@ class SQLiteKeyStore:
                     # Some filesystems don't support WAL; fall back to default.
                     pass
 
-    def create(self, key_id: str, key_hash: str, tier: str, calls_limit: int | float) -> None:
+    def create(
+        self,
+        key_id: str,
+        key_hash: str,
+        tier: str,
+        calls_limit: int | float,
+        key_fingerprint: str = "",
+    ) -> None:
         """Insert a new hashed key row."""
         with self._lock:
             self._conn.execute(
-                "INSERT INTO api_keys (key_hash, key_id, tier, calls_used, calls_limit, created_at, last_used)"
-                " VALUES (?, ?, ?, 0, ?, ?, 0)",
-                (key_hash, key_id, tier, calls_limit, time.time()),
+                "INSERT INTO api_keys"
+                " (key_hash, key_fingerprint, key_id, tier, calls_used, calls_limit, created_at, last_used)"
+                " VALUES (?, ?, ?, ?, 0, ?, ?, 0)",
+                (key_hash, key_fingerprint, key_id, tier, calls_limit, time.time()),
             )
+
+    @staticmethod
+    def _row_to_record(row: tuple[Any, ...]) -> dict[str, Any]:
+        return {
+            "key_id": row[0],
+            "key_hash": row[1],
+            "key_fingerprint": row[2] or "",
+            "tier": row[3],
+            "calls_used": row[4],
+            "calls_limit": row[5],
+            "created_at": row[6],
+            "last_used": row[7],
+        }
 
     def get_by_hash(self, key_hash: str) -> dict[str, Any] | None:
         """Return the key record for *key_hash*, or ``None``."""
         with self._lock:
             row = self._conn.execute(
-                "SELECT key_id, key_hash, tier, calls_used, calls_limit, created_at, last_used"
+                "SELECT key_id, key_hash, key_fingerprint, tier, calls_used, calls_limit, created_at, last_used"
                 " FROM api_keys WHERE key_hash = ?",
                 (key_hash,),
             ).fetchone()
-        if row is None:
+        return None if row is None else self._row_to_record(row)
+
+    def get_by_fingerprint(self, key_fingerprint: str) -> dict[str, Any] | None:
+        """Return the key record for a SHA-256 fingerprint, or ``None``."""
+        if not key_fingerprint:
             return None
-        return {
-            "key_id": row[0],
-            "key_hash": row[1],
-            "tier": row[2],
-            "calls_used": row[3],
-            "calls_limit": row[4],
-            "created_at": row[5],
-            "last_used": row[6],
-        }
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT key_id, key_hash, key_fingerprint, tier, calls_used, calls_limit, created_at, last_used"
+                " FROM api_keys WHERE key_fingerprint = ?",
+                (key_fingerprint,),
+            ).fetchone()
+        return None if row is None else self._row_to_record(row)
 
     def get_by_id(self, key_id: str) -> dict[str, Any] | None:
         """Return the key record for public *key_id*, or ``None``."""
         with self._lock:
             row = self._conn.execute(
-                "SELECT key_id, key_hash, tier, calls_used, calls_limit, created_at, last_used"
+                "SELECT key_id, key_hash, key_fingerprint, tier, calls_used, calls_limit, created_at, last_used"
                 " FROM api_keys WHERE key_id = ?",
                 (key_id,),
             ).fetchone()
-        if row is None:
-            return None
-        return {
-            "key_id": row[0],
-            "key_hash": row[1],
-            "tier": row[2],
-            "calls_used": row[3],
-            "calls_limit": row[4],
-            "created_at": row[5],
-            "last_used": row[6],
-        }
+        return None if row is None else self._row_to_record(row)
 
     def delete_by_hash(self, key_hash: str) -> bool:
         """Delete by hash; returns whether a row was removed."""

@@ -27,8 +27,10 @@ backend. See :class:`APIKeyStore` in ``auth.py`` for backend selection.
 Schema (one hash per key, keyed by SHA-256 of the raw key)::
 
     apikey:<key_hash> -> {
-        key_id, tier, calls_used, calls_limit, created_at, last_used
+        key_id, key_hash, key_fingerprint, tier, calls_used, calls_limit,
+        created_at, last_used
     }
+    apikey:by_fingerprint -> { key_fingerprint: key_hash }
 
 We do not store the raw API key — only its SHA-256 hash.
 """
@@ -66,11 +68,19 @@ class RedisKeyStore:
             client = redis.Redis.from_url(url, decode_responses=True)
         self._client = client
 
-    def create(self, key_id: str, key_hash: str, tier: str, calls_limit: int | float) -> None:
-        """Insert a hashed key hash and secondary id→hash index."""
+    def create(
+        self,
+        key_id: str,
+        key_hash: str,
+        tier: str,
+        calls_limit: int | float,
+        key_fingerprint: str = "",
+    ) -> None:
+        """Insert a hashed key hash and secondary id/fingerprint indexes."""
         record = {
             "key_id": key_id,
             "key_hash": key_hash,
+            "key_fingerprint": key_fingerprint,
             "tier": tier,
             "calls_used": 0,
             "calls_limit": calls_limit,
@@ -80,8 +90,10 @@ class RedisKeyStore:
         # HSET is one round-trip and atomic; map fields one by one.
         pipe = self._client.pipeline()
         pipe.hset(_KEY_PREFIX + key_hash, mapping={k: _encode(v) for k, v in record.items()})
-        # Maintain a secondary index for get_by_id: a hash of id -> key_hash.
+        # Maintain secondary indexes for get_by_id / get_by_fingerprint.
         pipe.hset("apikey:by_id", key_id, key_hash)
+        if key_fingerprint:
+            pipe.hset("apikey:by_fingerprint", key_fingerprint, key_hash)
         pipe.execute()
 
     def get_by_hash(self, key_hash: str) -> dict[str, Any] | None:
@@ -90,6 +102,15 @@ class RedisKeyStore:
         if not data:
             return None
         return _decode_record(data)
+
+    def get_by_fingerprint(self, key_fingerprint: str) -> dict[str, Any] | None:
+        """Return the key record for a SHA-256 fingerprint, or ``None``."""
+        if not key_fingerprint:
+            return None
+        key_hash = self._client.hget("apikey:by_fingerprint", key_fingerprint)
+        if not key_hash:
+            return None
+        return self.get_by_hash(key_hash)
 
     def get_by_id(self, key_id: str) -> dict[str, Any] | None:
         """Return the key record for public *key_id*, or ``None``."""
@@ -107,6 +128,9 @@ class RedisKeyStore:
         pipe = self._client.pipeline()
         pipe.delete(_KEY_PREFIX + key_hash)
         pipe.hdel("apikey:by_id", record["key_id"])
+        fingerprint = str(record.get("key_fingerprint") or "")
+        if fingerprint:
+            pipe.hdel("apikey:by_fingerprint", fingerprint)
         pipe.execute()
         return True
 
@@ -142,6 +166,7 @@ def _decode_record(data: dict[str, str]) -> dict[str, Any]:
     return {
         "key_id": data["key_id"],
         "key_hash": data["key_hash"],
+        "key_fingerprint": data.get("key_fingerprint", ""),
         "tier": data["tier"],
         "calls_used": json.loads(data["calls_used"]),
         "calls_limit": json.loads(data["calls_limit"]),

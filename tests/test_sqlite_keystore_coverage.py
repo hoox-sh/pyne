@@ -110,6 +110,27 @@ class TestSQLiteKeyStoreMemoryAndPersistence:
         finally:
             ks2.close()
 
+    def test_old_schema_adds_fingerprint_column(self, tmp_path: Path) -> None:
+        import sqlite3
+
+        path = str(tmp_path / "old.db")
+        conn = sqlite3.connect(path)
+        conn.execute(
+            "CREATE TABLE api_keys ("
+            " key_hash TEXT PRIMARY KEY, key_id TEXT NOT NULL UNIQUE, tier TEXT NOT NULL,"
+            " calls_used INTEGER NOT NULL DEFAULT 0, calls_limit INTEGER NOT NULL DEFAULT 0,"
+            " created_at REAL NOT NULL, last_used REAL NOT NULL DEFAULT 0)"
+        )
+        conn.commit()
+        conn.close()
+
+        ks = SQLiteKeyStore(path=path)
+        try:
+            ks.create("kid", "hash", "pro", 100, key_fingerprint="fp")
+            assert ks.get_by_fingerprint("fp")["key_id"] == "kid"
+        finally:
+            ks.close()
+
     def test_duplicate_hash_raises(self, store: SQLiteKeyStore) -> None:
         store.create("k1", "same", "hobby", 1)
         with pytest.raises(Exception):

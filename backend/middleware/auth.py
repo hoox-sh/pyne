@@ -64,6 +64,7 @@ class APIKey:
 
     key_id: str
     key_hash: str
+    key_fingerprint: str = field(default="", repr=False, compare=False)
     tier: str = "free"
     calls_used: int = 0
     calls_limit: int | float = 0
@@ -126,9 +127,18 @@ _TIER_LIMITS = {
 class _HashBackend(Protocol):
     """Minimal protocol shared by SQLiteKeyStore and RedisKeyStore."""
 
-    def create(self, key_id: str, key_hash: str, tier: str, calls_limit: int | float) -> None: ...
+    def create(
+        self,
+        key_id: str,
+        key_hash: str,
+        tier: str,
+        calls_limit: int | float,
+        key_fingerprint: str = "",
+    ) -> None: ...
 
     def get_by_hash(self, key_hash: str) -> dict[str, Any] | None: ...
+
+    def get_by_fingerprint(self, key_fingerprint: str) -> dict[str, Any] | None: ...
 
     def get_by_id(self, key_id: str) -> dict[str, Any] | None: ...
 
@@ -170,6 +180,11 @@ class APIKeyStore:
     on load: the secret is hashed with PBKDF2, the file is re-keyed by that
     hash, and the raw secret is dropped. Pre-v2 SHA-256 fingerprints without
     the raw secret cannot be verified and are skipped (re-issue those keys).
+
+    New keys use a ``pyn_v2_`` prefix and store a SHA-256 fingerprint alongside
+    the PBKDF2 verifier. Invalid ``pyn_v2_`` keys are rejected by one fast
+    SHA-256 lookup instead of a 100k-iteration PBKDF2; legacy ``pyn_`` keys
+    keep the PBKDF2-only fallback.
     """
 
     _DEFAULT_JSON_PATH = "/data/api_keys.json"
@@ -181,6 +196,7 @@ class APIKeyStore:
         # JSON mode only — maps key_hash → APIKey (never raw secret).
         self._keys: dict[str, APIKey] = {}
         self._key_by_id: dict[str, str] = {}  # key_id → key_hash
+        self._key_by_fingerprint: dict[str, str] = {}  # SHA-256(raw) → key_hash
         if self._backend is None:
             self._load()
 
@@ -197,12 +213,14 @@ class APIKeyStore:
                     continue
                 key_hash = str(info.get("key_hash") or "")
                 key_id = str(info.get("key_id") or "")
+                fingerprint = str(info.get("fingerprint") or "")
                 if not key_hash or not key_id:
                     continue
                 # Legacy format: object key was the raw secret (pyn_…). Rehash
                 # with PBKDF2 now so lookup never uses SHA-256 on the secret.
                 if store_key != key_hash:
                     key_hash = self._hash_key(store_key)
+                    fingerprint = self._fingerprint_key(store_key)
                     migrated = True
                 elif not key_hash.startswith("v2:"):
                     # SHA-256-keyed record; raw secret is gone. Skip.
@@ -211,6 +229,7 @@ class APIKeyStore:
                 api_key = APIKey(
                     key_id=key_id,
                     key_hash=key_hash,
+                    key_fingerprint=fingerprint,
                     tier=info.get("tier", "free"),
                     calls_used=info.get("calls_used", 0),
                     calls_limit=info.get("calls_limit", 0),
@@ -220,10 +239,13 @@ class APIKeyStore:
                 )
                 self._keys[key_hash] = api_key
                 self._key_by_id[key_id] = key_hash
+                if fingerprint:
+                    self._key_by_fingerprint[fingerprint] = key_hash
         except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
             # Corrupt or partial store — start empty rather than crash the API.
             self._keys.clear()
             self._key_by_id.clear()
+            self._key_by_fingerprint.clear()
             return
         if migrated:
             # Persist hash-only layout so raw secrets never remain on disk.
@@ -242,6 +264,7 @@ class APIKeyStore:
             data[key_hash] = {
                 "key_id": api_key.key_id,
                 "key_hash": api_key.key_hash,
+                "fingerprint": api_key.key_fingerprint,
                 "tier": api_key.tier,
                 "calls_used": api_key.calls_used,
                 "calls_limit": api_key.calls_limit if api_key.calls_limit != float("inf") else 0,
@@ -288,15 +311,17 @@ class APIKeyStore:
 
     def create_key(self, tier: str = "hobby") -> tuple[str, str]:
         """Mint a new API key; returns ``(raw_key, key_id)`` (raw shown once)."""
-        raw_key = f"pyn_{secrets.token_urlsafe(32)}"
+        raw_key = f"pyn_v2_{secrets.token_urlsafe(32)}"
         key_id = secrets.token_hex(6)
         key_hash = self._hash_key(raw_key)
+        key_fingerprint = self._fingerprint_key(raw_key)
         calls_limit = _TIER_LIMITS.get(tier, 0)
 
         if self._backend is not None:
             self._backend.create(
                 key_id=key_id,
                 key_hash=key_hash,
+                key_fingerprint=key_fingerprint,
                 tier=tier,
                 calls_limit=_limit_for_backend(calls_limit),
             )
@@ -305,12 +330,14 @@ class APIKeyStore:
         api_key = APIKey(
             key_id=key_id,
             key_hash=key_hash,
+            key_fingerprint=key_fingerprint,
             tier=tier,
             calls_limit=calls_limit,
             _store=self,
         )
         self._keys[key_hash] = api_key
         self._key_by_id[key_id] = key_hash
+        self._key_by_fingerprint[key_fingerprint] = key_hash
         self._save()
         return raw_key, key_id
 
@@ -319,6 +346,7 @@ class APIKeyStore:
         return APIKey(
             key_id=record["key_id"],
             key_hash=record["key_hash"],
+            key_fingerprint=str(record.get("key_fingerprint") or record.get("fingerprint") or ""),
             tier=record.get("tier", "free"),
             calls_used=int(record.get("calls_used", 0)),
             calls_limit=limit,
@@ -328,16 +356,39 @@ class APIKeyStore:
         )
 
     def get_key(self, raw_key: str) -> APIKey | None:
-        """Look up a key by raw secret (PBKDF2-HMAC-SHA256)."""
-        if not raw_key:
+        """Look up a key by raw secret.
+
+        New ``pyn_v2_`` keys hit the SHA-256 fingerprint index first, so an
+        invalid key costs one fast hash instead of a 100k-iteration PBKDF2.
+        A fingerprint hit still verifies the PBKDF2 digest. Legacy ``pyn_``
+        keys without a fingerprint fall back to the PBKDF2-only path.
+        """
+        if not raw_key or not raw_key.startswith("pyn_"):
             return None
-        key_hash = self._hash_key(raw_key)
+        fingerprint = self._fingerprint_key(raw_key)
+        is_v2 = raw_key.startswith("pyn_v2_")
         if self._backend is not None:
-            record = self._backend.get_by_hash(key_hash)
+            record = self._backend.get_by_fingerprint(fingerprint)
+            if record is not None:
+                if not hmac.compare_digest(self._hash_key(raw_key), str(record.get("key_hash") or "")):
+                    return None
+                return self._api_key_from_record(record)
+            if is_v2:
+                return None
+            record = self._backend.get_by_hash(self._hash_key(raw_key))
             if record is None:
                 return None
             return self._api_key_from_record(record)
-        return self._keys.get(key_hash)
+
+        key_hash = self._key_by_fingerprint.get(fingerprint)
+        if key_hash is not None:
+            api_key = self._keys.get(key_hash)
+            if api_key is None or not hmac.compare_digest(self._hash_key(raw_key), api_key.key_hash):
+                return None
+            return api_key
+        if is_v2:
+            return None
+        return self._keys.get(self._hash_key(raw_key))
 
     def get_by_id(self, key_id: str) -> APIKey | None:
         """Look up a key by public ``key_id`` (not the raw secret)."""
@@ -362,17 +413,41 @@ class APIKeyStore:
 
     def revoke_key(self, raw_key: str) -> bool:
         """Delete a key by raw secret; returns whether a record was removed."""
-        if not raw_key:
+        if not raw_key or not raw_key.startswith("pyn_"):
             return False
-        key_hash = self._hash_key(raw_key)
+        fingerprint = self._fingerprint_key(raw_key)
+        is_v2 = raw_key.startswith("pyn_v2_")
         if self._backend is not None:
-            return self._backend.delete_by_hash(key_hash)
+            record = self._backend.get_by_fingerprint(fingerprint)
+            if record is not None:
+                return self._backend.delete_by_hash(str(record.get("key_hash") or ""))
+            if is_v2:
+                return False
+            return self._backend.delete_by_hash(self._hash_key(raw_key))
+
+        key_hash = self._key_by_fingerprint.get(fingerprint)
+        if key_hash is None:
+            if is_v2:
+                return False
+            key_hash = self._hash_key(raw_key)
         api_key = self._keys.pop(key_hash, None)
         if api_key is None:
             return False
         self._key_by_id.pop(api_key.key_id, None)
+        if api_key.key_fingerprint:
+            self._key_by_fingerprint.pop(api_key.key_fingerprint, None)
         self._save()
         return True
+
+    @staticmethod
+    def _fingerprint_key(raw_key: str) -> str:
+        """Fast SHA-256 fingerprint for the invalid-key fast path.
+
+        This is not the stored verifier: a fingerprint hit still runs the
+        PBKDF2 check. Keys are 256-bit random, so the fingerprint does not
+        weaken a leaked store.
+        """
+        return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
 
     @staticmethod
     @functools.lru_cache(maxsize=1024)

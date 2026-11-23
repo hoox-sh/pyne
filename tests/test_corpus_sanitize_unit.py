@@ -231,3 +231,22 @@ def test_fix_truncated_and_empty_script_helpers() -> None:
     assert ")" in fixed
     joined = cs._join_column1_ternary_continuations("x = cond\n  ? 1\n  : 2\n")
     assert "?" in joined
+
+
+def test_fast_path_strips_trailing_chrome_without_full_filter() -> None:
+    src = """//@version=6
+indicator("t")
+plot(close)
+
+```
+
+> Detail
+
+https://example.invalid
+
+> Last Modified
+
+2026-01-01
+"""
+    cleaned = cs.sanitize_corpus_source(src)
+    assert cleaned == '//@version=6\nindicator("t")\nplot(close)\n'

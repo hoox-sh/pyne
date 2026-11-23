@@ -2691,6 +2691,26 @@ class InterpretSession:
                     self._last_open_cond_len = len(getattr(ev, "_alert_conditions", None) or [])
                 except Exception as _exc:
                     _swallow(_exc, what="record alert buffer lengths")
+            # Intermediate ticks all start from the same confirmed bar-open
+            # state; snapshot var scope + TA windows once per bar instead of
+            # deep-copying every TA bucket before each tick. Broker state is
+            # still snapshotted per tick because the pre-tick ratchet/extremes
+            # updates depend on that tick's OHLC envelope.
+            if bar_rt and n_ticks > 1:
+                # The last bar already snapshotted at bar-open; reuse it.
+                rt_snap = (
+                    self._last_open_var_snap
+                    if is_last and self._last_open_var_snap is not None
+                    else _snapshot_realtime_scope(ev)
+                )
+                ta_snap = (
+                    self._last_open_ta_snap
+                    if is_last and self._last_open_ta_snap is not None
+                    else _snapshot_ta_state(ev)
+                )
+            else:
+                rt_snap = None
+                ta_snap = None
             for tick_i in range(n_ticks):
                 tick_hl: tuple[float, float] | None = None
                 if bar_rt:
@@ -2712,8 +2732,6 @@ class InterpretSession:
                         eh, el = tick_hl if tick_hl is not None else (fh, fl)
                         if eh is not None and el is not None:
                             _update_forming_trade_extremes(ev, eh, el)
-                tick_var_snap = _snapshot_realtime_scope(ev) if bar_rt and tick_i < n_ticks - 1 else None
-                tick_ta_snap = _snapshot_ta_state(ev) if bar_rt and tick_i < n_ticks - 1 else None
                 tick_broker_snap = (
                     strategy_state.snapshot() if self._need_strategy and bar_rt and tick_i < n_ticks - 1 else None
                 )
@@ -2792,8 +2810,8 @@ class InterpretSession:
                     _stats.count("interpret.errors", dim="runtime")
                     return
                 if tick_i < n_ticks - 1:
-                    _restore_realtime_scope(ev, tick_var_snap)
-                    _restore_ta_state(ev, tick_ta_snap)
+                    _restore_realtime_scope(ev, rt_snap)
+                    _restore_ta_state(ev, ta_snap)
                     if tick_broker_snap is not None:
                         strategy_state.restore(tick_broker_snap)
                         fh, fl = _forming_hl(self._ohlcv_data, bar_index)
@@ -4253,6 +4271,9 @@ class Runtime:
             if need_strategy and not bar_rt:
                 evaluator.update_open_trade_extremes(h, l)
 
+            # Same bar-open snapshot reuse as the batch loop above.
+            rt_snap = _snapshot_realtime_scope(evaluator) if bar_rt and n_ticks > 1 else None
+            ta_snap = _snapshot_ta_state(evaluator) if bar_rt and n_ticks > 1 else None
             for tick_i in range(n_ticks):
                 tick_hl: tuple[float, float] | None = None
                 if bar_rt:
@@ -4279,8 +4300,6 @@ class Runtime:
                 # snapshot var scope + TA windows, restore after the visit
                 # (varip persists). TA must roll back too: each tick pushes
                 # one sample per call site, else the same bar counts N times.
-                rt_snap = _snapshot_realtime_scope(evaluator) if bar_rt and tick_i < n_ticks - 1 else None
-                ta_snap = _snapshot_ta_state(evaluator) if bar_rt and tick_i < n_ticks - 1 else None
                 broker_snap = strategy_state.snapshot() if need_strategy and bar_rt and tick_i < n_ticks - 1 else None
 
                 # Reset per-bar/tick plot index; clear strategy event buffer

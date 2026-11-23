@@ -119,6 +119,19 @@ def test_create_get_update_delete() -> None:
     store.close()  # no-op
 
 
+def test_fingerprint_index() -> None:
+    client = FakeRedis()
+    store = RedisKeyStore(client=client)
+    store.create("kid", "hash1", "free", 50, key_fingerprint="fp1")
+    rec = store.get_by_fingerprint("fp1")
+    assert rec is not None
+    assert rec["key_id"] == "kid"
+    assert rec["key_fingerprint"] == "fp1"
+    assert store.get_by_fingerprint("missing") is None
+    assert store.delete_by_hash("hash1") is True
+    assert store.get_by_fingerprint("fp1") is None
+
+
 def test_import_error_without_client(monkeypatch: pytest.MonkeyPatch) -> None:
     import builtins
 

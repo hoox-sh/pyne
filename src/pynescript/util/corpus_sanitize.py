@@ -520,6 +520,13 @@ def _looks_like_jinja(text: str) -> bool:
 # title-case sidebar junk (``Previous Strategies Next Techniques …``).
 # Do NOT use IGNORECASE — English ``next to`` must not match.
 _DOCS_NAV_TRAIL_RE = re.compile(r"[ \t]{2,}(Next|Previous|On this page)\b.*$")
+_PLACEHOLDER_ARGS_RE = re.compile(r",\s*\.\.\.\s*\)")
+_PLACEHOLDER_ONLY_RE = re.compile(r"\(\s*\.\.\.\s*\)")
+_TRAILING_ELLIPSIS_COMMA_RE = re.compile(r",\s*\.\.\.\s*$")
+_TRAILING_ELLIPSIS_OPEN_RE = re.compile(r"\(\s*\.\.\.\s*$")
+_DANGLING_PLUS_RE = re.compile(r"\+\s*([\)\]])")
+_DANGLING_COMMA_RE = re.compile(r",\s*([\)\]])")
+_TRAILING_COMMA_RE = re.compile(r",\s*$")
 # Placeholder ellipsis lines from incomplete examples: `...`
 _ELLIPSIS_ONLY_RE = re.compile(r"^\s*\.\.\.\s*$")
 # Trailing binary/logical operators left by mid-expression scrapes.
@@ -818,25 +825,36 @@ def _dedent_rst_literal_body(text: str) -> str:
 
 def _polish_code_line(line: str) -> str:
     """Fix common scrape typos on an otherwise kept code line."""
+    # Fast path: an ASCII line with no scrape markers needs no polishing.
+    if (
+        line.isascii()
+        and "..." not in line
+        and "`" not in line
+        and "=>" not in line
+        and "loading" not in line.lower()
+        and not line.rstrip().endswith((",", ";"))
+        and _DOCS_NAV_TRAIL_RE.search(line) is None
+    ):
+        return line
     # Drop docs nav glued after real code: ``label.new(...)          Next``
     line = _DOCS_NAV_TRAIL_RE.sub("", line)
     # Trailing bare backtick (fence leak): ``plot(close)` ``
     if line.rstrip().endswith("`") and line.count("`") == 1:
         line = line.rstrip()[:-1].rstrip()
     # Docs placeholder args: ``strategy("x", process_orders_on_close=true, ...)``
-    line = re.sub(r",\s*\.\.\.\s*\)", ")", line)
-    line = re.sub(r"\(\s*\.\.\.\s*\)", "()", line)
+    line = _PLACEHOLDER_ARGS_RE.sub(")", line)
+    line = _PLACEHOLDER_ONLY_RE.sub("()", line)
     # Mid-call docs ellipsis without a closer: ``input.int(55, "EMA 5", minval=1,...``
     # Strip the ellipsis so paren-balance repair can close the call.
     if not line.lstrip().startswith("//"):
-        line = re.sub(r",\s*\.\.\.\s*$", "", line)
-        line = re.sub(r"\(\s*\.\.\.\s*$", "(", line)
+        line = _TRAILING_ELLIPSIS_COMMA_RE.sub("", line)
+        line = _TRAILING_ELLIPSIS_OPEN_RE.sub("(", line)
     # reference library import UI residual: ``import x/y/1 as eta loading...``
     if not line.lstrip().startswith("//"):
         line = _strip_trailing_loading_ellipsis(line)
     # Dangling ``+`` / ``,`` immediately before a closer (cut mid-concat / mid-args).
-    line = re.sub(r"\+\s*([\)\]])", r"\1", line)
-    line = re.sub(r",\s*([\)\]])", r"\1", line)
+    line = _DANGLING_PLUS_RE.sub(r"\1", line)
+    line = _DANGLING_COMMA_RE.sub(r"\1", line)
     # Python-style trailing commas on *simple* switch arms
     # (``"EURUSD" => 3.0 * atr,``). Keep the comma when the RHS still has
     # ``(`` — wrapped ``Type.new(a,`` / ``true => line.new(...,`` / statement
@@ -844,7 +862,7 @@ def _polish_code_line(line: str) -> str:
     if "=>" in line and not line.lstrip().startswith("//"):
         after = line.rsplit("=>", 1)[-1]
         if "(" not in after and line.count("(") <= line.count(")"):
-            line = re.sub(r",\s*$", "", line)
+            line = _TRAILING_COMMA_RE.sub("", line)
     line = _normalize_unicode_ops(line)
     line = _strip_trailing_semicolon(line)
     return line
@@ -2709,9 +2727,122 @@ def _clean_and_score_island(text: str) -> tuple[str, int]:
     return body, sc
 
 
+_FAST_VERSION_RE = re.compile(r"^\s*//@version\s*=", re.M)
+_FAST_DECL_RE = re.compile(r"^(?:indicator|strategy|library)\s*\(", re.M)
+_FAST_PROSE_LINE_RE = re.compile(
+    r"^\s*(?:https?://\S+|at\s+https?://\S+|[a-z0-9][a-z0-9.-]*\.[a-z]{2,})\s*$",
+    re.I | re.M,
+)
+_FAST_TRAILING_OP_RE = re.compile(r"(?:[+\-*/?:,=]|\band|\bor)\s*$", re.I)
+
+
+def _fast_strip_trailing_chrome(source: str) -> str:
+    """Strip only trailing scrape chrome (``> Detail`` block, fences, Expand)."""
+    lines = source.splitlines()
+    idx: int | None = None
+    for i in range(max(0, len(lines) - 40), len(lines)):
+        stripped = lines[i].strip()
+        if _FOOTER_LABELS.match(stripped) or _PROSE_LABEL_RE.match(stripped):
+            idx = i
+            break
+    if idx is not None:
+        start = idx
+        j = idx - 1
+        while j >= 0 and not lines[j].strip():
+            j -= 1
+        if j >= 0 and _FENCE_RE.match(lines[j].strip()):
+            start = j
+        lines = lines[:start]
+    while lines and _EXPAND_RE.match(lines[-1].strip()):
+        lines.pop()
+    while lines and _FENCE_RE.match(lines[-1].strip()):
+        lines.pop()
+    while lines and not lines[-1].strip():
+        lines.pop()
+    return "\n".join(lines)
+
+
+def _fast_clean_source(source: str) -> str | None:
+    """Return a cheaply cleaned script when only trailing chrome is dirty.
+
+    The full line filter is O(lines x regexes) and dominates corpus sweeps.
+    Most scraped entries are complete scripts plus a ``> Detail`` footer; this
+    path handles those without the full pass. Anything with middle prose,
+    unbalanced delimiters, or truncation markers falls back to the full
+    sanitizer.
+    """
+    text = _fast_strip_trailing_chrome(source)
+    if not text.strip():
+        return None
+    head = text[:4096]
+    if len(_FAST_VERSION_RE.findall(text)) != 1 or not _FAST_DECL_RE.search(head):
+        return None
+    if "```" in text or "Expand (" in text or "\n> " in text:
+        return None
+    if "<div" in text or "</" in text or "&nbsp;" in text:
+        return None
+    if _FAST_PROSE_LINE_RE.search(text):
+        return None
+    depth_p = depth_b = 0
+    in_str: str | None = None
+    esc = False
+    for ch in text:
+        if in_str is not None:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == in_str:
+                in_str = None
+            continue
+        if ch in "\"'":
+            in_str = ch
+        elif ch == "(":
+            depth_p += 1
+        elif ch == ")":
+            depth_p -= 1
+        elif ch == "[":
+            depth_b += 1
+        elif ch == "]":
+            depth_b -= 1
+        if depth_p < 0 or depth_b < 0:
+            return None
+    if depth_p or depth_b or in_str is not None:
+        return None
+    for line in reversed(text.splitlines()):
+        stripped = line.strip()
+        if stripped and not stripped.startswith("//"):
+            if _FAST_TRAILING_OP_RE.search(stripped):
+                return None
+            break
+    # A line-wrapped single/double string with no leading whitespace on the
+    # next line is the INV025/INV047 repair shape; let the full pass close it.
+    state: str | None = None
+    src_lines = text.splitlines()
+    for i, line in enumerate(src_lines):
+        state = _string_state_after_line(line, state)
+        if state is not None and (i + 1 >= len(src_lines) or not src_lines[i + 1][:1].isspace()):
+            return None
+    if state is not None:
+        return None
+    # Only return the fast result when it is already valid Pine. Empty method
+    # bodies, dangling operators, and other truncated shapes still need the
+    # full repair pass.
+    try:
+        from pynescript.ast.helper import parse
+
+        parse(text)
+    except Exception:
+        return None
+    return text
+
+
 def sanitize_corpus_source(source: str) -> str:
     """Drop or unwrap non-Pine chrome common in scraped corpus scripts."""
     ends_with_nl = source.endswith("\n")
+    fast = _fast_clean_source(source)
+    if fast is not None:
+        return fast + ("\n" if ends_with_nl and not fast.endswith("\n") else "")
     source = _normalize_chrome(source)
     source = _dedent_rst_literal_body(source)
     lines = source.splitlines()

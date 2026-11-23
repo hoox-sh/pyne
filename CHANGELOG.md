@@ -16,6 +16,14 @@
 
 ### Fixed
 
+- **Invalid API keys are rejected by a SHA-256 fingerprint index.** New keys use a `pyn_v2_` prefix and store a fingerprint alongside the PBKDF2 verifier; an invalid `pyn_v2_` key costs one fast hash instead of a 100k-iteration PBKDF2. Legacy `pyn_` keys keep the PBKDF2 fallback. JSON, SQLite (additive migration), and Redis backends are covered.
+
+- **Parser startup prewarm.** `prewarm_parser()` loads the ANTLR ATN once, the compile prewarm hook calls it, and `backend.app` starts it in a daemon thread so the first request does not pay the ~0.7 s cold parse.
+
+- **Realtime ticks reuse one bar-open TA/var snapshot.** Intermediate ticks no longer deep-copy every incremental TA bucket per tick; the last bar reuses the snapshot already taken at bar-open. Broker state still snapshots per tick because its ratchet/extremes depend on the tick envelope.
+
+- **Dirty corpus sanitization has a trailing-chrome fast path.** Complete scripts with a `> Detail`/`Expand` footer skip the full line filter, and `_polish_code_line` has a no-marker fast return. A 350 KB clean/trailing-chrome script drops from ~1.2 s to ~0.3 s (and to ~1.5 ms in the compile clean-source path).
+
 - **Opt-in parser recovery for mangled corpus/docs input.** `parse(..., recover=True)` and `parse_with_errors()` blank standalone URL/domain prose lines (preserving line numbers), use ANTLR's default recovery, and return the recovered tree plus `(line, column, message)` errors. The strict parser is unchanged, so INV074/INV078 invalid shapes still fail. All 215 `@expects parse: success` set06 fixtures now pass strict-or-recovery.
 
 - **Parser gaps from the set06 corpus audit.** A wrapped ternary may start a continuation line with `?` or `:` when its indent is not a multiple of four (INV073); a 4-space leading operator still fails (INV074). `for` headers may wrap after `to` / `by` / `in`, and triple-quoted strings accept an escaped delimiter (`"""a \""" b"""`, `'''a \''' b'''`). Zero-padded decimals (`01`, `02`, `007`) parse as decimal. Pinned by `tests/test_parser_gaps_2026_11_23.py`.

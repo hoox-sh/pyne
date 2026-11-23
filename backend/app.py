@@ -31,6 +31,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 
 from collections.abc import Callable
@@ -232,6 +233,27 @@ _FREE_CORS_PATH_PREFIXES = (
 
 # Once-per-worker host prewarm (builtins + disk cache dir). Soft-fail without Numba.
 _HOST_COMPILE_PREWARMED = False
+
+
+def _start_parser_prewarm() -> None:
+    """Load the ANTLR ATN off the first request path (~0.7 s once per process)."""
+    try:
+        from pynescript.compiler.engine import prewarm_enabled
+
+        if not prewarm_enabled():
+            return
+        from pynescript.ast.helper import prewarm_parser
+
+        threading.Thread(
+            target=prewarm_parser,
+            name="pyne-parser-prewarm",
+            daemon=True,
+        ).start()
+    except Exception:  # pragma: no cover - startup must never fail
+        logger.debug("parser prewarm thread failed to start", exc_info=True)
+
+
+_start_parser_prewarm()
 
 
 def _path_is_free_cors(path: str) -> bool:
