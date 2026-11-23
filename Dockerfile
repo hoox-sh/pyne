@@ -87,6 +87,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Application sources
 COPY src ./src
 COPY backend ./backend
+COPY gunicorn_conf.py ./gunicorn_conf.py
 
 # Install pynescript (core + LSP extras used by api-dev / lsp targets)
 RUN --mount=type=cache,target=/root/.cache/pip \
@@ -117,6 +118,7 @@ FROM base AS runtime
 COPY --from=builder /install /usr/local
 COPY --from=builder /app/src /app/src
 COPY --from=builder /app/backend /app/backend
+COPY --from=builder /app/gunicorn_conf.py /app/gunicorn_conf.py
 COPY docker/entrypoint-api.sh /usr/local/bin/entrypoint-api.sh
 
 RUN chmod +x /usr/local/bin/entrypoint-api.sh \
