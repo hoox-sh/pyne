@@ -197,15 +197,18 @@ PRODUCT_ORIGIN_RE = (
 
 
 def _parse_allowed_origins() -> list[str] | str:
-    raw = os.environ.get(
-        "ALLOWED_ORIGINS",
-        "https://pynescript.ai,https://app.pynescript.ai,https://axis.hoox.sh," + LOCALHOST_RE,
-    ).strip()
+    raw = os.environ.get("ALLOWED_ORIGINS", "").strip()
+    explicit = bool(raw)
+    if not raw:
+        raw = "https://pynescript.ai,https://app.pynescript.ai,https://axis.hoox.sh"
     if raw == "*" or raw.lower() == "any":
         return "*"
     parts = [o.strip() for o in raw.split(",") if o.strip()]
-    # Always keep local-dev regex even when an explicit list is provided
-    if LOCALHOST_RE not in parts:
+    # Localhost (any port) is allowed by default for local dev, but is NOT
+    # auto-added when an operator explicitly pins ALLOWED_ORIGINS in production.
+    # It is also always allowed when FLASK_ENV=development.
+    dev = os.environ.get("FLASK_ENV", "").lower() == "development"
+    if (not explicit or dev) and LOCALHOST_RE not in parts:
         parts.append(LOCALHOST_RE)
     if PRIVATE_HTTP_RE not in parts and raw != "*":
         parts.append(PRIVATE_HTTP_RE)

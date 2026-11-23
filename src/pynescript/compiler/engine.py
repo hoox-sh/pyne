@@ -1222,11 +1222,15 @@ def _apply_bgcolor_series(
         true_color = ev_attrs.get("true_color")
         false_color = ev_attrs.get("false_color")
         out = np.empty(series.shape, dtype=object)
-        for j, val in enumerate(series):
-            if val == val and float(val) != 0.0:
-                out[j] = true_color
-            else:
-                out[j] = false_color
+        # Non-zero, finite cells -> true_color; everything else -> false_color.
+        # Vectorized: avoids a per-element Python loop over every bar.
+        try:
+            arr = np.asarray(series, dtype=np.float64)
+            fired = ~np.isnan(arr) & (arr != 0.0)
+        except (TypeError, ValueError):
+            fired = np.zeros(series.shape, dtype=bool)
+        out[fired] = true_color
+        out[~fired] = false_color
         packed[title] = out
 
 
@@ -1251,8 +1255,14 @@ def _apply_plotshape_series(
         if not isinstance(series, np.ndarray):
             continue
         out = np.empty(series.shape, dtype=object)
-        for j, val in enumerate(series):
-            out[j] = True if (val == val and float(val) != 0.0) else None
+        # 1.0 (fired) -> True, 0.0/NaN -> None. Vectorized over every bar.
+        try:
+            arr = np.asarray(series, dtype=np.float64)
+            fired = ~np.isnan(arr) & (arr != 0.0)
+        except (TypeError, ValueError):
+            fired = np.zeros(series.shape, dtype=bool)
+        out[fired] = True
+        out[~fired] = None
         packed[title] = out
 
 
@@ -1657,7 +1667,70 @@ def _exec_generated(
         fn = _import_disk_module(ir_key, code, object_mode=object_mode)
 
     if fn is None:
-        namespace: dict[str, Any] = {"__name__": "pynescript_compiled"}
+        namespace: dict[str, Any] = {
+            "__name__": "pynescript_compiled",
+            # Restrict builtins so user-derived Pine code cannot reach the
+            # filesystem, network, or process through the exec()ed module.
+            # Generated code imports what it needs (numpy, numba_builtins) and
+            # should not rely on open/, __import__/, os, subprocess, etc.
+            "__builtins__": {
+                "__import__": __import__,  # required by the `import` statement
+                "abs": abs,
+                "all": all,
+                "any": any,
+                "ascii": ascii,
+                "bin": bin,
+                "bool": bool,
+                "bytearray": bytearray,
+                "bytes": bytes,
+                "callable": callable,
+                "chr": chr,
+                "classmethod": classmethod,
+                "complex": complex,
+                "dict": dict,
+                "divmod": divmod,
+                "enumerate": enumerate,
+                "filter": filter,
+                "float": float,
+                "frozenset": frozenset,
+                "getattr": getattr,
+                "hasattr": hasattr,
+                "hash": hash,
+                "hex": hex,
+                "id": id,
+                "int": int,
+                "isinstance": isinstance,
+                "issubclass": issubclass,
+                "iter": iter,
+                "len": len,
+                "list": list,
+                "map": map,
+                "max": max,
+                "memoryview": memoryview,
+                "min": min,
+                "next": next,
+                "object": object,
+                "oct": oct,
+                "ord": ord,
+                "pow": pow,
+                "print": print,
+                "range": range,
+                "repr": repr,
+                "reversed": reversed,
+                "round": round,
+                "set": set,
+                "setattr": setattr,
+                "slice": slice,
+                "sorted": sorted,
+                "staticmethod": staticmethod,
+                "str": str,
+                "sum": sum,
+                "super": super,
+                "tuple": tuple,
+                "type": type,
+                "zip": zip,
+            },
+        }
         try:
             exec(code, namespace)  # noqa: S102 — intentional compile pipeline
         except Exception as exc:
@@ -1754,21 +1827,14 @@ def _share_compiled(
 def _looks_clean_for_compile(source: str) -> bool:
     """Cheap guard for API/editor scripts that need no corpus sanitization.
 
-    ``sanitize_corpus_source`` is deliberately thorough (line filters, prose
-    scoring, truncation repair) and costs ~1 s for a 350 KB script. Clean
-    scripts start with one version annotation and contain no markdown/HTML
-    scrape chrome, so they can skip that pass entirely.
+    Delegates to the centralized :func:`pynescript.util.corpus_sanitize.
+    is_already_clean_pine` so the compile path and the sanitizer fast path
+    agree on exactly what counts as "clean Pine" (one ``//@version`` pragma,
+    a script declaration, no scrape chrome).
     """
-    head = source[:4096]
-    if "//@version" not in head:
-        return False
-    if source.count("//@version") != 1:
-        return False
-    if "```" in source or "Expand (" in source or "\n> " in source:
-        return False
-    if "<div" in source or "</" in source or "&nbsp;" in source:
-        return False
-    return bool(re.search(r"^(?:indicator|strategy|library)\s*\(", head, re.M))
+    from pynescript.util.corpus_sanitize import is_already_clean_pine
+
+    return is_already_clean_pine(source)
 
 
 def _sanitize_source(source: str) -> str:

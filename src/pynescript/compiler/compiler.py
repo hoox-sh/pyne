@@ -65,7 +65,6 @@ import keyword
 import math
 import re
 
-from collections.abc import Iterator
 from typing import Any
 
 from pynescript.ast import node as ast
@@ -75,6 +74,9 @@ from pynescript.ast.evaluator.builtins.plot_params import WIRE_FLOAT_PARAMS
 from pynescript.ast.evaluator.builtins.plot_params import WIRE_INT_PARAMS
 from pynescript.ast.evaluator.builtins.plot_params import param_index
 from pynescript.ast.visitor import NodeVisitor
+from pynescript.compiler.helpers import _fold_int_attr
+from pynescript.compiler.helpers import _is_chart_point_namespace
+from pynescript.compiler.helpers import _iter_child_values
 
 
 _NS = frozenset(
@@ -161,14 +163,6 @@ _PINE_DISPLAY_CONSTANTS: dict[str, int] = {
 # Visual kinds whose plot_meta comes from __drawings events (not visitor.plots):
 # constant-folded wire attrs are appended to their event dicts in _emit_drawing.
 _VISUAL_EVENT_FOLD_KINDS = frozenset({"bgcolor", "barcolor", "plotshape", "plotchar"})
-
-
-def _fold_int_attr(value: Any, default: int) -> int:
-    """Best-effort ``int()`` of a folded literal; *default* when unconvertible."""
-    try:
-        return int(value)  # float("inf") → OverflowError, nan → ValueError
-    except (TypeError, ValueError, OverflowError):
-        return default
 
 
 # Fundamentals / currency / adjustment namespaces. Member access must not
@@ -385,20 +379,6 @@ _METHOD_TA = frozenset(
 )
 
 
-def _is_chart_point_namespace(recv: object) -> bool:
-    """Whether ``recv`` is the ``chart.point`` namespace (not a value).
-
-    ``chart.point.from_index`` / ``.copy`` / ``.now`` are namespace constructors.
-    Lowering them as collection methods silently drops the point argument.
-    """
-    return (
-        isinstance(recv, ast.Attribute)
-        and recv.attr == "point"
-        and isinstance(recv.value, ast.Name)
-        and recv.value.id == "chart"
-    )
-
-
 # Method form: arr.push(x) / m.put(k,v) / t.cell(...) → array_push / map_put / table_cell
 _ARRAY_METHODS: dict[str, str] = {
     "push": "array_push",
@@ -568,21 +548,6 @@ _DRAWING_FUNCS = frozenset(
         "polyline_delete",
     }
 )
-
-
-def _iter_child_values(node: Any) -> Iterator[Any]:
-    """Yield child field values of an AST node (slots-compatible traversal).
-
-    ``node.__dict__.values()`` was used before AST nodes became slotted
-    dataclasses — slotted nodes have no ``__dict__``, so traversal must go
-    through the declared ``_fields``. Mirrors the old semantics: lists are
-    yielded whole (callers recurse per item); unset fields are skipped.
-    """
-    for name in node._fields:
-        try:
-            yield getattr(node, name)
-        except AttributeError:
-            continue
 
 
 class CompilerVisitor(NodeVisitor):

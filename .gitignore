@@ -172,8 +172,6 @@ src/pynescript/ast/grammar/antlr4/generated/src/
 # OpenOrchestrate runtime state
 # Local only. Never pushed.
 .oo/
-.oo/
-.openOrchestrate/
 
 # Local-only agent context (never pushed, still read by the seats)
 .opencode/

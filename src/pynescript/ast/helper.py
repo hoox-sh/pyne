@@ -53,6 +53,7 @@ Contracts
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import itertools
 import os
@@ -261,6 +262,26 @@ def _scrub_pine_call_sites(tree: AST) -> AST:
     except Exception:
         pass
     return tree
+
+
+def _copy_ast_tree(tree: AST) -> AST:
+    """Return a shallow copy of *tree* (new node objects, shared field references).
+
+    Cached parse trees are shared by identity and must be treated as read-only.
+    Callers that need to mutate a tree (``increment_lineno``, ``NodeTransformer``,
+    ``_scrub_pine_call_sites``) should pass ``copy_on_hit=True`` to
+    :func:`parse` so a cache hit returns a copy that can be mutated in place
+    without poisoning the cached entry for subsequent hits.
+
+    Only the top node and its direct container structure are copied; nested
+    child references are shared (a shallow copy). This is cheap and is enough
+    to protect against in-place attribute mutation of the returned node itself.
+    """
+    try:
+        return copy.copy(tree)
+    except Exception:
+        # Fall back to the original if the node cannot be copied.
+        return tree
 
 
 def parse_cache_info() -> dict[str, Any]:
@@ -726,6 +747,7 @@ def parse(
     mode: str = "exec",
     *,
     recover: bool = False,
+    copy_on_hit: bool = False,
 ) -> AST:
     """Parse Pine Script source into an AST.
 
@@ -747,6 +769,12 @@ def parse(
         recover: Opt-in TradingView-style recovery for mangled corpus/docs
             input. Bypasses the parse cache; use :func:`parse_with_errors` to
             also receive the collected errors.
+        copy_on_hit: When a cache hit occurs, return a shallow copy of the
+            cached tree instead of the shared instance. Use this when the
+            caller intends to mutate the tree (e.g. ``increment_lineno``,
+            ``NodeTransformer``) so the mutation does not poison the cached
+            entry for subsequent hits. Misses always store the freshly built
+            tree (caller still owns it).
 
     Returns:
         :class:`~pynescript.ast.node.Script` for ``mode="exec"``, or
@@ -759,6 +787,7 @@ def parse(
     Examples:
         >>> tree = parse("plot(close)")
         >>> expr = parse("close > open", mode="eval")
+        >>> tree = parse("plot(close)", copy_on_hit=True)  # safe to mutate
     """
     if recover:
         node, _errors = parse_with_errors(source, filename, mode)
@@ -769,7 +798,8 @@ def parse(
     key = _parse_cache_key(source, mode)
     hit = _parse_cache_get(key)
     if hit is not None:
-        return _scrub_pine_call_sites(hit)
+        tree = _copy_ast_tree(hit) if copy_on_hit else hit
+        return _scrub_pine_call_sites(tree)
 
     tree = _parse_inputstream(source, filename, mode)
     return _parse_cache_put(key, tree)

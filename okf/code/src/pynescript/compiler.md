@@ -7,7 +7,7 @@ tags: [code, compiler, pynescript]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-22T13:20:29Z
+  at: 2026-11-23T17:57:38Z
 sources:
   - id: tree
     resource: "src/pynescript/compiler"
@@ -20,6 +20,7 @@ okf_lock: generated
 
 - `__init__.py`
 - `engine.py` — CompileEmitError, CompileError, CompileLoadError, CompileNumbaRequiredError, CompileWarmupError, CompiledScript, clear_compile_cache, clear_disk_compile_cache, clear_numba_function_caches, compile_cache_stats, compile_deploy_config, compile_script
+- `helpers.py`
 - `numba_builtins.py` — array_abs, array_binary_search, array_binary_search_leftmost, array_binary_search_rightmost, array_copy_value, array_covariance, array_every, array_fill, array_mode, array_normalized, array_percentile_linear_interpolation, array_percentile_nearest_rank
 - `strategy_broker.py` — ClosedTradeRecord, CompileStrategyBroker, OpenLeg, PendingOrder, StrategyOrderError
 

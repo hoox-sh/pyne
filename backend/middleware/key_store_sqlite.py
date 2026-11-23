@@ -167,11 +167,23 @@ class SQLiteKeyStore:
             return cur.rowcount > 0
 
     def update_calls(self, key_id: str, calls_used: int, last_used: float) -> None:
-        """Persist usage counters for *key_id*."""
+        """Persist usage counters for *key_id* (absolute value; legacy path)."""
         with self._lock:
             self._conn.execute(
                 "UPDATE api_keys SET calls_used = ?, last_used = ? WHERE key_id = ?",
                 (calls_used, last_used, key_id),
+            )
+
+    def increment_calls(self, key_id: str, delta: int, last_used: float) -> None:
+        """Atomically increment *key_id*'s call counter by *delta*.
+
+        Uses ``calls_used = calls_used + ?`` so concurrent gunicorn workers
+        never lose updates (read-modify-write race on the absolute form).
+        """
+        with self._lock:
+            self._conn.execute(
+                "UPDATE api_keys SET calls_used = calls_used + ?, last_used = ? WHERE key_id = ?",
+                (delta, last_used, key_id),
             )
 
     def close(self) -> None:

@@ -65,6 +65,7 @@ case "${WORKER_CLASS}" in
     # gthread upgrades through flask-sock (gunicorn.socket); sync cannot
     # upgrade, so AXIS falls back to REST on that worker class.
     exec gunicorn \
+      -c gunicorn_conf.py \
       --bind "${BIND}" \
       --workers "${WORKERS}" \
       --worker-class "${WORKER_CLASS}" \
@@ -82,6 +83,7 @@ case "${WORKER_CLASS}" in
     # framing (see the WebSocket note at the top of this file).
     # Long-lived WS connections delay --max-requests recycling gracefully.
     exec gunicorn \
+      -c gunicorn_conf.py \
       --bind "${BIND}" \
       --workers "${WORKERS}" \
       --worker-class "${WORKER_CLASS}" \

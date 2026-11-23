@@ -7,7 +7,7 @@ tags: [code, pynescript, util]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-18T23:04:44Z
+  at: 2026-11-23T17:57:38Z
 sources:
   - id: tree
     resource: "src/pynescript/util"
@@ -21,7 +21,7 @@ okf_lock: generated
 - `__init__.py`
 - `corpus_cli.py` — corpus_group, list_cmd, run_cmd
 - `corpus_runtime.py` — CorpusProgress, CorpusRunResult, collect_files, corpus_rel_path, discover_sets, format_summary, is_expected_fail, resolve_cache_dir, resolve_data_root, run_corpus
-- `corpus_sanitize.py` — sanitize_corpus_source
+- `corpus_sanitize.py` — is_already_clean_pine, sanitize_corpus_source
 - `data.py` — AlphaVantageProvider, CCXTProvider, ChartOHLCVProvider, DataProvider, DataProviderError, MockDataProvider, YahooFinanceProvider, geo_block_message, get_provider, normalize_ccxt_symbol, resolve_request_sources, tune_ccxt_public_urls
 - `datafeed.py` — CCXTProDataFeed, CompositeDataFeed, DataFeed, DataFeedBroker, DataFeedError, MockDataFeed, Order, get_datafeed, poll_forming_ohlcv
 - `itertools.py` — grouper

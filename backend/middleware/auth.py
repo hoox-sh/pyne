@@ -107,12 +107,17 @@ class APIKey:
         return int(month_start.timestamp())
 
     def increment_calls(self, count: int = 1) -> None:
-        """Bump usage counters and persist via the owning store when set."""
-        self.calls_used += count
+        """Bump usage counters and persist atomically via the owning store.
+
+        The store performs a server-side increment (``calls_used = calls_used +
+        delta``) so concurrent workers cannot lose updates. The in-memory view
+        is advanced too so per-process rate-limit checks stay current.
+        """
         self.last_used = time.time()
         store = self._store
         if store is not None:
-            store.persist_usage(self)
+            store.increment_calls(self.key_id, count, self.last_used)
+        self.calls_used += count
 
 
 _TIER_LIMITS = {
@@ -145,6 +150,8 @@ class _HashBackend(Protocol):
     def delete_by_hash(self, key_hash: str) -> bool: ...
 
     def update_calls(self, key_id: str, calls_used: int, last_used: float) -> None: ...
+
+    def increment_calls(self, key_id: str, delta: int, last_used: float) -> None: ...
 
 
 def _limit_for_backend(limit: int | float) -> int | float:
@@ -307,6 +314,26 @@ class APIKeyStore:
         if self._backend is not None:
             self._backend.update_calls(api_key.key_id, api_key.calls_used, api_key.last_used)
             return
+        self._save()
+
+    def increment_calls(self, key_id: str, delta: int, last_used: float) -> None:
+        """Atomically increment *key_id*'s call counter by *delta*.
+
+        JSON backend updates the in-memory record and rewrites the file
+        (single-process by design). SQLite and Redis backends perform a
+        server-side increment so concurrent workers never lose updates.
+        """
+        if self._backend is not None:
+            self._backend.increment_calls(key_id, delta, last_used)
+            return
+        key_hash = self._key_by_id.get(key_id)
+        if key_hash is None:
+            return
+        api_key = self._keys.get(key_hash)
+        if api_key is None:
+            return
+        api_key.calls_used += delta
+        api_key.last_used = last_used
         self._save()
 
     def create_key(self, tier: str = "hobby") -> tuple[str, str]:

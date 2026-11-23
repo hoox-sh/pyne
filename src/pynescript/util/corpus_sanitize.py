@@ -2736,6 +2736,31 @@ _FAST_PROSE_LINE_RE = re.compile(
 _FAST_TRAILING_OP_RE = re.compile(r"(?:[+\-*/?:,=]|\band|\bor)\s*$", re.I)
 
 
+def is_already_clean_pine(source: str) -> bool:
+    """True when *source* is a clean Pine script that needs no sanitization.
+
+    Centralized predicate shared by :mod:`pynescript.util.corpus_sanitize`
+    (fast path) and :mod:`pynescript.compiler.engine` (compile clean-source
+    short-circuit). A script is "clean" when it carries exactly one
+    ``//@version`` pragma, begins with a script declaration
+    (``indicator``/``strategy``/``library``), and contains no markdown/HTML
+    scrape chrome (fences, Expand stubs, blockquotes, divs, entities).
+
+    Cheap: no regex over the full body, only the first 4 KiB and a couple of
+    substring counts. Used to skip the ~1 s line filter for clean scripts.
+    """
+    head = source[:4096]
+    if "//@version" not in head:
+        return False
+    if source.count("//@version") != 1:
+        return False
+    if "```" in source or "Expand (" in source or "\n> " in source:
+        return False
+    if "<div" in source or "</" in source or "&nbsp;" in source:
+        return False
+    return bool(_FAST_DECL_RE.search(head))
+
+
 def _fast_strip_trailing_chrome(source: str) -> str:
     """Strip only trailing scrape chrome (``> Detail`` block, fences, Expand)."""
     lines = source.splitlines()
@@ -2774,12 +2799,7 @@ def _fast_clean_source(source: str) -> str | None:
     text = _fast_strip_trailing_chrome(source)
     if not text.strip():
         return None
-    head = text[:4096]
-    if len(_FAST_VERSION_RE.findall(text)) != 1 or not _FAST_DECL_RE.search(head):
-        return None
-    if "```" in text or "Expand (" in text or "\n> " in text:
-        return None
-    if "<div" in text or "</" in text or "&nbsp;" in text:
+    if not is_already_clean_pine(text):
         return None
     if _FAST_PROSE_LINE_RE.search(text):
         return None

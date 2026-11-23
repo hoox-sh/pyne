@@ -135,9 +135,7 @@ class RedisKeyStore:
         return True
 
     def update_calls(self, key_id: str, calls_used: int, last_used: float) -> None:
-        """Persist usage counters for *key_id*."""
-        # We have the key_hash already if we got here via APIKey._store, but
-        # update_calls only knows key_id. Resolve it once.
+        """Persist usage counters for *key_id* (absolute value; legacy path)."""
         key_hash = self._client.hget("apikey:by_id", key_id)
         if not key_hash:
             return
@@ -148,6 +146,19 @@ class RedisKeyStore:
                 "last_used": _encode(last_used),
             },
         )
+
+    def increment_calls(self, key_id: str, delta: int, last_used: float) -> None:
+        """Atomically increment *key_id*'s call counter by *delta*.
+
+        Uses Redis ``HINCRBY`` so concurrent workers never lose updates.
+        """
+        key_hash = self._client.hget("apikey:by_id", key_id)
+        if not key_hash:
+            return
+        pipe = self._client.pipeline()
+        pipe.hincrby(_KEY_PREFIX + key_hash, "calls_used", delta)
+        pipe.hset(_KEY_PREFIX + key_hash, "last_used", _encode(last_used))
+        pipe.execute()
 
     def close(self) -> None:
         """No-op: process-wide Redis pool is not closed here."""

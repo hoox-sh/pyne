@@ -200,7 +200,7 @@ class _ConcurrencyGate:
 
 
 class _IpRateLimiter:
-    """Sliding-window counter keyed by client IP (best-effort)."""
+    """Sliding-window counter keyed by client IP (best-effort, single-process)."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -228,14 +228,63 @@ class _IpRateLimiter:
             return True
 
 
+class _RedisRateLimiter:
+    """Redis-backed fixed-window counter shared across workers/replicas.
+
+    Uses ``INCR`` with a per-IP key that expires after the window, so the
+    limit is enforced consistently regardless of which gunicorn worker or
+    replica handles the request. Falls back to in-memory if Redis is
+    unreachable (never blocks a request on a rate-limiter outage).
+    """
+
+    def __init__(self, url: str, prefix: str) -> None:
+        self._prefix = prefix
+        try:
+            import redis as _redis
+
+            self._client = _redis.Redis.from_url(url, decode_responses=True)
+            self._client.ping()
+        except Exception:
+            self._client = None
+
+    def _key(self, ip: str, window: int) -> str:
+        # Bucket by integer window start so keys expire cleanly.
+        bucket = int(time.time() // window)
+        return f"pyne:ratelimit:{self._prefix}:{ip}:{window}:{bucket}"
+
+    def allow(self, ip: str, max_req: int | None = None, window: float | None = None) -> bool:
+        if max_req is None or window is None:
+            max_req, window = free_rate_limit()
+        if max_req <= 0:
+            return True  # disabled
+        if self._client is None:
+            return True  # Redis unavailable: fail open (in-memory is the ops choice)
+        try:
+            current = self._client.incr(self._key(ip, int(window)))
+            if current == 1:
+                self._client.expire(self._key(ip, int(window)), int(window) + 1)
+            return current <= max_req
+        except Exception:
+            return True  # fail open on Redis error
+
+
+def _make_rate_limiter(prefix: str = "free") -> _IpRateLimiter | _RedisRateLimiter:
+    """Pick a shared Redis limiter when REDIS_URL is set, else in-memory."""
+    url = (os.environ.get("REDIS_URL") or "").strip()
+    if url:
+        return _RedisRateLimiter(url, prefix)
+    return _IpRateLimiter()
+
+
 _GATE = _ConcurrencyGate()
-_RATE = _IpRateLimiter()
+_RATE = _make_rate_limiter("free")
 # Auth endpoints are always rate-limited: a random key costs one PBKDF2
-# evaluation (~55 ms) even when the key does not exist.
-_AUTH_RATE = _IpRateLimiter()
+# evaluation (~55 ms) even when the key does not exist. Shared across workers
+# when Redis is configured so a distributed burn is still throttled.
+_AUTH_RATE = _make_rate_limiter("auth")
 # Editor bridge endpoints parse up to the global body cap; throttle them even
 # when the free-tier suite is off so a browser page cannot pin a worker.
-_LSP_RATE = _IpRateLimiter()
+_LSP_RATE = _make_rate_limiter("lsp")
 
 
 def lsp_rate_limit() -> tuple[int, float]:
