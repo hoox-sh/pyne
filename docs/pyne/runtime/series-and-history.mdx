@@ -106,7 +106,7 @@ Implemented in `StatementEvaluator._bind_series_name`: if the RHS has `.current`
 
 ### UDF series parameters (0.6.2)
 
-A Pine function parameter that is subscripted (`s[1]` inside `f(s) => …`) is a **series of that argument**, not a scalar that happens to be named `s`. Interpret now allocates a per-call-site history wrapper when the caller passed a scalar or a host-series current (`src = close; updown(src)`). Compile already tracked UDF series state; the two hosts agree on official TradingView® builtins (P1p **0 MISMATCH**). Nested calls get distinct streams. See [Expressions & statements](/pyne/docs/runtime/expressions-statements).
+A Pine function parameter that is subscripted (`s[1]` inside `f(s) => …`) is a **series of that argument**, not a scalar that happens to be named `s`. Interpret now allocates a per-call-site history wrapper when the caller passed a scalar or a host-series current (`src = close; updown(src)`). Compile already tracked UDF series state; the two hosts agree on official TradingView(R) builtins (P1p **0 MISMATCH**). Nested calls get distinct streams. See [Expressions & statements](/pyne/docs/runtime/expressions-statements).
 
 ### `var` / `varip` / `const`
 

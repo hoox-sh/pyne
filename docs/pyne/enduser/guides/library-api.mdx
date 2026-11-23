@@ -37,7 +37,7 @@
 ---
 
 title: "Library API"
-description: "Embed pynescript: parse, dump, unparse, walk, transform, and lint Pine Script™ from Python."
+description: "Embed pynescript: parse, dump, unparse, walk, transform, and lint Pine Script(TM) from Python."
 ---
 
 # Library API
@@ -76,13 +76,14 @@ from pynescript.ast.linter import lint_script, lint_file, PineLinter, LintWarnin
 
 `pynescript.ast.__init__` star-imports `helper`, `node`, `visitor`, `transformer`, and `error`.
 
-### `parse(source, filename="<unknown>", mode="exec") -> AST`
+### `parse(source, filename="<unknown>", mode="exec", *, recover=False) -> AST`
 
 | Arg        | Meaning                                                    |
 | ---------- | ---------------------------------------------------------- |
 | `source`   | Full script or expression text                             |
 | `filename` | Error reporting; absolutized if file exists                |
 | `mode`     | `"exec"` → script statements; `"eval"` → single expression |
+| `recover`  | Opt-in ANTLR recovery; use `parse_with_errors` to also get errors |
 
 Raises `ValueError` on bad mode; `SyntaxError` (via error listener) on grammar failure.
 
@@ -92,6 +93,8 @@ Successful trees are cached in a process-local LRU (`sha256(source)` + `mode`). 
 tree = parse('//@version=6\nindicator("x")\nplot(close)\n')
 expr = parse("close > open", mode="eval")
 ```
+
+For mangled corpus/docs input, `parse_with_errors(source)` blanks standalone URL/domain prose, uses ANTLR's default recovery, and returns `(tree, errors)`; `parse(source, recover=True)` returns the tree alone. Strict `parse()` still raises on the first error.
 
 ### `unparse(node) -> str`
 

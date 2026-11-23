@@ -37,7 +37,7 @@
 ---
 
 title: "Missing features"
-description: "Known gaps and closed Pine Script™ v6 items — what is implemented, what is partial by design, and what is out of scope. hoox-pyne 0.7.0."
+description: "Known gaps and closed Pine Script(TM) v6 items — what is implemented, what is partial by design, and what is out of scope. hoox-pyne 0.7.0."
 ---
 
 # Missing features
@@ -103,7 +103,7 @@ Summarized — full prose in source doc:
 | **`request.security` foreign-na policy**                                                                      | Foreign/complex → `na` both backends; same-symbol OHLCV passthrough                                                                                                                                                              |
 | **Plot parity harness (P1p)**                                                                                 | `scripts/compare_interp_compile.py`, first-party goldens + official TV builtins **0 MISMATCH**                                                                                                                                   |
 | `fill()` export for AXIS                                                                                      | series + `plot_meta` / compile `__drawings`                                                                                                                                                                                      |
-| Square-bracket wrapping                                                                                       | Any-indent line wrapping inside `[…]`; `table.new` columns-then-rows                                                                                                                                                             |
+| Parser wrapping + recovery                                                                                    | Any-indent wrapping inside `(…)` / `[…]`; `for` headers after `to`/`by`/`in`; INV073/INV074 leading operators; escaped triple-string delimiters; `parse(..., recover=True)` / `parse_with_errors` for INV080-style mangled prose; `table.new` columns-then-rows |
 | Drawing export parity                                                                                         | `table.cell` style storage + reference positional order; cell style/width/height/tooltip, `force_overlay`, `merged_cells` both hosts; box/label text extras; polyline curve/fill; `text.align_*` constants                       |
 
 ### Still incomplete / by design
@@ -149,7 +149,7 @@ Open-source set01-04 (**2477** scripts; measured locally, **not shipped** in-rep
 | `ta_atr` bar loop              | **~10×**                                                                                                |
 | macd+atr+rsi+sma combo         | **~8.5×**                                                                                               |
 
-Not TradingView® platform parity. OK% excludes only path-listed intentional demos (never soft-suppress unknown failures).
+Not TradingView(R) platform parity. OK% excludes only path-listed intentional demos (never soft-suppress unknown failures).
 
 Golden: `tests/test_ta_incremental.py`, `tests/test_series_cap.py`.
 
@@ -224,3 +224,7 @@ PYNE_TA_INCREMENTAL=0 python -c "from pynescript.runtime import Runtime; ..."
 - [Technical analysis (`ta.*`)](/pyne/docs/runtime/builtins/technical)
 - [Alerts](/pyne/docs/runtime/alerts)
 - [Interpret ↔ compile parity](/pyne/docs/runtime/compiler/parity)
+
+---
+
+_Pine Script(TM) and TradingView(R) are trademarks of [TradingView, Inc.](https://www.tradingview.com/). PYNE is an independent, unofficial implementation and is not affiliated with, authorized by, sponsored by, or endorsed by TradingView, Inc._

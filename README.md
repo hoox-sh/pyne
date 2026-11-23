@@ -5,7 +5,7 @@
 
 # PYNE
 
-An independent open toolchain for the Pine Script™ language: ANTLR4 grammar, ASDL AST, dual-engine bar-loop runtime, language server, and HTTP evaluate surface.
+An independent open toolchain for the PYNE language: ANTLR4 grammar, ASDL AST, dual-engine bar-loop runtime, language server, and HTTP evaluate surface.
 
 Pine is usually executed inside a host chart. PYNE models the language as an inspectable pipeline — source through parse, AST, and deterministic bar-loop evaluation — so the same scripts can be analysed and run outside any particular UI. Import `pynescript`. CLIs: `pyne`, `pyne-lsp`, `pyne-mcp` (aliases `pynescript`, `pynescript-lsp`).
 
@@ -23,7 +23,7 @@ Pine is usually executed inside a host chart. PYNE models the language as an ins
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776ab?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![PyPI](https://img.shields.io/pypi/v/hoox-pyne?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/hoox-pyne/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-6b7280?style=flat-square)](LICENSE)
-[![TV goldens](https://img.shields.io/badge/TV_goldens-112%2F112-22c55e?style=flat-square)](tests/fixtures/tv_goldens/README.md)
+[![TV goldens](https://img.shields.io/badge/Reference_goldens-112%2F112-22c55e?style=flat-square)](tests/fixtures/tv_goldens/README.md)
 
 [hoox.sh](https://hoox.sh) · [hoox.sh/pyne](https://hoox.sh/pyne) · [docs](https://hoox.sh/pyne/docs) · [CHANGELOG](CHANGELOG.md)
 
@@ -48,20 +48,28 @@ flowchart LR
   O --> W["Cloudflare Workers"]
 ```
 
-The same contract underlies the desk CLI, `pyne-lsp`, Flask `POST /run`, AXIS in-browser Pyodide, and [pyne-worker](https://github.com/hoox-sh/pyne-worker) (`POST /run` at the edge). Coverage and gaps: [compatibility](https://hoox.sh/pyne/docs/reference/compatibility) · [missing features](https://hoox.sh/pyne/docs/reference/missing-features). Vendored OpenPineScript TradingView goldens live in `tests/fixtures/tv_goldens/`. Community set0x corpora and official TradingView builtin_scripts stay local-only.
+The same contract underlies the desk CLI, `pyne-lsp`, Flask `POST /run`, AXIS in-browser Pyodide, and [pyne-worker](https://github.com/hoox-sh/pyne-worker) (`POST /run` at the edge). Coverage and gaps: [compatibility](https://hoox.sh/pyne/docs/reference/compatibility) · [missing features](https://hoox.sh/pyne/docs/reference/missing-features). Vendored OpenPineScript reference goldens live in `tests/fixtures/tv_goldens/`. Community set0x corpora and official reference builtins stay local-only.
 
 ## Features
 
 | Area                | What you get                                                                                            |
 | ------------------- | ------------------------------------------------------------------------------------------------------- |
-| **Parser**          | ANTLR4 v5/v6 grammar, ASDL AST, parse ↔ unparse, structural linter                                      |
+| **Parser**          | ANTLR4 v5/v6 grammar, ASDL AST, parse ↔ unparse, structural linter, opt-in recovery (`parse(..., recover=True)`) |
 | **Runtime**         | Deterministic bar-loop interpret + Numba compile (`auto`), sessions, strategies, alerts, drawings       |
 | **Language server** | Diagnostics, completion (~800+ builtins), hover, navigation, semantic tokens, formatting, Convert to v6 |
 | **CLI**             | `check`, `format`, `lint`, `compile`, `run`, `execute`, `data`, `prewarm`, `mcp`                        |
 | **MCP**             | Stdio server + `pyne mcp call` for parse / lint / convert / compile / run                               |
 | **Backends**        | Flask Pro API (`/run`, batch, preview, backtest, optimize), Cloudflare Workers, Pyodide                 |
+| **Security**        | `pyn_v2_` keys + SHA-256 fingerprint index, proxy-aware rate limits, auth/LSP throttles                 |
 | **Editors**         | VS Code (AXIS Void / Hoox Signal / PYNE Volt themes), Neovim, Zed, Emacs                                |
-| **Parity**          | 112 / 112 TradingView golden columns (OpenPineScript harnesses, ~2,475 daily bars, rel 1e-6)            |
+| **Parity**          | 112 / 112 reference golden columns (OpenPineScript harnesses, ~2,475 daily bars, rel 1e-6)            |
+
+### Recent hardening (0.7.4+)
+
+- **Parser** — escaped triple-quoted delimiters, wrapped `for` headers after `to`/`by`/`in`, INV073/INV074 leading-operator rules, zero-padded decimals, and `parse_with_errors()` for mangled corpus/docs input. All 215 expected-success set06 fixtures pass strict-or-recovery.
+- **API** — new `pyn_v2_` keys carry a SHA-256 fingerprint; invalid keys skip PBKDF2. `/datafeed/session` is API-key scoped, rate limits use the proxy-trusted client IP, `/auth/validate` and `/lsp/*` are throttled, and `?api_key=` is opt-in only.
+- **Performance** — clean-source compile sanitization, stamped-node parse-cache scrubbing, `ta.max` same-bar fast path, one bar-open TA/`var` snapshot per realtime bar, and a trailing-chrome fast path for corpus sanitization.
+- **Corpus** — local-only audit tool (`scripts/audit_pine_corpus.py`) detects `Expand (N lines)` truncation and trailing scrape chrome; quarantined entries live under `tests/data/_truncated/` and are never shipped.
 
 ---
 
@@ -107,17 +115,17 @@ configs are in [`clients/`](./clients/).
 GHCR multi-arch images on `v*` tags:
 
 ```bash
-docker pull ghcr.io/hoox-sh/pyne/cli:0.6.31
-docker run --rm -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/cli:0.6.31 check script.pine
+docker pull ghcr.io/hoox-sh/pyne/cli:0.7.4
+docker run --rm -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/cli:0.7.4 check script.pine
 
-docker pull ghcr.io/hoox-sh/pyne/lsp:0.6.31
-docker run --rm -i -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/lsp:0.6.31
+docker pull ghcr.io/hoox-sh/pyne/lsp:0.7.4
+docker run --rm -i -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/lsp:0.7.4
 
-docker pull ghcr.io/hoox-sh/pyne/api:0.6.31
-docker run --rm -p 5002:8080 -e ADMIN_TOKEN=… ghcr.io/hoox-sh/pyne/api:0.6.31
+docker pull ghcr.io/hoox-sh/pyne/api:0.7.4
+docker run --rm -p 5002:8080 -e ADMIN_TOKEN=… ghcr.io/hoox-sh/pyne/api:0.7.4
 
-docker pull ghcr.io/hoox-sh/pyne/mcp:0.6.31
-docker run --rm -p 5003:8080 ghcr.io/hoox-sh/pyne/mcp:0.6.31
+docker pull ghcr.io/hoox-sh/pyne/mcp:0.7.4
+docker run --rm -p 5003:8080 ghcr.io/hoox-sh/pyne/mcp:0.7.4
 ```
 
 Packages: [ghcr.io/hoox-sh/pyne](https://github.com/hoox-sh/pyne/pkgs/container/pyne%2Fcli).
@@ -142,6 +150,10 @@ plot(ta.rsi(close, 14))
 """
 print(unparse(parse(source)))
 literal_eval("1 + 2 * 3")  # 7
+
+# Opt-in recovery for mangled corpus/docs input:
+from pynescript.ast.helper import parse_with_errors
+tree, errors = parse_with_errors('//@version=6\nindicator("x")\nalgopoint.co\nplot(close)\n')
 ```
 
 ```bash
@@ -187,6 +199,8 @@ curl -s http://127.0.0.1:5002/run \
 
 Also: `/run/batch`, `/compile/prewarm`, `/preview/chart`, `/backtest/quick`, `/optimize`, `/lsp/*`, CCXT datafeed, optional hosted runner (`PYNE_RUNNER=1`). Docs: [POST /run](https://hoox.sh/pyne/docs/api/endpoints/run) · [API](https://hoox.sh/pyne/docs/api).
 
+Pro routes use `Authorization: Bearer …` / `Authorization: ApiKey …`. New keys are `pyn_v2_` with a SHA-256 fingerprint for fast invalid-key rejection; legacy `pyn_` keys still work. `/datafeed/session` requires an API key and is owner-scoped. `/auth/validate` and `/lsp/*` have always-on rate limits; `?api_key=` is opt-in only (`ALLOW_API_KEY_QUERY=1`).
+
 ---
 
 ## MCP
@@ -226,13 +240,13 @@ Full catalog: [MCP tools](https://hoox.sh/pyne/docs/enduser/reference/mcp-tools)
 
 ---
 
-## TradingView goldens
+## Reference goldens
 
-Nine Pine harnesses were run **inside TradingView** on `BINANCE:BTCUSDT` `1D`. The Pine Logs exports — OHLCV plus every plot column — ship in-tree. PYNE replays the same scripts on those bars.
+Nine reference harnesses were run **inside the reference platform** on `BINANCE:BTCUSDT` `1D`. The reference log exports — OHLCV plus every plot column — ship in-tree. PYNE replays the same scripts on those bars.
 
 **112 columns · ~2,475 bars each · rel 1e-6 / abs 1e-9 · all agree**
 
-That is the same fixture set [OpenPineScript](https://github.com/be-thomas/OpenPineScript) uses: `ta.*`, `math.*`, strategy broker timing, and control-flow / loop probes, compared against TradingView's own per-bar output. Coverage of that slice is 112 / 112. Chart host, remaining builtins, and live data are tracked under compatibility / missing features.
+That is the same fixture set [OpenPineScript](https://github.com/be-thomas/OpenPineScript) uses: `ta.*`, `math.*`, strategy broker timing, and control-flow / loop probes, compared against the reference platform's own per-bar output. Coverage of that slice is 112 / 112. Chart host, remaining builtins, and live data are tracked under compatibility / missing features.
 
 ```bash
 make tv-goldens          # 112 columns vs the vendored exports
@@ -243,9 +257,11 @@ Recipe, provenance, and GPL-3.0 notice: [`tests/fixtures/tv_goldens/`](./tests/f
 
 ## Compatibility
 
-The goldens above are the numerical check against the platform on that fixture set. Interpret ↔ compile plot parity is gated on first-party TA goldens; official TradingView builtin scripts report 0 MISMATCH when they are present locally.
+The goldens above are the numerical check against the platform on that fixture set. Interpret ↔ compile plot parity is gated on first-party TA goldens; official reference builtins report 0 MISMATCH when they are present locally.
 
-Foreign / complex `request.security` resolves to `na`. TV Supertrend band ratchet, tick-path broker, and pixel chart UI are out of scope. Map: [compatibility](https://hoox.sh/pyne/docs/reference/compatibility) · [missing features](https://hoox.sh/pyne/docs/reference/missing-features).
+The 2026-11-23 local corpus audit reached **36 parse failures in 21,500 actual scripts (~0.17%)**; every inspected failure was an invalid/truncated/negative fixture, not a valid-Pine feature gap. **215/215** `@expects parse: success` set06 fixtures pass strict-or-recovery. Local-only corpus hygiene: `python scripts/audit_pine_corpus.py --root tests/data`.
+
+Foreign / complex `request.security` resolves to `na`. reference Supertrend band ratchet, tick-path broker, and pixel chart UI are out of scope. Map: [compatibility](https://hoox.sh/pyne/docs/reference/compatibility) · [missing features](https://hoox.sh/pyne/docs/reference/missing-features).
 
 Results are for research, development, and self-hosted evaluation. They are not financial advice and are not provided by TradingView, Inc.
 
@@ -261,17 +277,18 @@ Canonical docs: **[hoox.sh/pyne/docs](https://hoox.sh/pyne/docs)**
 | CLI                   | [Guide](https://hoox.sh/pyne/docs/enduser/guides/cli) · [commands](https://hoox.sh/pyne/docs/enduser/reference/cli-commands)                                                                 |
 | MCP                   | [Guide](https://hoox.sh/pyne/docs/enduser/guides/mcp) · [tools](https://hoox.sh/pyne/docs/enduser/reference/mcp-tools)                                                                       |
 | Runtime               | [Evaluate](https://hoox.sh/pyne/docs/enduser/guides/evaluate-scripts) · [alerts](https://hoox.sh/pyne/docs/runtime/alerts) · [compiler](https://hoox.sh/pyne/docs/runtime/compiler/overview) |
-| Pro API               | [API](https://hoox.sh/pyne/docs/api)                                                                                                                                                         |
+| Parser                | [Helper API](https://hoox.sh/pyne/docs/core/helper-api) · [grammar](https://hoox.sh/pyne/docs/core/grammar-antlr4) · [error model](https://hoox.sh/pyne/docs/core/error-model) |
+| Pro API · security    | [API](https://hoox.sh/pyne/docs/api) · [auth and keys](https://hoox.sh/pyne/docs/api/auth-and-keys) · [security](https://hoox.sh/pyne/docs/devops/security) |
 | LSP                   | [Hub](https://hoox.sh/pyne/docs/lsp) · [VS Code](https://hoox.sh/pyne/docs/lsp/vscode-extension)                                                                                             |
 | Coverage              | [Compatibility](https://hoox.sh/pyne/docs/reference/compatibility) · [missing](https://hoox.sh/pyne/docs/reference/missing-features)                                                         |
-| TradingView goldens   | [fixture README](./tests/fixtures/tv_goldens/README.md) · [COMPATIBILITY.md](./COMPATIBILITY.md)                                                                                             |
+| Reference goldens     | [fixture README](./tests/fixtures/tv_goldens/README.md) · [COMPATIBILITY.md](./COMPATIBILITY.md)                                                                                             |
 | In-tree               | [CHANGELOG](./CHANGELOG.md) · [CONTRIBUTING](./CONTRIBUTING.md) · [SECURITY](./SECURITY.md)                                                                                                  |
 
 ```bash
 make install       # editable + LSP
 make test          # pytest
 make lint          # ruff
-make tv-goldens    # 112 columns vs vendored TradingView exports
+make tv-goldens    # 112 columns vs vendored reference exports
 ```
 
 ---
@@ -289,7 +306,7 @@ make tv-goldens    # 112 columns vs vendored TradingView exports
 | Product  | Role                                                         | Docs                                           |
 | -------- | ------------------------------------------------------------ | ---------------------------------------------- |
 | **HOOX** | Signal in → risk → CEX / DEX hop → notify                    | [docs.hoox.sh](https://docs.hoox.sh)           |
-| **PYNE** | Pine Script™ grammar, AST, dual-engine runtime, LSP, Pro API | [hoox.sh/pyne/docs](https://hoox.sh/pyne/docs) |
+| **PYNE** | PYNE language grammar, AST, dual-engine runtime, LSP, Pro API | [hoox.sh/pyne/docs](https://hoox.sh/pyne/docs) |
 | **AXIS** | Installable charting PWA (Solid + Vite; offline via Pyodide) | [hoox.sh/axis/docs](https://hoox.sh/axis/docs) |
 
 Satellites: [PyneTS](https://github.com/hoox-sh/pynets), [pyne-worker](https://github.com/hoox-sh/pyne-worker), [pyne-agent-worker](https://github.com/hoox-sh/pyne-agent-worker), [pyne-lsp / pyne-vscode](https://github.com/hoox-sh/pyne) (in this tree), [axis-plugin-boilerplate](https://github.com/hoox-sh/axis-plugin-boilerplate). HOOX isolate list: [hoox-sh/hoox](https://github.com/hoox-sh/hoox#architecture).
@@ -302,4 +319,4 @@ Satellites: [PyneTS](https://github.com/hoox-sh/pynets), [pyne-worker](https://g
 
 Educational and research use. Trading involves substantial risk of loss. This is not financial advice.
 
-_Pine Script™_ and _TradingView®_ are trademarks of [TradingView, Inc.](https://www.tradingview.com/); _Cloudflare®_ is a trademark of Cloudflare, Inc. PYNE is an independent, unofficial implementation. It is not affiliated with, authorized by, sponsored by, or endorsed by TradingView, Inc. or Cloudflare, Inc.
+_Pine Script(TM)_ and _TradingView(R)_ are trademarks of [TradingView, Inc.](https://www.tradingview.com/); _Cloudflare(R)_ is a trademark of Cloudflare, Inc. PYNE is an independent, unofficial implementation. It is not affiliated with, authorized by, sponsored by, or endorsed by TradingView, Inc. or Cloudflare, Inc.

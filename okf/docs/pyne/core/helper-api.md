@@ -7,7 +7,7 @@ tags: [core, doc, docs, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-23T14:29:50Z
 sources:
   - id: tree
     resource: "docs/pyne/core/helper-api.mdx"
@@ -25,7 +25,9 @@ Repo path `docs/pyne/core/helper-api.mdx`.
 - Abstract
 - Conceptual model
 - Interface surface
-  - parse(source, filename="<unknown", mode="exec") - AST
+  - parse(source, filename="<unknown", mode="exec", , recover=False) - AST
+  - parsewitherrors(source, filename="<unknown", mode="exec") - (AST, errors)
+  - prewarmparser() - bool
   - Parse cache
   - unparse(node) - str
   - dump(node, , annotatefields=True, includeattributes=False, indent=None) - str

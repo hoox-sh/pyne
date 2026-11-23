@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "PYNE"
-description: "An independent open toolchain for the Pine Script™ language: ANTLR4 grammar, ASDL AST, dual-engine bar-loop runtime, language server, and HTTP evaluate surface."
+description: "An independent open toolchain for the PYNE language: ANTLR4 grammar, ASDL AST, dual-engine bar-loop runtime, language server, and HTTP evaluate surface."
 resource: "README.md"
 tags: [doc, readme]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-23T14:33:25Z
 sources:
   - id: tree
     resource: "README.md"
@@ -24,13 +24,19 @@ Repo path `README.md`.
 
 - Pipeline
 - Features
+  - Recent hardening (0.7.4+)
 - Surfaces
 - Install
 - Quickstart
   - Pro API
 - MCP
-- TradingView goldens
+- Reference goldens
 - Compatibility
 - Documentation
 - Ecosystem
 - License
+
+# Mentions
+
+- [scripts](/code/scripts.md)
+- [tests](/code/tests.md)

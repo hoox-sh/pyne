@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "Numerical validation"
-description: "Methodology and error bounds for PYNE technical and math builtins versus reference Pine Script™ implementations."
+description: "Methodology and error bounds for PYNE technical and math builtins versus reference Pine Script(TM) implementations."
 resource: "docs/pyne/reference/numerical-validation.mdx"
 tags: [doc, docs, pyne, reference]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-23T14:33:25Z
 sources:
   - id: tree
     resource: "docs/pyne/reference/numerical-validation.mdx"

@@ -278,7 +278,7 @@ tick = session.update_last_bar(forming_bar)           # overwrite last bar in pl
 | `append_bars(new_bars, realtime_ticks=1, …)` | Confirm the previous last bar, then visit only the appended batch. Realtime window params apply to **this batch**, not previously committed bars.             |
 | `update_last_bar(bar)`                       | Re-tick the forming last bar with revised OHLCV. Bar count does not advance. `var` scope and incremental TA windows roll back to bar-open (`varip` persists). |
 
-Streaming contract: already-committed bars keep their values (like TradingView® confirmed history). Scripts that branch on `barstate.islast` will diverge from a full `Runtime.run` replay for the previously last bar — that bar was committed with `islast=True`. Prefer `islastconfirmedhistory` / historical logic for append-parity, or re-run full `Runtime.run` when exact `islast` replay is required. `PYNE_SERIES_RING` must stay off (the default). Tests: `tests/test_runtime_session.py`.
+Streaming contract: already-committed bars keep their values (like TradingView(R) confirmed history). Scripts that branch on `barstate.islast` will diverge from a full `Runtime.run` replay for the previously last bar — that bar was committed with `islast=True`. Prefer `islastconfirmedhistory` / historical logic for append-parity, or re-run full `Runtime.run` when exact `islast` replay is required. `PYNE_SERIES_RING` must stay off (the default). Tests: `tests/test_runtime_session.py`.
 
 ### Data providers and feeds
 

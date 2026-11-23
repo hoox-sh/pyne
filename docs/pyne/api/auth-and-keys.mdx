@@ -50,7 +50,7 @@ Pro routes authenticate with a **raw API key** presented as `Authorization: Bear
 
 ```mermaid
 flowchart LR
-  REQ[HTTP request] --> HDR{Authorization / query}
+  REQ[HTTP request] --> HDR{Authorization header}
   HDR --> VAL[store.validate_key]
   VAL -->|miss| U401[401 UNAUTHORIZED]
   VAL -->|hit + over limit| U429[429 RATE_LIMITED]
@@ -84,7 +84,7 @@ Response:
 ```json
 {
     "status": "success",
-    "api_key": "pyn_…",
+    "api_key": "pyn_v2_…",
     "key_id": "12hexchars",
     "tier": "hobby",
     "message": "Store this API key securely. It will not be shown again."
@@ -103,7 +103,7 @@ Decorated with `@require_admin_token`:
 
 #### `POST /auth/validate`
 
-Body: `{ "api_key": "…" }` — validates without incrementing usage. Returns tier info, `active`, `rate_limited`.
+Body: `{ "api_key": "…" }` — validates without incrementing usage. Returns tier info, `active`, `rate_limited`. The route is always-on rate-limited (`AUTH_RATE_LIMIT` / `AUTH_RATE_WINDOW_SEC`) because a random key would otherwise cost one PBKDF2 evaluation.
 
 ### Decorators
 
@@ -126,7 +126,7 @@ curl -H "Authorization: Bearer $API_KEY" \
 
 ### `APIKey` dataclass
 
-Fields: `key_id`, `key_hash`, `tier`, `calls_used`, `calls_limit`, `created_at`, `last_used`.
+Fields: `key_id`, `key_hash`, `key_fingerprint`, `tier`, `calls_used`, `calls_limit`, `created_at`, `last_used`.
 
 Helpers: `is_active()` (always True today), `is_rate_limited()`, `get_tier_info()`, `increment_calls()`.
 
@@ -135,33 +135,37 @@ Helpers: `is_active()` (always True today), `is_rate_limited()`, `get_tier_info(
 | Module                                                   | Use                                         |
 | -------------------------------------------------------- | ------------------------------------------- |
 | `middleware/auth.py` → `APIKeyStore` + `get_key_store()` | Facade; selects backend via `STORE_BACKEND` |
-| `middleware/key_store_sqlite.py`                         | Hash-only rows, WAL, multi-worker friendly  |
-| `middleware/key_store_redis.py`                          | Hash-only Redis; multi-replica              |
+| `middleware/key_store_sqlite.py`                         | Hash-only rows + fingerprint index, WAL, multi-worker friendly |
+| `middleware/key_store_redis.py`                          | Hash-only Redis + fingerprint index; multi-replica |
 
 `get_key_store()` backends (`STORE_BACKEND`):
 
 | Value            | Persistence                                                                                                                                                                         |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `json` (default) | File at `API_KEY_STORE` (default `/data/api_keys.json`); **hash-only** object keys. Legacy files keyed by the raw `pyn_…` secret are migrated on load and the raw secret is dropped |
-| `sqlite`         | `API_KEY_STORE_SQLITE` (or `.db` beside JSON path); hash-only                                                                                                                       |
-| `redis`          | `REDIS_URL` required; hash-only                                                                                                                                                     |
+| `json` (default) | File at `API_KEY_STORE` (default `/data/api_keys.json`); **hash-only** object keys plus a SHA-256 fingerprint. Legacy files keyed by the raw `pyn_…` secret are migrated on load and the raw secret is dropped |
+| `sqlite`         | `API_KEY_STORE_SQLITE` (or `.db` beside JSON path); hash-only + fingerprint column (additive migration) |
+| `redis`          | `REDIS_URL` required; hash-only + `apikey:by_fingerprint` index |
 
 Prod compose defaults to `sqlite` on `/data/api_keys.db` so gunicorn workers share state.
 
 Key minting:
 
 ```text
-raw_key  = "pyn_" + secrets.token_urlsafe(32)
-key_id   = secrets.token_hex(6)   # random 12-hex id, independent of raw_key
-key_hash = "v2:" + pbkdf2_hmac("sha256", raw_key, static_salt, 100_000).hex()
+raw_key        = "pyn_v2_" + secrets.token_urlsafe(32)
+key_id         = secrets.token_hex(6)   # random 12-hex id, independent of raw_key
+key_fingerprint = sha256(raw_key).hexdigest()  # fast invalid-key index
+key_hash       = "v2:" + pbkdf2_hmac("sha256", raw_key, static_salt, 100_000).hex()
 ```
 
 `key_id` is an opaque random identifier (12 hex characters) used for display and
 lookup — it is **not** derived from the raw key, so hashing a key never
-reproduces it. `key_hash` is the stored verifier: PBKDF2-HMAC-SHA256 with a
-static salt, 100 000 iterations, and a `v2:` prefix. The raw key is returned
-once at mint and is not persisted by the hash-only layout, so it cannot be
-recovered later.
+reproduces it. `key_fingerprint` is SHA-256 of the raw key: an invalid
+`pyn_v2_` key is rejected by this one fast lookup without running PBKDF2. A
+fingerprint hit still verifies `key_hash`, the stored PBKDF2-HMAC-SHA256
+verifier (static salt, 100 000 iterations, `v2:` prefix). Legacy `pyn_` keys
+without a fingerprint fall back to the PBKDF2-only path. The raw key is
+returned once at mint and is not persisted by the hash-only layout, so it
+cannot be recovered later.
 
 ### Schemas
 
@@ -188,7 +192,7 @@ curl -s -X POST http://127.0.0.1:5002/auth/create_key \
 # validate
 curl -s -X POST http://127.0.0.1:5002/auth/validate \
   -H 'Content-Type: application/json' \
-  -d '{"api_key":"pyn_…"}'
+  -d '{"api_key":"pyn_v2_…"}'
 ```
 
 ## Failure modes

@@ -4,5 +4,5 @@
 
 - [Compatibility — PYNE grouped map](compatibility.md) - Product page (visual map): compatibility.
 - [Contributing to pyne](contributing.md) - Part of HOOX: pyne · axis · hoox.
-- [PYNE](readme.md) - An independent open toolchain for the Pine Script™ language: ANTLR4 grammar, ASDL AST, dual-engine bar-loop runtime, language server, and HTTP evaluate surface.
+- [PYNE](readme.md) - An independent open toolchain for the PYNE language: ANTLR4 grammar, ASDL AST, dual-engine bar-loop runtime, language server, and HTTP evaluate surface.
 - [Security Policy](security.md) - Security fixes are applied on the default branch (main) of this repository.

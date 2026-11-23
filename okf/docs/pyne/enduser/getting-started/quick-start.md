@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "Quick Start"
-description: "Parse, dump, unparse, lint, and evaluate Pine Script™ with the pyne CLI and library in under ten minutes."
+description: "Parse, dump, unparse, lint, and evaluate Pine Script(TM) with the pyne CLI and library in under ten minutes."
 resource: "docs/pyne/enduser/getting-started/quick-start.mdx"
 tags: [doc, docs, enduser, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-23T14:33:25Z
 sources:
   - id: tree
     resource: "docs/pyne/enduser/getting-started/quick-start.mdx"

@@ -234,7 +234,7 @@ curl -s -X POST http://127.0.0.1:5002/compile/prewarm \
   -d '{"force": true}' | python -m json.tool
 ```
 
-Optional body: `scripts` (list of Pine sources to compile-warm), `force` (re-run builtins). Response includes timing / prewarm stats. Deploy hosts may also set `PYNE_COMPILE_PREWARM` for once-per-worker start. See [Compiler overview](/pyne/docs/runtime/compiler/overview).
+Optional body: `scripts` (list of Pine sources to compile-warm), `force` (re-run builtins). Response includes `parser_warmed`, `has_numba`, `builtins_warmed`, and timing/prewarm stats. Deploy hosts may also set `PYNE_COMPILE_PREWARM` for once-per-worker start; the Pro API also warms the ANTLR ATN in a startup thread. See [Compiler overview](/pyne/docs/runtime/compiler/overview).
 
 ### Auth helpers
 
@@ -248,7 +248,7 @@ curl -s -X POST http://127.0.0.1:5002/auth/create_key \
 # Validate
 curl -s -X POST http://127.0.0.1:5002/auth/validate \
   -H "Content-Type: application/json" \
-  -d '{"api_key":"pyn_..."}'
+  -d '{"api_key":"pyn_v2_..."}'
 ```
 
 Send Pro requests with the key as required by middleware (`Authorization: Bearer …` / documented API-key header — see [Auth and keys](/pyne/docs/api/auth-and-keys)).

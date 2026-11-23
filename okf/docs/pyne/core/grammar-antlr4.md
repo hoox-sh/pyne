@@ -7,7 +7,7 @@ tags: [core, doc, docs, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-23T14:29:50Z
 sources:
   - id: tree
     resource: "docs/pyne/core/grammar-antlr4.mdx"
@@ -37,6 +37,7 @@ Repo path `docs/pyne/core/grammar-antlr4.mdx`.
 - Worked examples
   - Minimal grammar-level mental model
   - v6 triple-quoted strings
+  - Line wrapping and recovery
   - Typed names and = vs := (0.3.9)
   - Case study: targeted lexer refresh (2026-07)
 - Failure modes

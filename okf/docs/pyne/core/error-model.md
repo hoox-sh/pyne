@@ -7,7 +7,7 @@ tags: [core, doc, docs, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-23T14:29:50Z
 sources:
   - id: tree
     resource: "docs/pyne/core/error-model.mdx"
@@ -39,6 +39,7 @@ Repo path `docs/pyne/core/error-model.mdx`.
 - Worked examples
   - Catching a parse error
   - Distinguishing indentation
+  - Recovering a mangled corpus snippet
   - Manual construction (tests)
 - Failure modes
 - See also

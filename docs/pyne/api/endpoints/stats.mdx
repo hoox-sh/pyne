@@ -95,7 +95,7 @@ Metric names are dotted (`run.total`, `delta.bars_appended`, `http.request`) so 
 | `interpret`            | `bars`, `bar_loop` latency, `errors` by kind, `timeouts`                                                                                                       |
 | `compile`              | `attempts`, `eligibility`, `host_cache` (hit/miss), `errors`, `run` / `total` latency                                                                          |
 | `compile_script`       | `cache` split by `memory_raw` / `memory_sanitized` / `disk` / `ir_share` / `miss`                                                                              |
-| `prewarm`              | `calls`, `builtin_warm`, `scripts_ok`, `scripts_failed`, total latency                                                                                         |
+| `prewarm`              | `calls`, `builtin_warm`, `parser_warmed`, `scripts_ok`, `scripts_failed`, total latency |
 | `delta`                | `append_calls`, `bars_appended`, `update_last_bar_calls`; `bars_per_append_max` gauge                                                                          |
 | `session` / `sessions` | engine `created` and `parse`; store `created`, `dropped`, `evicted`, `active`, `capacity`, `active_max`                                                        |
 | `datafeed`             | `streams`, `exchanges_connected`, `reconnects`, `errors`, `session_binds`, `watch_connections`, `watch_bars`, gateway `ohlcv` / `markets` counters and latency |

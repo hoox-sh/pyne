@@ -37,14 +37,14 @@
 ---
 
 title: "Numerical validation"
-description: "Methodology and error bounds for PYNE technical and math builtins versus reference Pine Script™ implementations."
+description: "Methodology and error bounds for PYNE technical and math builtins versus reference Pine Script(TM) implementations."
 ---
 
 # Numerical validation
 
 ## Abstract
 
-PYNE’s technical and mathematical builtins are validated for **numerical agreement** with reference Pine Script™ implementations under IEEE 754 realities. The long-form report (`docs/numerical_validation_report.md`, v1.0, Nov 2025) documents methodology, per-family error tables, and edge cases.
+PYNE’s technical and mathematical builtins are validated for **numerical agreement** with reference Pine Script(TM) implementations under IEEE 754 realities. The long-form report (`docs/numerical_validation_report.md`, v1.0, Nov 2025) documents methodology, per-family error tables, and edge cases.
 
 Headline (from that report): max observed relative error **0.0022%** (ADX, extreme volatility); average error **&lt; 0.0005%**; deterministic ops (SMA, OBV, discrete math) often **exact**.
 
@@ -174,3 +174,7 @@ pytest tests/test_ta_indicators_1.py tests/test_ta_indicators_2.py -q
 
 - [Compatibility](/pyne/docs/reference/compatibility)
 - [Runtime technical builtins](/pyne/docs/runtime/builtins/technical)
+
+---
+
+_Pine Script(TM) and TradingView(R) are trademarks of [TradingView, Inc.](https://www.tradingview.com/). PYNE is an independent, unofficial implementation and is not affiliated with, authorized by, sponsored by, or endorsed by TradingView, Inc._

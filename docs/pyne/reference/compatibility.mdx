@@ -37,14 +37,14 @@
 ---
 
 title: "Compatibility guarantee"
-description: "Grouped map of what PYNE implements for Pine Script™ v5/v6 — working, partial, residual, and by-design out of scope. hoox-pyne 0.7.0."
+description: "Grouped map of what PYNE implements for Pine Script(TM) v5/v6 — working, partial, residual, and by-design out of scope. hoox-pyne 0.7.0."
 ---
 
 # Compatibility guarantee
 
 ## Abstract
 
-PYNE implements Pine Script™ **v5/v6 language core** as an inspectable pipeline: parse → AST → bar-loop evaluate. The map below is the product-facing compatibility surface for **`hoox-pyne` 0.7.0**. It is **not** TradingView® platform identity (chart host, proprietary data, editor-only UI) and **not** bit-identical results vs the hosted platform on every script or bar.
+PYNE implements Pine Script(TM) **v5/v6 language core** as an inspectable pipeline: parse → AST → bar-loop evaluate. The map below is the product-facing compatibility surface for **`hoox-pyne` 0.7.0**. It is **not** TradingView(R) platform identity (chart host, proprietary data, editor-only UI) and **not** bit-identical results vs the hosted platform on every script or bar.
 
 Name-level dispatch lives in [Pine v6 surface](/pyne/docs/reference/pine-v6-surface) (`docs/pine_v6_full_surface_inventory.md`). Gaps: [Missing features](/pyne/docs/reference/missing-features).
 
@@ -120,7 +120,7 @@ Dispatch snapshot (2026-10-08): **941** callables, **10** partial-heuristic, **0
 
 ### Corpus (set01–04 · 2477 scripts · 2026-08-09)
 
-Open-source sets, **not shipped** in git. Not a TradingView® platform score.
+Open-source sets, **not shipped** in git. Not a TradingView(R) platform score.
 
 | Suite                       |                         Rate | Notes                                            |
 | --------------------------- | ---------------------------: | ------------------------------------------------ |
@@ -366,3 +366,7 @@ pytest tests/test_interp_compile_parity.py -q
 - [Numerical validation](/pyne/docs/reference/numerical-validation)
 - [Runtime modes](/pyne/docs/enduser/reference/modes)
 - [Roadmap](/pyne/docs/reference/roadmap)
+
+---
+
+_Pine Script(TM) and TradingView(R) are trademarks of [TradingView, Inc.](https://www.tradingview.com/). PYNE is an independent, unofficial implementation and is not affiliated with, authorized by, sponsored by, or endorsed by TradingView, Inc._

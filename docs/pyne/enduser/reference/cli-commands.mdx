@@ -426,13 +426,13 @@ pyne key create --tier hobby --json
 ```json
 {
   "status": "success",
-  "api_key": "pyn_…",
+  "api_key": "pyn_v2_…",
   "key_id": "a1b2c3d4e5f6",
   "tier": "hobby"
 }
 ```
 
-**The raw key is shown once.** The store keeps only a hash — a PBKDF2
+**The raw key is shown once.** The store keeps a SHA-256 fingerprint plus the PBKDF2
 (`v2:`-prefixed) digest on `sqlite` and `redis` — so the secret cannot be
 recovered later. Copy it when it is printed.
 

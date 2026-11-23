@@ -140,6 +140,8 @@ Small status blob — never the full state:
 
 Strategy fills are **not** rolled back across ticks. That is the same limitation as the realtime tick loop in `Runtime.run`; strategy series history is overwritten, not appended.
 
+The TA/`var` snapshot is taken **once at bar-open** and reused for every intermediate tick; broker state still snapshots per tick because its ratchet/extremes depend on that tick's OHLC envelope. This avoids deep-copying every incremental TA bucket per tick.
+
 ## Response windowing
 
 `POST /run`, `/run/batch`, `/session/<id>/tick` and `/session/<id>/append` all accept optional **`from_bar` / `to_bar`** fields (inclusive bar indices into `data`; negative counts from the end; either side may be omitted).

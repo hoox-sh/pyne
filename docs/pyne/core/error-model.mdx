@@ -187,7 +187,7 @@ Adapters typically map:
 
 1. **Default ANTLR listeners must stay removed** on the parse path — otherwise errors print twice and may not raise.
 2. **Singleton listener is stateless** enough to share (`INSTANCE`); thread-local needs would require new instances.
-3. **Raising aborts parse immediately** — no error recovery producing a partial tree through the public helper.
+3. **Strict `parse()` aborts on the first error.** Opt-in recovery is available through `parse(source, recover=True)` or `parse_with_errors(source)`, which return a partial tree plus `(line, column, message)` errors. Strict parsing remains the default so invalid Pine still fails closed.
 4. **Package `SyntaxError` ≠ builtin** — `except SyntaxError` without import may catch the wrong class.
 
 ## Worked examples
@@ -220,6 +220,32 @@ except PineSyntaxError as e:
     print("syntax", e.message)
 ```
 
+### Recovering a mangled corpus snippet
+
+```python
+from pynescript.ast.helper import parse, parse_with_errors
+
+source = """//@version=6
+indicator("INV080")
+algopoint.co
+at https://mozilla.org/MPL/2.0/
+x = close > open ? 1 : 2
+? 3 : 4
+plot(close)
+"""
+
+tree, errors = parse_with_errors(source)
+# tree.body is usable; errors contains the skipped column-1 ternary operator.
+assert errors and "operator ?:" in errors[0][2]
+
+# Same recovery when only the tree is needed:
+tree = parse(source, recover=True)
+```
+
+Recovery blanks standalone URL/domain prose lines while preserving line numbers,
+uses ANTLR's default error strategy, and returns the surviving statements. It is
+opt-in; the strict parser is unchanged.
+
 ### Manual construction (tests)
 
 ```python
@@ -240,7 +266,7 @@ assert "^" in str(err)
 | Filename always `<unknown>`             | Stream name not set (bypassed helper)                                            |
 | Exception swallowed as generic `E001`   | Only used linter path (line/column may still be filled from `details`)           |
 | `except SyntaxError` misses Pine errors | Caught builtin only                                                              |
-| Partial trees                           | Not available via `parse()` after error — redesign would need recovery listeners |
+| Partial trees                           | Use `parse(source, recover=True)` / `parse_with_errors(source)`; strict `parse()` still raises |
 
 ## See also
 

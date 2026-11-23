@@ -85,13 +85,14 @@ flowchart TB
 
 ## Interface surface
 
-### `parse(source, filename="<unknown>", mode="exec") -> AST`
+### `parse(source, filename="<unknown>", mode="exec", *, recover=False) -> AST`
 
 | Parameter  | Meaning                                                                            |
 | ---------- | ---------------------------------------------------------------------------------- |
 | `source`   | Full script or expression text                                                     |
 | `filename` | Error reporting name; resolved to absolute path if the file exists                 |
 | `mode`     | `"exec"` → `start_script` → `Script`; `"eval"` → `start_expression` → `Expression` |
+| `recover`  | Opt-in ANTLR recovery; bypasses the parse cache. Use `parse_with_errors` to also get errors |
 
 Raises:
 
@@ -105,6 +106,20 @@ Side effects during exec mode:
 
 `filename` is **not** part of the cache key (only diagnostics).
 
+### `parse_with_errors(source, filename="<unknown>", mode="exec") -> (AST, errors)`
+
+Recovery-oriented sibling of `parse`. It blanks standalone URL/domain prose lines while preserving physical line numbers, uses ANTLR's default error strategy, and returns the surviving tree plus a list of `(line, column, message)` errors. Intended for mangled corpus/docs input; strict `parse()` still raises on the first error.
+
+```python
+from pynescript.ast.helper import parse_with_errors
+
+tree, errors = parse_with_errors('//@version=6\nindicator("x")\nalgopoint.co\nplot(close)\n')
+```
+
+### `prewarm_parser() -> bool`
+
+Loads the ANTLR ATN once (first parse costs ~0.7 s per process). The compile prewarm hook calls it, and `backend.app` starts it in a daemon thread at import. Returns `True` when the tiny warm-up script parsed.
+
 ### Parse cache
 
 Successful trees are stored in a process-local, thread-safe `OrderedDict` LRU keyed by `(sha256(source.encode("utf-8")), mode)`.
@@ -116,7 +131,7 @@ Successful trees are stored in a process-local, thread-safe `OrderedDict` LRU ke
 | `clear_parse_cache()`  | —       | Drop all entries and reset hit/miss counters |
 | `parse_cache_info()`   | —       | `{enabled, size, maxsize, hits, misses}`     |
 
-On a cache **hit**, the same AST object is returned (after scrubbing stale `_pine_call_site` attrs). Treat it as read-only: a `NodeTransformer` or `increment_lineno` mutates the cached entry for every later caller. After intentional mutation, call `clear_parse_cache()` or parse with the cache disabled.
+On a cache **hit**, the same AST object is returned after scrubbing only the Call nodes stamped by the last evaluator (`_pine_stamped_nodes`), not the whole tree. Treat it as read-only: a `NodeTransformer` or `increment_lineno` mutates the cached entry for every later caller. After intentional mutation, call `clear_parse_cache()` or parse with the cache disabled.
 
 ### `unparse(node) -> str`
 

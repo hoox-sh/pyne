@@ -1,13 +1,13 @@
 ---
 type: "Document"
 title: "Library API"
-description: "Embed pynescript: parse, dump, unparse, walk, transform, and lint Pine Script™ from Python."
+description: "Embed pynescript: parse, dump, unparse, walk, transform, and lint Pine Script(TM) from Python."
 resource: "docs/pyne/enduser/guides/library-api.mdx"
 tags: [doc, docs, enduser, pyne]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-13T13:46:36Z
+  at: 2026-11-23T14:33:25Z
 sources:
   - id: tree
     resource: "docs/pyne/enduser/guides/library-api.mdx"
@@ -26,7 +26,7 @@ Repo path `docs/pyne/enduser/guides/library-api.mdx`.
 - Conceptual model
 - Interface surface
   - Imports
-  - parse(source, filename="<unknown", mode="exec") - AST
+  - parse(source, filename="<unknown", mode="exec", , recover=False) - AST
   - unparse(node) - str
   - dump(node, , annotatefields=True, includeattributes=False, indent=None) - str
   - walk(node) - Iterator[AST]

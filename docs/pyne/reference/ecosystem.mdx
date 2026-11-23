@@ -52,8 +52,8 @@ The HOOX family splits **language**, **chart**, and **execution**. Mixing the na
 | ------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | **PYNE** (`hoox-pyne`, import `pynescript`) | Python language SoT: parse, LSP, MCP (`pyne-mcp`), Pro API, `Runtime.run` | this site                                                                                |
 | **PyneTS** (`@hoox-sh/pynets`)              | TypeScript / Bun **library + CLI**                                        | [PyneTS](/pyne/docs/pynets)                                                              |
-| **pyne-worker**                             | Python Cloudflare® isolate — `POST /run`                                  | [pyne-worker](/pyne/docs/pyne-worker) · [HOOX isolate](/docs/devops/workers/pyne-worker) |
-| **pyne-agent-worker**                       | NL → Pine (Workers AI™)                                                   | [agent](/pyne/docs/agent) · [AXIS plugin](/axis/docs/plugins/pyne-agent)                 |
+| **pyne-worker**                             | Python Cloudflare(R) isolate — `POST /run`                                  | [pyne-worker](/pyne/docs/pyne-worker) · [HOOX isolate](/docs/devops/workers/pyne-worker) |
+| **pyne-agent-worker**                       | NL → Pine (Workers AI(TM))                                                   | [agent](/pyne/docs/agent) · [AXIS plugin](/axis/docs/plugins/pyne-agent)                 |
 | **AXIS**                                    | Charting PWA (engines call Python)                                        | [AXIS](/axis/docs)                                                                       |
 | **HOOX**                                    | Edge trade mesh                                                           | [HOOX](/docs)                                                                            |
 
@@ -125,13 +125,13 @@ Do not author in `hoox-landing-page/content/*` — that is a sync artifact.
 
 ## Invariants & edge cases
 
-1. **Python wins** language semantics. PyneTS does not invent TradingView® behaviour.
+1. **Python wins** language semantics. PyneTS does not invent TradingView(R) behaviour.
 2. **AXIS ≠ engine.** AXIS never embeds a closed interpreter; engines are plugins.
 3. **AXIS ≠ execution.** Drawing a strategy on AXIS does not call `trade-worker`.
 4. **Alerts ≠ orders.** `alert()` webhooks are not `StrategyEvent` forwards unless you point them at the HOOX gateway yourself.
 5. **Do not** `pip install pyne` or `pip install pynescript` for this project. Dist name is **`hoox-pyne`**.
 6. **Do not** `npm install pynets` for this project. The published package is **`@hoox-sh/pynets`** from the standalone [hoox-sh/pynets](https://github.com/hoox-sh/pynets) repo. Python Runtime remains the oracle.
-7. **`pine-worker`** is a leftover TypeScript Cloudflare® experiment ([hoox-sh/pine-worker](https://github.com/hoox-sh/pine-worker)). It is not a product evaluate host and has no pages on this site.
+7. **`pine-worker`** is a leftover TypeScript Cloudflare(R) experiment ([hoox-sh/pine-worker](https://github.com/hoox-sh/pine-worker)). It is not a product evaluate host and has no pages on this site.
 
 ## Worked examples
 

@@ -69,14 +69,19 @@ flowchart TB
 | Body size   | `MAX_CONTENT_LENGTH = 5 * 1024 * 1024` (5 MiB) — DoS/OOM mitigation                       |
 | CORS        | `ALLOWED_ORIGINS` env (comma-separated); default includes product hosts + localhost regex |
 | Methods     | GET, POST only via flask-cors config                                                      |
-| Headers     | `Content-Type`, `Authorization`, `X-Admin-Token`                                          |
+| Headers     | `Content-Type`, `Authorization`, `X-Admin-Token`, `X-Api-Key`, `X-AXIS-Client`, `X-AXIS-Token` |
 | Credentials | `supports_credentials=False`                                                              |
 
 ### API keys (`backend/middleware/auth.py`)
 
 - Keys stored as **hashes**, not raw secrets (store path via `API_KEY_STORE`)
+- New keys use `pyn_v2_` + a SHA-256 fingerprint index; invalid v2 keys skip PBKDF2. Legacy `pyn_` keys keep the PBKDF2 fallback
 - Tiers: `free`, `hobby` (5k), `pro` (50k), `team` (200k), `enterprise` (∞)
 - Rate limit by monthly call counters (`calls_used` / `calls_limit`)
+- Always-on throttles: `/auth/validate` (`AUTH_RATE_LIMIT`) and `/lsp/*` (`LSP_RATE_LIMIT`)
+- Client IP uses `X-Real-IP` or the rightmost `X-Forwarded-For` hop; the leftmost hop is spoofable behind nginx
+- `/datafeed/session` requires an API key and scopes credentials per key owner
+- Optional `AXIS_TRUST_TOKEN` requires `X-AXIS-Token` in addition to advisory AXIS headers
 - Decorators: `require_api_key`, `require_admin_token`
 
 ### Build / release secrets
@@ -108,11 +113,13 @@ flowchart TB
 | `sqlite`         | Multi-worker single host (shared volume); **hash-only** |
 | `redis`          | Multi-replica; needs `REDIS_URL`; **hash-only**         |
 
-All three backends store only a PBKDF2-HMAC-SHA256 digest of the secret (`v2:`
-records). On load, a legacy JSON file whose object keys were raw `pyn_…` secrets
-is re-keyed by hash, written back hash-only, and the raw value is dropped.
-Pre-`v2` records that carry only a SHA-256 fingerprint cannot be verified and
-are skipped — re-issue those keys.
+All three backends store a SHA-256 fingerprint (fast invalid-key rejection) plus
+a PBKDF2-HMAC-SHA256 verifier of the secret (`v2:` records). New keys use the
+`pyn_v2_` prefix; legacy `pyn_` keys keep the PBKDF2-only fallback. On load, a
+legacy JSON file whose object keys were raw `pyn_…` secrets is re-keyed by hash,
+written back hash-only, and the raw value is dropped. Pre-`v2` records that carry
+only a SHA-256 fingerprint cannot be verified and are skipped — re-issue those
+keys.
 
 ## Internals
 

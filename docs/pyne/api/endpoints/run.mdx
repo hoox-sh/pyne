@@ -238,7 +238,7 @@ Free readiness hook (same rate/concurrency gates). Body optional:
 { "scripts": ["//@version=6\nindicator(\"x\")\nplot(close)"], "force": false }
 ```
 
-Caps at 16 sources. Returns `has_numba`, `builtins_warmed`, `scripts_ok` / `scripts_failed`, `prewarm_ms`. Does **not** execute on OHLCV.
+Caps at 16 sources. Returns `parser_warmed`, `has_numba`, `builtins_warmed`, `scripts_ok` / `scripts_failed`, `prewarm_ms`. Does **not** execute on OHLCV. The parser warm loads the ANTLR ATN once (~0.7 s) so the first interactive parse is warm.
 
 ## `WS /ws/run`
 
