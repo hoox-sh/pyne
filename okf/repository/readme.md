@@ -7,7 +7,7 @@ tags: [doc, readme]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-23T14:33:25Z
+  at: 2026-11-23T14:38:45Z
 sources:
   - id: tree
     resource: "README.md"
@@ -24,7 +24,7 @@ Repo path `README.md`.
 
 - Pipeline
 - Features
-  - Recent hardening (0.7.4+)
+  - Recent hardening (0.7.5+)
 - Surfaces
 - Install
 - Quickstart

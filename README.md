@@ -9,7 +9,7 @@ An independent open toolchain for the PYNE language: ANTLR4 grammar, ASDL AST, d
 
 Pine is usually executed inside a host chart. PYNE models the language as an inspectable pipeline — source through parse, AST, and deterministic bar-loop evaluation — so the same scripts can be analysed and run outside any particular UI. Import `pynescript`. CLIs: `pyne`, `pyne-lsp`, `pyne-mcp` (aliases `pynescript`, `pynescript-lsp`).
 
-**0.7.4** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/)
+**0.7.5** · PyPI [`hoox-pyne`](https://pypi.org/project/hoox-pyne/)
 
 <div align="center">
 
@@ -64,7 +64,7 @@ The same contract underlies the desk CLI, `pyne-lsp`, Flask `POST /run`, AXIS in
 | **Editors**         | VS Code (AXIS Void / Hoox Signal / PYNE Volt themes), Neovim, Zed, Emacs                                |
 | **Parity**          | 112 / 112 reference golden columns (OpenPineScript harnesses, ~2,475 daily bars, rel 1e-6)            |
 
-### Recent hardening (0.7.4+)
+### Recent hardening (0.7.5+)
 
 - **Parser** — escaped triple-quoted delimiters, wrapped `for` headers after `to`/`by`/`in`, INV073/INV074 leading-operator rules, zero-padded decimals, and `parse_with_errors()` for mangled corpus/docs input. All 215 expected-success set06 fixtures pass strict-or-recovery.
 - **API** — new `pyn_v2_` keys carry a SHA-256 fingerprint; invalid keys skip PBKDF2. `/datafeed/session` is API-key scoped, rate limits use the proxy-trusted client IP, `/auth/validate` and `/lsp/*` are throttled, and `?api_key=` is opt-in only.
@@ -115,17 +115,17 @@ configs are in [`clients/`](./clients/).
 GHCR multi-arch images on `v*` tags:
 
 ```bash
-docker pull ghcr.io/hoox-sh/pyne/cli:0.7.4
-docker run --rm -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/cli:0.7.4 check script.pine
+docker pull ghcr.io/hoox-sh/pyne/cli:0.7.5
+docker run --rm -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/cli:0.7.5 check script.pine
 
-docker pull ghcr.io/hoox-sh/pyne/lsp:0.7.4
-docker run --rm -i -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/lsp:0.7.4
+docker pull ghcr.io/hoox-sh/pyne/lsp:0.7.5
+docker run --rm -i -v "$PWD:/work" -w /work ghcr.io/hoox-sh/pyne/lsp:0.7.5
 
-docker pull ghcr.io/hoox-sh/pyne/api:0.7.4
-docker run --rm -p 5002:8080 -e ADMIN_TOKEN=… ghcr.io/hoox-sh/pyne/api:0.7.4
+docker pull ghcr.io/hoox-sh/pyne/api:0.7.5
+docker run --rm -p 5002:8080 -e ADMIN_TOKEN=… ghcr.io/hoox-sh/pyne/api:0.7.5
 
-docker pull ghcr.io/hoox-sh/pyne/mcp:0.7.4
-docker run --rm -p 5003:8080 ghcr.io/hoox-sh/pyne/mcp:0.7.4
+docker pull ghcr.io/hoox-sh/pyne/mcp:0.7.5
+docker run --rm -p 5003:8080 ghcr.io/hoox-sh/pyne/mcp:0.7.5
 ```
 
 Packages: [ghcr.io/hoox-sh/pyne](https://github.com/hoox-sh/pyne/pkgs/container/pyne%2Fcli).

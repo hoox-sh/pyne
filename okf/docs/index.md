@@ -12,7 +12,7 @@
 - [index.md](index.md) - docs/index.md document.
 - [Known divergences from reference Pine semantics](known_divergences.md) - Status: intentional or residual gaps; track until closed or product-scoped.
 - [license.md](license.md) - Default: GNU AGPL-3.0-or-later (LICENSE).
-- [missing_features.md](missing_features.md) - Live package: hoox-pyne 0.7.4 (src/pynescript/about.py).
+- [missing_features.md](missing_features.md) - Live package: hoox-pyne 0.7.5 (src/pynescript/about.py).
 - [numerical_validation_report.md](numerical_validation_report.md) - Validation Period: 15–20 November 2025.
 - [optimization_notes.md](optimization_notes.md) - This document describes the performance optimizations applied to PyneScript core features to improve parsing, evaluation, and AST manipulation efficiency.
 - [pine_v6_full_surface_inventory.md](pine_v6_full_surface_inventory.md) - Scope: Every registered evaluator builtin, major series/variables, language constructs, and known gaps.

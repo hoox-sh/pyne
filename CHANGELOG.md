@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.7.5] — 2026-11-23
+
 ### Changed
 
 - **Clean API/editor scripts skip the corpus sanitizer.** A source with one `//@version` annotation and no markdown/HTML scrape chrome now bypasses `sanitize_corpus_source` during compile. The thorough line filter is still used for scraped/docs input, but a clean 350 KB script drops from ~1.25 s to ~1.5 ms. Pinned by `tests/test_perf_engine_warm.py`.
@@ -1363,6 +1365,7 @@ First public **PYNE** release. PyPI distribution name is **`hoox-pyne`**
 - Dead `technical_refactored.py` and internal refactoring notes from the published package tree.
 - Broken AXIS-only GitHub workflows (`axis-nightly`, PWA/e2e jobs) — AXIS CI lives in [jango-blockchained/axis](https://github.com/jango-blockchained/axis).
 
+[0.7.5]: https://github.com/hoox-sh/pyne/compare/v0.7.4...v0.7.5
 [0.6.8]: https://github.com/hoox-sh/pyne/compare/v0.6.7...v0.6.8
 [0.6.7]: https://github.com/hoox-sh/pyne/compare/v0.6.6...v0.6.7
 [0.6.6]: https://github.com/hoox-sh/pyne/compare/v0.6.5...v0.6.6
