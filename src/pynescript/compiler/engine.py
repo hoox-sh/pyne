@@ -1847,7 +1847,15 @@ def _sanitize_source(source: str) -> str:
     :func:`sanitize_corpus_source` directly.
     """
     if _looks_clean_for_compile(source):
-        return source
+        # Fast path: looks like clean Pine, so skip the line filter. But the
+        # heuristic cannot see truncated-but-plausible Pine (e.g.
+        # ``//@version=6\nindicator(``). Parse first; when it fails, fall
+        # through to the repairing sanitizer instead of hard-failing.
+        try:
+            parse(source)
+            return source
+        except Exception:
+            _dbg("clean-looking source failed parse; falling back to sanitize")
     try:
         from pynescript.util.corpus_sanitize import _MINIMAL_STUB
         from pynescript.util.corpus_sanitize import sanitize_corpus_source

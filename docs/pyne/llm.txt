@@ -6334,7 +6334,7 @@ Transport: PYNE_MCP_TRANSPORT (stdio default, sse, streamable-http) plus PYNE_MC
 Invariants & edge cases
 No disk writes (format / convert return source).
 pyne_run is the CLI compile + synthetic bars path. pyne_execute is Runtime.run (interpret / compile / auto, caller OHLCV, timeout).
-pyne_download_builtins lists pine-facade templates; it does not write files.
+pyne_download_builtins is retained for catalog compatibility and fails closed with kind=unsupported (pine-facade download removed); it does not write files.
 Hover / complete / signature reuse LSP handlers; they need lsprotocol (pulled in by [mcp]).
 Worked examples
 `text
@@ -7746,7 +7746,7 @@ CLI parity
 | pyne_run | pyne run | synthetic OHLCV, compile pipeline |
 | pyne_optimize | pyne optimize | space object or space_json |
 | pyne_data | pyne data | default provider mock |
-| pyne_download_builtins | pyne download-builtins --list | list only (network) |
+| pyne_download_builtins | pyne download-builtins --list | removed — fails closed (no network call) |
 | pyne_runner_deploy | pyne runner deploy | POST /scripts |
 | pyne_runner_list | pyne runner list | |
 | pyne_runner_show | pyne runner show | |

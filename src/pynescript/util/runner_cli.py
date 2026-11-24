@@ -28,6 +28,7 @@ from __future__ import annotations
 import json
 import os
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from pathlib import Path
@@ -290,9 +291,10 @@ def jobs_cmd(ctx: click.Context, as_json: bool) -> None:
 @click.pass_context
 def history_cmd(ctx: click.Context, script_id: str, limit: int, as_json: bool) -> None:
     """GET /cron/history — ok / error runs with alerts, errors, and webhook status."""
-    query = f"limit={max(1, limit)}"
+    params = [("limit", str(max(1, limit)))]
     if script_id.strip():
-        query += f"&script_id={script_id.strip()}"
+        params.append(("script_id", script_id.strip()))
+    query = urllib.parse.urlencode(params)
     result = _ctx_api(ctx, "GET", f"/cron/history?{query}")
     if as_json:
         _echo_json(result)

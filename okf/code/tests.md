@@ -7,7 +7,7 @@ tags: [code, tests]
 status: stable
 generated:
   by: process:axis-okf/1
-  at: 2026-11-23T14:23:33Z
+  at: 2026-11-24T14:34:57Z
 sources:
   - id: tree
     resource: "tests"
@@ -46,6 +46,7 @@ okf_lock: generated
 - `test_chart_timeframe.py` — test_chart_timeframe_drives_timeframe_namespace, test_compiled_script_follows_timeframe_of_each_run, test_default_timeframe_is_daily_on_both_hosts, test_literal_in_seconds_stays_constant
 - `test_cli.py` — pine_file, runner, test_alias_dump, test_check_directory, test_check_directory_includes_pyne, test_check_fail, test_check_fail_verbose, test_check_missing_file, test_check_ok, test_check_ok_verbose, test_check_stdin, test_check_stdin_quiet_bad
 - `test_cli_key.py` — json_store, runner, sqlite_store, test_key_create_json_payload, test_key_create_mints_key, test_key_create_refuses_blank_admin_token, test_key_create_refuses_without_admin_token, test_key_create_rejects_unknown_tier, test_key_create_respects_tier, test_key_create_sqlite_is_hash_only, test_key_create_without_pro_backend, test_key_group_registered
+- `test_cli_notice.py` — test_bare_invocation_prints_notice, test_help_prints_notice, test_info_prints_notice_plain_and_json
 - `test_cli_serve.py` — entry_calls, runner, test_datafeed_dry_run_names_existing_entry_without_listening, test_datafeed_serve_delegates_to_datafeed_app_main, test_datafeed_serve_guides_when_backend_package_missing, test_datafeed_serve_guides_when_datafeed_extra_missing, test_dry_run_still_guides_when_extra_missing, test_help_shows_serve_and_datafeed, test_serve_delegates_to_backend_app_main, test_serve_dry_run_names_existing_entry_without_listening, test_serve_guides_when_backend_package_missing, test_serve_guides_when_pro_extra_missing
 - `test_cli_util_coverage.py` — bad_file, get_provider_default_mock, pine_file, runner, test_alias_help, test_alphavantage_missing_dependency, test_alphavantage_stub_client, test_bad_flag, test_bind_ta_stubs, test_broker_insufficient_balance_and_sell_with_position, test_broker_market_and_limit_fills, test_broker_run_with_finite_feed
 - `test_collections.py` — TestArrayEdgeCorrectness, TestMapEvaluatorIntegration, TestMatrixEvaluatorIntegration, TestRound8SoftNaAndV6Indices

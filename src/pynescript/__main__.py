@@ -103,6 +103,10 @@ _configure_stdio()
 # Theme (PYNE volt — shared with corpus / download-builtins / showcase)
 # ---------------------------------------------------------------------------
 
+# Minimal copyright / trademark attribution shown by the bare `pyne` banner,
+# `--help` and `pyne info`. Kept to one line on purpose.
+_NOTICE = "(c) 2024-2026 jango_blockchained · Pine Script™/TradingView® — trademarks of TradingView, Inc."
+
 _EPILOG = """\
 \b
 Examples:
@@ -119,8 +123,6 @@ Examples:
   pyne datafeed serve
   pyne key create --tier hobby
   pyne data AAPL --provider yahoo --period 6mo
-  pyne download-builtins --list
-  pyne download-builtins --yes
   pyne corpus list
   pyne corpus run --sets set01,set02 --mode compile
   pyne info
@@ -135,10 +137,10 @@ Examples:
 Aliases:  dump -> parse-and-dump  ast -> parse-and-dump  unparse -> parse-and-unparse
           fmt -> format  ls -> info
           pynescript remains a compatibility alias of pyne
-
 Language server:  pyne-lsp  (alias: pynescript-lsp; separate entry point, not a subcommand)
 MCP server:       pyne-mcp  (also ``pyne mcp``; extra: pip install 'hoox-pyne[mcp]')
 Docs:             https://hoox.sh/pyne
+(c) 2024-2026 jango_blockchained · Pine Script™/TradingView® — trademarks of TradingView, Inc.
 """
 
 
@@ -260,9 +262,11 @@ def _print_banner() -> None:
     if con is not None:
         con.print(f"[pyne.accent]◆ PYNE[/] [pyne.fg]pyne[/] [pyne.muted]v{__version__}[/]")
         con.print("[pyne.muted]Pine Script toolchain — parse · lint · compile · run[/]")
+        con.print(f"[pyne.muted]{_NOTICE}[/]")
     else:
         _echo(f"PYNE pyne v{__version__}")
         _echo("Pine Script toolchain — parse · lint · compile · run")
+        _echo(_NOTICE)
 
 
 @click.group(
@@ -343,6 +347,7 @@ def info_cmd(as_json: bool) -> None:
         },
         "mcp": _has_mcp_sdk(),
         "docs": "https://hoox.sh/pyne",
+        "notice": _NOTICE,
     }
 
     if as_json:
@@ -365,6 +370,7 @@ def info_cmd(as_json: bool) -> None:
         t.add_row("lsp", "pyne-lsp (alias: pynescript-lsp)")
         t.add_row("mcp", "pyne-mcp (yes)" if payload["mcp"] else "pyne-mcp (install hoox-pyne[mcp])")
         t.add_row("docs", payload["docs"])
+        t.add_row("notice", _NOTICE)
         con.print(t)
     else:
         _echo(f"package:  pynescript {__version__} (hoox-pyne)")
@@ -376,6 +382,7 @@ def info_cmd(as_json: bool) -> None:
         _echo("lsp:      pyne-lsp (alias: pynescript-lsp)")
         _echo("mcp:      pyne-mcp" + ("" if payload["mcp"] else " (install hoox-pyne[mcp])"))
         _echo(f"docs:     {payload['docs']}")
+        _echo(f"notice:   {_NOTICE}")
 
 
 # ---------------------------------------------------------------------------
@@ -1338,7 +1345,10 @@ def data(
 # ---------------------------------------------------------------------------
 
 
-@cli.command("download-builtins", short_help="Download TradingView builtin Pine templates.")
+@cli.command(
+    "download-builtins",
+    short_help="Fetch builtin Pine templates (needs pine-facade; fails closed otherwise).",
+)
 @click.argument(
     "dest",
     required=False,
@@ -1368,22 +1378,19 @@ def download_builtins_cmd(
     plain: bool,
     force_rich: bool,
 ) -> None:
-    """Fetch official builtin Pine templates from pine-facade.
+    """Fetch official builtin Pine templates from pine-facade, when it is present.
 
-    Prints a Rich catalog *before* any per-script download starts.
-
-    \b
-    Examples:
-      pyne download-builtins --list
-      pyne download-builtins --yes
-      pyne download-builtins /tmp/pine-builtins --limit 5 --yes
-      python -m pynescript.util.pine_facade --list
+    The published wheel does not ship the pine-facade downloader; in that
+    case this command fails closed with a clear message. Development checkouts
+    that carry ``pynescript.util.pine_facade`` can list/download builtins.
     """
     try:
         from pynescript.util.pine_facade import DEFAULT_DEST
         from pynescript.util.pine_facade import download_builtin_scripts
     except ImportError as exc:
-        raise click.ClickException("TradingView builtin download was removed from this package.") from exc
+        raise click.ClickException(
+            "TradingView builtin download was removed from this package. See https://hoox.sh/pyne for current docs."
+        ) from exc
 
     summary = download_builtin_scripts(
         dest or DEFAULT_DEST,

@@ -1,5 +1,15 @@
 ## [Unreleased]
 
+### Added
+
+- **CLI now carries copyright and trademark attribution.** `pyne` bare invocation, `--help`, and `pyne info` print a one-line notice: `(c) 2024-2026 jango_blockchained · Pine Script™/TradingView® — trademarks of TradingView, Inc.` The `info` payload gains a `notice` key (additive).
+
+### Fixed
+
+- **`pyne runner history` query string is URL-encoded** (`urlencode`), so a `script_id` containing `&` / `=` / spaces no longer injects query parameters into `/cron/history`.
+- **`pyne compile` / compile engine repairs truncated-but-plausible scripts again.** The clean-source fast path in `compile_script` now verifies the source parses before skipping the repair pass (e.g. `//@version=6\nindicator(`); when it does not parse it falls back to the sanitizer, restoring the documented `compile` behavior for malformed scrapes. Perf for genuinely clean scripts is unchanged (the fallback parse is cache-hit on the transpile path).
+- **`pyne download-builtins` documents its fail-closed behavior.** The command is retained for CLI compatibility; without the (excluded) `pine_facade` helper it exits with a clear "removed from this package" message. Public docs now say it fails closed.
+
 ## [0.7.5] — 2026-11-23
 
 ### Changed
